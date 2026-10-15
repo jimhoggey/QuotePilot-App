@@ -5,6 +5,26 @@ import Testing
 import QuotePilotCore
 @testable import QuotePilotUI
 
+/// Where `SizeRecorder` leaves the size its content was given.
+private final class PlacedSize {
+    var size = CGSize.zero
+}
+
+/// Lays out its one child as it asks to be, and notes the size it ended up with, so a test can
+/// read how tall a dialog came out in a hosting view.
+private struct SizeRecorder: Layout {
+    let placed: PlacedSize
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(proposal) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        placed.size = bounds.size
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(bounds.size))
+    }
+}
+
 @MainActor
 @Suite struct AcceptanceTests {
     /// The sample's sent quote Q-0002 (01 Menu board design $450, 02 Printing 2 × $85), as the
@@ -87,29 +107,81 @@ import QuotePilotCore
         #expect(model.library.quote(number: "Q-0002")?.stage == .sent)
     }
 
-    @Test func aFlattenedPDFOffersHandTicking() throws {
+    /// Q-0002's PDF with its form flattened away, as printing to PDF does, saved under `name`.
+    func flattened(_ model: AppModel, number: String = "Q-0002", keepingKeywords: Bool, name: String) throws -> URL {
+        let quote = try #require(model.library.quote(number: number))
+        let data = model.pdf(try #require(model.quoteContent(quote.id)))
+        return try UIFixture.file(name, UIFixture.flattened(data, keepingKeywords: keepingKeywords))
+    }
+
+    /// A PDF with no tick boxes whose quote is known goes straight to the hand-ticking review: no box
+    /// first, one line of text in the review saying why.
+    @Test func aFlattenedPDFOpensTheHandTickingReviewAtOnce() throws {
         let model = try UIFixture.sampleModel()
         let quote = try #require(model.library.quote(number: "Q-0002"))
-        let data = model.pdf(try #require(model.quoteContent(quote.id)))
-        let url = try UIFixture.file("Q-0002 printed.pdf", UIFixture.flattened(data, keepingKeywords: true))
-        model.readReturnedQuote(at: url)
-        let box = try #require(model.message)
-        #expect(box.title == "No Tick Boxes")
-        model.respond(try #require(box.choices.first { $0.title == "Tick by Hand" }))
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: true, name: "Q-0002 printed.pdf"))
+        #expect(model.message == nil)
         let review = try review(model)
         #expect(review.source == .byHand)
         #expect(review.accepted.isEmpty)
         #expect(review.quoteID == quote.id)
+        #expect(review.fileName == "Q-0002 printed.pdf")
+        #expect(review.problems.isEmpty)
+        #expect(model.openQuoteID == quote.id)
+        #expect(model.library.quote(number: "Q-0002")?.stage == .sent)
+    }
+
+    /// The line at the top of the review says where the ticks came from.
+    @Test func theReviewsFirstLineSaysWhereItsTicksCameFrom() throws {
+        let model = try UIFixture.sampleModel()
+        model.readReturnedQuote(at: try returned(model, ticking: ["01"]))
+        #expect(try review(model).intro
+            == "From Q-0002 returned.pdf. Check the ticks and change any that are wrong, then confirm.")
+
+        model.dialog = nil
+        model.startHandTicking(try #require(model.library.quote(number: "Q-0002")?.id))
+        #expect(try review(model).intro == "Tick the lines the client accepted, then confirm.")
+
+        model.dialog = nil
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: true, name: "Q-0002 printed.pdf"))
+        #expect(try review(model).intro
+            == "This PDF has no tick boxes (it was probably printed or scanned). Tick the lines the client accepted.")
+    }
+
+    /// With the keywords gone too, the file's name can still say which quote it is.
+    @Test func aFlattenedPDFNamedAfterItsQuoteIsFoundByItsName() throws {
+        let model = try UIFixture.sampleModel()
+        let quote = try #require(model.library.quote(number: "Q-0002"))
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: false, name: "reply for q-0002 (scan).pdf"))
+        #expect(model.message == nil)
+        #expect(try review(model).quoteID == quote.id)
+    }
+
+    /// A number that isn't a quote here, or only starts like one, doesn't identify anything.
+    @Test func aFileNameThatDoesntNameAQuoteDoesntIdentifyOne() throws {
+        for name in ["Q-0099 reply.pdf", "Q-00021.pdf", "XQ-0002.pdf", "scan.pdf"] {
+            let model = try UIFixture.sampleModel()
+            model.readReturnedQuote(at: try flattened(model, keepingKeywords: false, name: name))
+            #expect(model.message?.title == "No Tick Boxes", "\(name)")
+            #expect(model.dialog == nil, "\(name)")
+        }
     }
 
     @Test func aFlattenedPDFWithNoNumberJustSaysSo() throws {
         let model = try UIFixture.sampleModel()
-        let quote = try #require(model.library.quote(number: "Q-0002"))
-        let data = model.pdf(try #require(model.quoteContent(quote.id)))
-        model.readReturnedQuote(at: try UIFixture.file("scan.pdf", UIFixture.flattened(data, keepingKeywords: false)))
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: false, name: "scan.pdf"))
         #expect(model.message?.title == "No Tick Boxes")
         #expect(model.message?.choices.count == 1)
         #expect(model.dialog == nil)
+    }
+
+    /// Still one box at most: a flattened PDF for a quote that can't take a decision says why.
+    @Test func aFlattenedPDFForADraftQuoteIsOneBox() throws {
+        let model = try UIFixture.sampleModel()
+        model.readReturnedQuote(at: try flattened(model, number: "Q-0004", keepingKeywords: true, name: "Q-0004 printed.pdf"))
+        #expect(model.dialog == nil)
+        #expect(model.message?.title == "Can't Record It")
+        #expect(model.message?.text == LibraryError.notSent.message)
     }
 
     /// A decline is one step, not two: the review's own button says what it will do, and no box
@@ -229,10 +301,7 @@ import QuotePilotCore
     /// A hand-ticked review is recorded as ticked by hand, with the file it came from if it had one.
     @Test func aHandTickedReviewIsRecordedByHand() throws {
         let model = try UIFixture.sampleModel()
-        let quote = try #require(model.library.quote(number: "Q-0002"))
-        let data = model.pdf(try #require(model.quoteContent(quote.id)))
-        model.readReturnedQuote(at: try UIFixture.file("Q-0002 printed.pdf", UIFixture.flattened(data, keepingKeywords: true)))
-        model.respond(try #require(model.message?.choices.first { $0.title == "Tick by Hand" }))
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: true, name: "Q-0002 printed.pdf"))
         var review = try review(model)
         #expect(review.source == .byHand)
         review.lines[0].accepted = true
@@ -269,32 +338,99 @@ import QuotePilotCore
         #expect(rep.map(Snapshot.hasContent) == true)
     }
 
-    /// Four warnings above eight lines is the tallest the review can be. It must stay inside the
-    /// smallest window (620 high, less the title bar and the status bar).
-    @Test func aReviewWithEveryWarningFitsTheSmallestWindow() throws {
-        let model = try UIFixture.sampleModel()
+    // MARK: How tall the review is
+
+    /// The expired quote Q-0003 with eight lines, read from a returned form. With `allWarnings` the
+    /// PDF has a line 09 the quote doesn't have and nothing ticked: four warnings (unknown line,
+    /// missing lines, nothing ticked, expired). Without, line 01 is ticked: two warnings.
+    func eightLineReview(_ model: AppModel, allWarnings: Bool) throws -> AcceptanceReview {
         var quote = try #require(model.library.quote(number: "Q-0003"))
         for number in 2...8 { quote.addLine(LineItem(title: "Extra work \(number)", rate: Money(dollars: 100))) }
         model.updateQuote(quote)
         quote = try #require(model.library.quote(number: "Q-0003"))
-        // The client's PDF had line 01 and a line 09 the quote doesn't have, with nothing ticked,
-        // and the quote has expired: all four warnings.
-        let form = ReturnedForm(quoteNumber: "Q-0003", acceptAll: false, ticked: [], unticked: ["01", "09"])
-        var review = AcceptanceReview(quote: quote, proposal: quote.proposal(from: form, today: model.today),
+        let form = allWarnings
+            ? ReturnedForm(quoteNumber: "Q-0003", acceptAll: false, ticked: [], unticked: ["01", "09"])
+            : ReturnedForm(quoteNumber: "Q-0003", acceptAll: false, ticked: ["01"], unticked: [])
+        let review = AcceptanceReview(quote: quote, proposal: quote.proposal(from: form, today: model.today),
                                       source: .returnedPDF, fileName: "Q-0003 returned.pdf")
-        #expect(review.problems.count == 4)
-        func height(of review: AcceptanceReview) -> CGFloat {
-            let host = NSHostingView(rootView: AcceptanceReviewView(model: model, review: review)
-                .environment(\.colorScheme, .light))
-            #expect(host.fittingSize.width == 600)
-            return host.fittingSize.height
+        #expect(review.problems.count == (allWarnings ? 4 : 2))
+        return review
+    }
+
+    /// How tall the review comes out in a window `windowHeight` high, placed the way the dialog
+    /// overlay places it: centred, with a margin above and below.
+    func reviewHeight(_ review: AcceptanceReview, _ model: AppModel, windowHeight: CGFloat) -> CGFloat {
+        let size = CGSize(width: 1240, height: windowHeight)
+        let placed = PlacedSize()
+        let view = SizeRecorder(placed: placed) { AcceptanceReviewView(model: model, review: review) }
+            .padding(.vertical, DialogOverlay.verticalMargin)
+            .frame(width: size.width, height: size.height)
+            .environment(\.colorScheme, .light)
+        _ = NSApplication.shared
+        let host = NSHostingView(rootView: view)
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.contentView = host
+        host.frame = CGRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        return placed.size.height
+    }
+
+    /// The height a 500-high scroll area gets between two 100-high rows (10 apart) when the stack is
+    /// offered `offered`.
+    func scrollAreaHeight(offered: CGFloat) -> CGFloat {
+        let placed = PlacedSize()
+        let stack = LeftoverHeightStack(spacing: 10) {
+            Color.clear.frame(width: 100, height: 100)
+            SizeRecorder(placed: placed) { ScrollView { Color.clear.frame(width: 100, height: 500) } }
+                .takesLeftoverHeight()
+            Color.clear.frame(width: 100, height: 100)
         }
-        #expect(height(of: review) <= 560, "the review is \(height(of: review)) high")
+        let size = CGSize(width: 300, height: offered)
+        _ = NSApplication.shared
+        let host = NSHostingView(rootView: stack.frame(width: size.width, height: size.height))
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.contentView = host
+        host.frame = CGRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        return placed.size.height
+    }
+
+    /// The scroll area is as tall as its contents, no taller than what's left of the height offered.
+    @Test func theScrollAreaTakesWhatTheOtherRowsLeaveUpToItsContents() {
+        #expect(scrollAreaHeight(offered: 2000) == 500)
+        #expect(scrollAreaHeight(offered: 720) == 500)
+        #expect(scrollAreaHeight(offered: 400) == 180)   // 400 less two rows and two gaps
+        #expect(scrollAreaHeight(offered: 150) == 0)     // never negative
+    }
+
+    /// Two warnings above eight lines show every line, with no scrolling, in a roomy window (1240 x
+    /// 800) and in the smallest one (980 x 620): the review is as tall as its contents.
+    @Test func aShortReviewDoesntScroll() throws {
+        let model = try UIFixture.sampleModel()
+        let review = try eightLineReview(model, allWarnings: false)
+        let natural = reviewHeight(review, model, windowHeight: 5000)
+        #expect(natural > 500, "the review measured \(natural)")
+        #expect(reviewHeight(review, model, windowHeight: 800) == natural)
+        #expect(reviewHeight(review, model, windowHeight: 620) == natural, "two warnings need \(natural)")
+    }
+
+    /// Four warnings above eight lines is the tallest the review gets. In the smallest window (620
+    /// high) it has to stay inside, and it does that by scrolling, not by running off the window.
+    @Test func aReviewWithEveryWarningFitsTheSmallestWindow() throws {
+        let model = try UIFixture.sampleModel()
+        var review = try eightLineReview(model, allWarnings: true)
         // A quote can't be both expired and already decided, but if it could, the extra line fits too.
         review.replacementNote = "This replaces the decision recorded on 15 October 2026."
-        #expect(height(of: review) <= 560, "with the replacement note it is \(height(of: review)) high")
-        let rep = Snapshot.render(AcceptanceReviewView(model: model, review: review),
-                                  size: CGSize(width: 980, height: 620), name: "acceptance-review-worst")
+        let natural = reviewHeight(review, model, windowHeight: 5000)
+        let small = reviewHeight(review, model, windowHeight: 620)
+        #expect(small <= 620 - 60, "in a 620 window it is \(small) high")
+        #expect(natural > small, "unscrolled it would be \(natural)")
+
+        // Through the real overlay: the whole window, the dialog over it.
+        model.dialog = .acceptance(review)
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 980, height: 620), name: "acceptance-review-worst")
         #expect(rep.map(Snapshot.hasContent) == true)
     }
 

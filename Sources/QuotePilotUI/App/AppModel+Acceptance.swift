@@ -45,6 +45,19 @@ public struct AcceptanceReview: Equatable {
     public var accepted: [String] { lines.filter(\.accepted).map(\.code) }
     public var declined: [String] { lines.filter { !$0.accepted }.map(\.code) }
 
+    /// The line at the top of the review: where the ticks came from. A hand-ticked review that
+    /// has a file is one whose PDF had no tick boxes to read.
+    public var intro: String {
+        switch source {
+        case .returnedPDF:
+            return "From \(fileName ?? "the returned PDF"). Check the ticks and change any that are wrong, then confirm."
+        case .byHand where fileName != nil:
+            return "This PDF has no tick boxes (it was probably printed or scanned). Tick the lines the client accepted."
+        case .byHand:
+            return "Tick the lines the client accepted, then confirm."
+        }
+    }
+
     /// With nothing ticked the default button records a decline, and says so: one step, no box.
     public var confirmTitle: String { accepted.isEmpty ? "Record as Declined" : "Confirm" }
 
@@ -99,7 +112,7 @@ extension AppModel {
         do {
             form = try ReturnedQuoteReader.read(data)
         } catch ReturnedQuoteError.noForm {
-            return offerHandTicking(data: data, fileName: url.lastPathComponent)
+            return openHandTickingForFlattened(data: data, fileName: url.lastPathComponent)
         } catch let error as ReturnedQuoteError {
             return show(title: "Can't Read That PDF", text: error.message, kind: .warning)
         } catch {
@@ -116,9 +129,11 @@ extension AppModel {
                                               source: .returnedPDF, fileName: url.lastPathComponent))
     }
 
-    /// "Record Acceptance…": every line starts unticked.
+    /// "Record Acceptance…": every line starts unticked. `fileName` is the PDF the client sent when it
+    /// had no tick boxes to read.
     public func startHandTicking(_ quoteID: UUID, fileName: String? = nil) {
         guard let quote = library.quote(quoteID), canRecordAcceptance(quote) else { return }
+        openQuote(quote.id)
         // A form with nothing ticked on every line. The review shows no "nothing ticked" warning for
         // a hand-ticked quote (that's where it starts), so only the expiry warning is left.
         let proposal = quote.proposal(from: ReturnedForm(quoteNumber: quote.number, acceptAll: false, ticked: [],
@@ -164,18 +179,37 @@ extension AppModel {
         return true
     }
 
-    /// A PDF with no form: if it still names its quote, offer to tick that quote by hand.
-    private func offerHandTicking(data: Data, fileName: String) {
-        if let number = ReturnedQuoteReader.quoteNumber(inMetadataOf: data), let quote = library.quote(number: number) {
-            message = MessageBox(kind: .warning, title: "No Tick Boxes",
-                                 text: "This is quote \(quote.number), but its tick boxes are gone. The client's app may have flattened it (printing to PDF does this). Tick the lines by hand from what the client marked.",
-                                 choices: [MessageBox.Choice("Tick by Hand", isDefault: true) {
-                                               self.startHandTicking(quote.id, fileName: fileName)
-                                           },
-                                           MessageBox.Choice("Cancel", isCancel: true)])
-        } else {
-            show(title: "No Tick Boxes", text: ReturnedQuoteError.noForm.message, kind: .warning)
+    /// A PDF with no form (printed or scanned). If its quote can be told, the hand-ticking review opens
+    /// at once, with a line in it saying why: no box first. If not, the one error box stands.
+    private func openHandTickingForFlattened(data: Data, fileName: String) {
+        guard let quote = quoteBehindFlattened(data: data, fileName: fileName) else {
+            return show(title: "No Tick Boxes", text: ReturnedQuoteError.noForm.message, kind: .warning)
         }
+        startHandTicking(quote.id, fileName: fileName)
+    }
+
+    /// The quote a PDF with no form belongs to: the number in its keywords, which usually survive
+    /// flattening, or else one in its file name.
+    private func quoteBehindFlattened(data: Data, fileName: String) -> Quote? {
+        if let number = ReturnedQuoteReader.quoteNumber(inMetadataOf: data), let quote = library.quote(number: number) {
+            return quote
+        }
+        return library.quotes
+            .filter { Self.fileName(fileName, mentions: $0.number) }
+            .max { $0.number.count < $1.number.count }
+    }
+
+    /// True when `number` is in `name` as a whole number: not run into letters or digits before it or
+    /// digits after it ("Q-00021" isn't Q-0002, "XQ-0002" isn't either). Case doesn't matter.
+    static func fileName(_ name: String, mentions number: String) -> Bool {
+        var searching = name.startIndex..<name.endIndex
+        while let found = name.range(of: number, options: .caseInsensitive, range: searching) {
+            let before = found.lowerBound == name.startIndex ? nil : name[name.index(before: found.lowerBound)]
+            let after = found.upperBound == name.endIndex ? nil : name[found.upperBound]
+            if before?.isLetter != true, before?.isNumber != true, after?.isNumber != true { return true }
+            searching = found.upperBound..<name.endIndex
+        }
+        return false
     }
 
     /// Files dropped on the window: the first PDF file is read as a returned quote. A web link isn't

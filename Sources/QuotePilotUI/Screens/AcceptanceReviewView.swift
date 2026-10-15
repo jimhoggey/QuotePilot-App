@@ -12,21 +12,16 @@ struct AcceptanceReviewView: View {
         _review = State(initialValue: review)
     }
 
-    /// The warnings and the lines share one scroll area of at most this height, so however many
-    /// warnings there are the dialog still fits the smallest window (620 high). Tall enough that two
-    /// warnings and eight lines need no scrolling, and that even with four warnings the first lines
-    /// show.
-    static let scrollHeight: CGFloat = 280
-
     var body: some View {
         let quote = model.library.quote(review.quoteID)
         let accepted = Totals(subtotal: review.lines.filter(\.accepted).reduce(.zero) { $0 + $1.amount },
                               taxed: quote?.taxed ?? false).total
         DialogPanel(title: "Record Acceptance - \(quote?.number ?? "")", icon: .quote, width: 600) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(review.source == .returnedPDF
-                     ? "From \(review.fileName ?? "the returned PDF"). Check the ticks and change any that are wrong, then confirm."
-                     : "Tick the lines the client accepted, then confirm.")
+            // The warnings and the lines share one scroll area. It's as tall as its contents, or as
+            // tall as the window leaves room for (the overlay keeps the dialog inside it), and then
+            // it scrolls. The warnings come first, so a blocking one is the first thing seen.
+            LeftoverHeightStack(spacing: 10) {
+                Text(review.intro)
                     .font(Win95.body)
                     .fixedSize(horizontal: false, vertical: true)
                 if let note = review.replacementNote {
@@ -34,8 +29,6 @@ struct AcceptanceReviewView: View {
                         .font(Win95.label)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                // As tall as its contents, up to `scrollHeight`, then it scrolls. The warnings come
-                // first, so a blocking one is the first thing seen.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(Array(review.problems.enumerated()), id: \.offset) { _, problem in
@@ -61,8 +54,7 @@ struct AcceptanceReviewView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: Self.scrollHeight)
-                .fixedSize(horizontal: false, vertical: true)
+                .takesLeftoverHeight()
                 HStack(spacing: 6) {
                     Text("Accepted:").font(Win95.label)
                     Text(model.money(accepted)).font(Win95.money)

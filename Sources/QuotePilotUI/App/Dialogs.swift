@@ -39,10 +39,61 @@ struct DialogPanel<Content: View>: View {
     }
 }
 
+/// A top-to-bottom stack in which one child, marked `takesLeftoverHeight()` (a scroll area), is as
+/// tall as it wants to be but no taller than what the others leave of the height the stack is
+/// offered. A dialog built on it grows with its window and scrolls only when the window has no more
+/// room. Offered no height at all, the scroll area is as tall as its contents.
+struct LeftoverHeightStack: Layout {
+    var spacing: CGFloat = 10
+
+    struct Flexible: LayoutValueKey {
+        static let defaultValue = false
+    }
+
+    private func heights(width: CGFloat?, height: CGFloat?, _ subviews: Subviews) -> [CGFloat] {
+        let ask = ProposedViewSize(width: width, height: nil)
+        var heights = subviews.map { $0[Flexible.self] ? 0 : $0.sizeThatFits(ask).height }
+        let used = heights.reduce(0, +) + spacing * CGFloat(max(subviews.count - 1, 0))
+        for (index, subview) in subviews.enumerated() where subview[Flexible.self] {
+            let wanted = subview.sizeThatFits(ask).height
+            heights[index] = height.map { min(wanted, max(0, $0 - used)) } ?? wanted
+        }
+        return heights
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let ask = ProposedViewSize(width: proposal.width, height: nil)
+        let width = proposal.width ?? subviews.map { $0.sizeThatFits(ask).width }.max() ?? 0
+        let heights = heights(width: proposal.width, height: proposal.height, subviews)
+        return CGSize(width: width, height: heights.reduce(0, +) + spacing * CGFloat(max(subviews.count - 1, 0)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let heights = heights(width: bounds.width, height: bounds.height, subviews)
+        var y = bounds.minY
+        for (subview, height) in zip(subviews, heights) {
+            subview.place(at: CGPoint(x: bounds.minX, y: y), anchor: .topLeading,
+                          proposal: ProposedViewSize(width: bounds.width, height: height))
+            y += height + spacing
+        }
+    }
+}
+
+extension View {
+    /// Marks the one child of a `LeftoverHeightStack` that gives way when the stack runs out of height.
+    func takesLeftoverHeight() -> some View {
+        layoutValue(key: LeftoverHeightStack.Flexible.self, value: true)
+    }
+}
+
 /// Shows the current dialog over the window; the window behind can't be clicked meanwhile.
 struct DialogOverlay: View {
     let model: AppModel
     let dialog: Dialog
+
+    /// The gap kept above and below a dialog, so that one as tall as its window allows still sits
+    /// inside it.
+    static let verticalMargin: CGFloat = 30
 
     var body: some View {
         ZStack {
@@ -50,6 +101,7 @@ struct DialogOverlay: View {
             // A message box over the dialog owns Return and Escape, as the one on top of a Windows 95
             // dialog does: the dialog's own buttons wait until it's answered.
             content
+                .padding(.vertical, Self.verticalMargin)
                 .disabled(model.message != nil)
         }
     }
