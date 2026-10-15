@@ -177,3 +177,71 @@ struct MessageBoxView: View {
         return nil
     }
 }
+
+/// Windows 95 property-sheet tabs. The selected tab is taller and joins the panel below it.
+public struct PropertyTabs<Tab: Hashable, Content: View>: View {
+    @Binding var selection: Tab
+    let tabs: [(Tab, String)]
+    let content: Content
+
+    public init(selection: Binding<Tab>, tabs: [(Tab, String)], @ViewBuilder content: () -> Content) {
+        self._selection = selection
+        self.tabs = tabs
+        self.content = content()
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .bottom, spacing: 0) {
+                ForEach(Array(tabs.enumerated()), id: \.offset) { _, tab in
+                    tabButton(tab.0, title: tab.1)
+                }
+            }
+            .padding(.leading, 2)
+            .zIndex(1)
+            content
+                .padding(10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .background(Win95.face)
+                .overlay(Bevel(.raised))
+        }
+    }
+
+    private func tabButton(_ tab: Tab, title: String) -> some View {
+        let selected = tab == selection
+        return Button {
+            selection = tab
+        } label: {
+            Text(title)
+                .font(Win95.body)
+                .foregroundStyle(Win95.text)
+                .padding(.horizontal, selected ? 12 : 10)
+                .frame(height: selected ? 24 : 21)
+                .background(Win95.face)
+                .overlay(TabEdge())
+                // The selected tab covers the panel's top edge beneath it, so the two join up.
+                .offset(y: selected ? 2 : 0)
+        }
+        .buttonStyle(.plain)
+        .zIndex(selected ? 1 : 0)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// A tab's raised edges: left and top lit, right in shadow, and no bottom.
+struct TabEdge: View {
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width, h = size.height
+            guard w > 4, h > 2 else { return }
+            context.fill(Path(CGRect(x: 0, y: 2, width: 1, height: h - 2)), with: .color(Win95.highlight))
+            context.fill(Path(CGRect(x: 1, y: 1, width: 1, height: 1)), with: .color(Win95.highlight))
+            context.fill(Path(CGRect(x: 2, y: 0, width: w - 4, height: 1)), with: .color(Win95.highlight))
+            context.fill(Path(CGRect(x: w - 2, y: 1, width: 1, height: 1)), with: .color(Win95.dark))
+            context.fill(Path(CGRect(x: w - 1, y: 2, width: 1, height: h - 2)), with: .color(Win95.dark))
+            context.fill(Path(CGRect(x: w - 2, y: 2, width: 1, height: h - 2)), with: .color(Win95.shadow))
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}

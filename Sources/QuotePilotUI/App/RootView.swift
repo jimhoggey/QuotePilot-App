@@ -71,7 +71,7 @@ public struct RootView: View {
         case .invoices: SectionPlaceholder(section: .invoices)
         case .clients: ClientsView(model: model)
         case .activity: SectionPlaceholder(section: .activity)
-        case .brand: SectionPlaceholder(section: .brand)
+        case .brand: BrandView(model: model)
         }
     }
 
