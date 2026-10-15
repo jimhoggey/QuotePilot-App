@@ -15,8 +15,16 @@ struct InvoicesView: View {
         }
     }
 
+    /// The invoices the list shows: all of them, or those matching the search.
+    static func visibleRows(_ model: AppModel) -> [InvoiceRow] {
+        let query = model.findText[.invoices, default: ""]
+        return model.library.invoices
+            .map { InvoiceRow($0, library: model.library, today: model.today) }
+            .filter { Find.matches(query, [$0.number, $0.client, $0.kind, $0.status.listLabel]) }
+    }
+
     private var list: some View {
-        let rows = model.library.invoices.map { InvoiceRow($0, library: model.library, today: model.today) }
+        let rows = Self.visibleRows(model)
         return GeometryReader { geometry in
             let layout = Self.layout(width: geometry.size.width)
             let columns = Self.columns(showKind: layout.showKind, currencyCode: model.currencyCode)
@@ -28,12 +36,15 @@ struct InvoicesView: View {
                         Button("Open") { if let id = model.selectedInvoiceID { model.openInvoice(id) } }
                             .buttonStyle(.win95)
                             .disabled(model.selectedInvoiceID == nil)
+                        FindField(text: model.findBinding(.invoices), request: model.findRequest)
                         Spacer()
                     }
                     NoteBanner("Double-click an invoice to open it. New Invoice (⇧⌘N) starts a one-off invoice; invoices for a job come from its quote.")
                     DetailsList(rows, id: \.id, columns: columns, selection: $model.selectedInvoiceID,
                                 sort: DetailsSort(column: 0, ascending: false),
-                                emptyText: "No invoices yet.",
+                                emptyText: model.findText[.invoices, default: ""].isEmpty
+                                    ? "No invoices yet."
+                                    : "No invoices match \"\(model.findText[.invoices, default: ""])\".",
                                 onOpen: { model.openInvoice($0) })
                         // A sort is a column number, so a different set of columns starts afresh.
                         .id(layout.showKind)

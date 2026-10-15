@@ -49,5 +49,9 @@ public struct QuotePilotCommands: Commands {
                     .keyboardShortcut(KeyEquivalent(section.shortcut))
             }
         }
+        CommandGroup(after: .textEditing) {
+            Button("Find…") { model.whenFree { model.find() } }
+                .keyboardShortcut("f")
+        }
     }
 }

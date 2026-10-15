@@ -41,8 +41,16 @@ struct QuoteRow: Identifiable {
 struct QuoteListView: View {
     @Bindable var model: AppModel
 
+    /// The quotes the list shows: all of them, or those matching the search.
+    static func visibleRows(_ model: AppModel) -> [QuoteRow] {
+        let query = model.findText[.quotes, default: ""]
+        return model.library.quotes
+            .map { QuoteRow($0, library: model.library, today: model.today) }
+            .filter { Find.matches(query, [$0.number, $0.client, $0.title, $0.status.label]) }
+    }
+
     var body: some View {
-        let rows = model.library.quotes.map { QuoteRow($0, library: model.library, today: model.today) }
+        let rows = Self.visibleRows(model)
         let selected = model.selectedQuoteID.flatMap { model.library.quote($0) }
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
@@ -58,13 +66,16 @@ struct QuoteListView: View {
                     .buttonStyle(.win95)
                     .disabled(selected?.stage != .draft)
                 Spacer()
+                FindField(text: model.findBinding(.quotes), request: model.findRequest)
                 Text(DashboardView.count(rows.count, "quote", "quotes"))
                     .font(Win95.body)
                     .foregroundStyle(Win95.text)
             }
             DetailsList(rows, id: \.id, columns: columns, selection: $model.selectedQuoteID,
                         sort: DetailsSort(column: 0, ascending: false),
-                        emptyText: "No quotes yet. Press New Quote (⌘N) to write one.",
+                        emptyText: model.findText[.quotes, default: ""].isEmpty
+                            ? "No quotes yet. Press New Quote (⌘N) to write one."
+                            : "No quotes match \"\(model.findText[.quotes, default: ""])\".",
                         onOpen: { model.openQuote($0) },
                         rowMenu: { id in AnyView(menu(id)) })
         }

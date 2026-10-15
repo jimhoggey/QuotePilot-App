@@ -5,19 +5,32 @@ import SwiftUI
 struct ClientsView: View {
     @Bindable var model: AppModel
 
+    /// The clients the list shows: all of them, or those matching the search.
+    static func visibleClients(_ model: AppModel) -> [Client] {
+        let query = model.findText[.clients, default: ""]
+        return model.library.clients.filter {
+            Find.matches(query, [$0.name, $0.contactName, $0.email, $0.phone])
+        }
+    }
+
     var body: some View {
+        let clients = Self.visibleClients(model)
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Button("New Client") { model.newClient() }
                         .buttonStyle(.win95)
+                    FindField(text: model.findBinding(.clients), request: model.findRequest)
                     Spacer()
-                    Text(DashboardView.count(model.library.clients.count, "client", "clients"))
+                    Text(DashboardView.count(clients.count, "client", "clients"))
                         .font(Win95.body)
                         .foregroundStyle(Win95.text)
                 }
-                DetailsList(model.library.clients, id: \.id, columns: columns, selection: $model.selectedClientID,
-                            sort: DetailsSort(column: 0), emptyText: "No clients yet. Press New Client to add one.")
+                DetailsList(clients, id: \.id, columns: columns, selection: $model.selectedClientID,
+                            sort: DetailsSort(column: 0),
+                            emptyText: model.findText[.clients, default: ""].isEmpty
+                                ? "No clients yet. Press New Client to add one."
+                                : "No clients match \"\(model.findText[.clients, default: ""])\".")
             }
             // At the window's smallest (980 wide) the list and the details have 754 points between
             // them, so their minimums (400 + 320) must fit, or the row spills over the section tree.

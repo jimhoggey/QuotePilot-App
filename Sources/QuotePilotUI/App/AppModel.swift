@@ -74,6 +74,10 @@ public final class AppModel {
     /// The invoice open in the editor; nil shows the invoice list.
     public var openInvoiceID: UUID?
     public var selectedClientID: UUID?
+    /// Each list's search text, kept while you move between sections.
+    public var findText: [AppSection: String] = [:]
+    /// Bumped by ⌘F; the current list's Find field takes the cursor.
+    public var findRequest = 0
     public var message: MessageBox?
     /// What the last action did, for the status bar (see `note(_:)`).
     public private(set) var statusNote: StatusNote?
@@ -232,6 +236,17 @@ public final class AppModel {
             show(error, title: "Couldn't save the PDF")
         }
         pendingExport = nil
+    }
+
+    // MARK: Find
+
+    /// ⌘F
+    public func find() {
+        findRequest += 1
+    }
+
+    public func findBinding(_ section: AppSection) -> Binding<String> {
+        Binding(get: { self.findText[section, default: ""] }, set: { self.findText[section] = $0 })
     }
 
     // MARK: Going places
