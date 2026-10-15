@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "QuotePilotCore", targets: ["QuotePilotCore"]),
         .library(name: "QuotePilotPDF", targets: ["QuotePilotPDF"]),
         .executable(name: "qp", targets: ["qp"]),
+        .executable(name: "QuotePilotApp", targets: ["QuotePilotApp"]),
     ],
     targets: [
         .target(name: "QuotePilotCore"),
@@ -23,9 +24,15 @@ let package = Package(
                 swiftSettings: [.swiftLanguageMode(.v5)]),
         .executableTarget(name: "qp", dependencies: ["QuotePilotCore", "QuotePilotPDF"],
                           swiftSettings: [.swiftLanguageMode(.v5)]),
+        .target(name: "QuotePilotUI", dependencies: ["QuotePilotCore", "QuotePilotPDF"],
+                swiftSettings: [.swiftLanguageMode(.v5)]),
+        .executableTarget(name: "QuotePilotApp", dependencies: ["QuotePilotUI", "QuotePilotCore"],
+                          swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "QuotePilotCoreTests", dependencies: ["QuotePilotCore"],
                     swiftSettings: testSettings),
         .testTarget(name: "QuotePilotPDFTests", dependencies: ["QuotePilotCore", "QuotePilotPDF"],
+                    swiftSettings: testSettings + [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "QuotePilotUITests", dependencies: ["QuotePilotUI", "QuotePilotCore", "QuotePilotPDF"],
                     swiftSettings: testSettings + [.swiftLanguageMode(.v5)]),
     ]
 )

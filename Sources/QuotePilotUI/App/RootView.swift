@@ -1,0 +1,383 @@
+import AppKit
+import QuotePilotCore
+import SwiftUI
+
+/// The whole window: title bar, toolbar, the section tree, the current section and the status bar,
+/// or the unreadable-library screen. Message boxes sit on top.
+public struct RootView: View {
+    @Bindable var model: AppModel
+
+    public init(model: AppModel) {
+        self.model = model
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            // The macOS window buttons sit over the left end of this bar. It is drawn above the rows
+            // under it (`zIndex`): a background there, such as the toolbar's, grows up through the
+            // system title bar's safe-area inset to the top of the window, and would otherwise paint
+            // over this bar, leaving plain grey under the window buttons.
+            TitleBar(windowTitle, icon: titleIcon, height: 28, leadingInset: 72)
+                .overlay(WindowDragArea())
+                .zIndex(1)
+            switch model.loadState {
+            case .ready:
+                // While a message box, dialog, save panel or open panel is up (`isBusy`), nothing
+                // behind it takes a click, a Tab or a key, as with the menus (`whenFree`).
+                Win95Toolbar(model: model)
+                    .disabled(model.isBusy)
+                HStack(spacing: 4) {
+                    SectionTree(model: model)
+                        .frame(width: 190)
+                        .disabled(model.isBusy)
+                    // Exactly the room beside the tree, and clipped to it: a section that needs more
+                    // is cut on the right instead of pushing the tree, or the window, aside.
+                    sectionContent
+                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                        .disabled(model.isBusy)
+                }
+                .padding(4)
+                StatusBar(model: model)
+            case .unreadable(let reason):
+                UnreadableLibraryView(model: model, reason: reason)
+                    .disabled(model.isBusy)
+            }
+        }
+        .frame(minWidth: 980, minHeight: 620)
+        .background(Win95.face)
+        .preferredColorScheme(.light)
+        // Makes the real window's own title bar transparent and untitled, with the content under it
+        // (see `WindowAccessor`); the drawn bar above is the only one anyone sees.
+        .background(WindowAccessor(title: windowTitle))
+        .overlay { messageOverlay }
+        // The last layout modifier, so nothing between this and the window can keep the content out
+        // of the title-bar area: the drawn bar starts at the very top, under the window buttons.
+        .ignoresSafeArea(.all, edges: .top)
+        .fileExporter(isPresented: exporting, document: model.pendingExport.map { ExportFile(data: $0.data) },
+                      contentType: model.pendingExport?.contentType ?? .pdf,
+                      defaultFilename: model.pendingExport?.fileName) { result in
+            model.finishExport(result)
+        }
+        .fileImporter(isPresented: choosing, allowedContentTypes: model.choosingFile?.contentTypes ?? [.pdf]) { result in
+            model.fileChosen(result)
+        }
+        // A PDF dropped anywhere on the window is read as a returned quote.
+        .dropDestination(for: URL.self) { urls, _ in
+            model.dropped(urls)
+        }
+    }
+
+    private var windowTitle: String {
+        if case .unreadable = model.loadState { return "Quote Pilot" }
+        return "Quote Pilot - \(model.section.title)"
+    }
+
+    private var titleIcon: PixelIcon {
+        if case .unreadable = model.loadState { return .warning }
+        return model.section.icon
+    }
+
+    private var exporting: Binding<Bool> {
+        Binding(get: { model.pendingExport != nil }, set: { if !$0 { model.pendingExport = nil } })
+    }
+
+    private var choosing: Binding<Bool> {
+        Binding(get: { model.choosingFile != nil }, set: { if !$0 { model.choosingFile = nil } })
+    }
+
+    @ViewBuilder
+    private var sectionContent: some View {
+        switch model.section {
+        case .dashboard: DashboardView(model: model)
+        case .quotes: QuotesView(model: model)
+        case .invoices: InvoicesView(model: model)
+        case .clients: ClientsView(model: model)
+        case .activity: ActivityView(model: model)
+        case .brand: BrandView(model: model)
+        }
+    }
+
+    /// The dialog, if one is open, with any message box above it.
+    @ViewBuilder
+    private var messageOverlay: some View {
+        ZStack {
+            if let dialog = model.dialog {
+                DialogOverlay(model: model, dialog: dialog)
+            }
+            if let box = model.message {
+                ZStack {
+                    // As with a Windows 95 message box, the window behind stays visible but can't be clicked.
+                    Color.white.opacity(0.001)
+                    MessageBoxView(box: box) { model.respond($0) }
+                }
+            }
+        }
+    }
+}
+
+/// The toolbar: square buttons with a pixel icon over a short label. A button that can't run on the
+/// current screen is greyed out, not hidden, so the toolbar's shape never changes.
+struct Win95Toolbar: View {
+    let model: AppModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 2) {
+                tool("New Quote", .quote, help: "Start a new quote (⌘N)") { model.newQuote() }
+                tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)") { model.newInvoice() }
+                ToolbarSeparator()
+                tool("Send", .mail, help: "Open a Mail draft of the open quote or invoice (⌘S)",
+                     enabled: model.sendableDocument != nil) {
+                    if let document = model.sendableDocument { model.send(document) }
+                }
+                tool("Read Reply", .folder, help: "Read a returned quote PDF, or drop one on the window (⌘O)") {
+                    model.choosingFile = .returnedQuote
+                }
+                tool("Payment", .payment, help: "Record a payment on the open or selected invoice",
+                     enabled: model.payableInvoiceID != nil) {
+                    if let id = model.payableInvoiceID { model.startPayment(id) }
+                }
+                ToolbarSeparator()
+                tool("Save PDF", .pdf, help: "Save the open quote or invoice as a PDF (⌘P)",
+                     enabled: model.canExportPDF) { model.exportPDF() }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
+            EtchedLine()
+        }
+        .background(Win95.face)
+    }
+
+    private func tool(_ title: String, _ icon: PixelIcon, help: String, enabled: Bool = true,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                PixelIconView(icon, size: 32)
+                Text(title)
+            }
+        }
+        .buttonStyle(Win95ToolbarButtonStyle())
+        .disabled(!enabled)
+        .help(help)
+        .accessibilityLabel(title)
+        .accessibilityHint(help)
+    }
+}
+
+struct ToolbarSeparator: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Win95.shadow.frame(width: 1)
+            Win95.highlight.frame(width: 1)
+        }
+        .frame(height: 50)
+        .padding(.horizontal, 4)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The Explorer-style tree on the left: the business at the top, the six sections under it.
+struct SectionTree: View {
+    @Bindable var model: AppModel
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                PixelIconView(.folder)
+                Text(model.library.brand.businessName.isEmpty ? "Quote Pilot" : model.library.brand.businessName)
+                    .font(Win95.label)
+                    .foregroundStyle(Win95.text)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 4)
+            .frame(height: 22)
+            ForEach(AppSection.allCases) { section in
+                row(section, isLast: section == AppSection.allCases.last)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(4)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(Win95.field)
+        .overlay(Bevel(.sunken))
+        .focusable()
+        .focusEffectDisabled()
+        .focused($focused)
+        .onKeyPress(.upArrow) { step(-1) }
+        .onKeyPress(.downArrow) { step(1) }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Sections")
+    }
+
+    private func row(_ section: AppSection, isLast: Bool) -> some View {
+        let selected = model.section == section
+        return HStack(spacing: 4) {
+            TreeConnector(isLast: isLast)
+                .frame(width: 16, height: 22)
+            PixelIconView(section.icon)
+            Text(section.title)
+                .font(Win95.body)
+                .foregroundStyle(selected ? Win95.highlight : Win95.text)
+                .padding(.horizontal, 3)
+                .padding(.vertical, 1)
+                .background(selected ? Win95.selection : Color.clear)
+                .overlay(selected && focused ? FocusRect() : nil)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 10)
+        .frame(height: 22)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            model.go(to: section)
+            focused = true
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { model.go(to: section) }
+    }
+
+    private func step(_ delta: Int) -> KeyPress.Result {
+        // A message box, dialog or panel owns the keyboard; the tree is disabled behind it, this is a second guard.
+        guard !model.isBusy else { return .ignored }
+        let all = AppSection.allCases
+        let index = all.firstIndex(of: model.section) ?? 0
+        model.go(to: all[min(max(index + delta, 0), all.count - 1)])
+        return .handled
+    }
+}
+
+/// Explorer's dotted tree lines.
+struct TreeConnector: View {
+    let isLast: Bool
+
+    var body: some View {
+        Canvas { context, size in
+            let x = (size.width / 2).rounded(.down) + 0.5
+            let middle = (size.height / 2).rounded(.down) + 0.5
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: 0))
+            path.addLine(to: CGPoint(x: x, y: isLast ? middle : size.height))
+            path.move(to: CGPoint(x: x, y: middle))
+            path.addLine(to: CGPoint(x: size.width, y: middle))
+            context.stroke(path, with: .color(Win95.shadow), style: StrokeStyle(lineWidth: 1, dash: [1, 1]))
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// What the status bar says, on every screen.
+enum StatusBarText {
+    /// The last cell shows the note while it is as new as the last save (or nothing has been saved),
+    /// and otherwise the time of the last save: so the next change that saves replaces the note.
+    static func items(_ dashboard: Dashboard, lastSaved: Date?, note: StatusNote? = nil,
+                      currencyCode: String) -> [String] {
+        let overdue = dashboard.waiting.filter { $0.daysLate > 0 }.count
+        let saved = lastSaved.map {
+            "Saved " + $0.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale(identifier: "en_AU")))
+        }
+        let lastCell: String
+        if let note, lastSaved.map({ note.at >= $0 }) ?? true {
+            lastCell = note.text
+        } else {
+            lastCell = saved ?? "No changes yet"
+        }
+        return [
+            "Waiting: \(dashboard.waitingTotal.formatted(currencyCode: currencyCode))",
+            overdue == 1 ? "1 invoice overdue" : "\(overdue) invoices overdue",
+            "Received \(dashboard.financialYear.label): \(dashboard.receivedThisYear.formatted(currencyCode: currencyCode))",
+            lastCell,
+        ]
+    }
+}
+
+struct StatusBar: View {
+    let model: AppModel
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(StatusBarText.items(model.dashboard, lastSaved: model.lastSaved, note: model.statusNote,
+                                        currencyCode: model.currencyCode),
+                    id: \.self) { item in
+                StatusPanel(item)
+            }
+        }
+        .padding(2)
+        .background(Win95.face)
+    }
+}
+
+/// Shown instead of the app when the library file can't be read. Nothing is saved from here; the
+/// only way on is restoring a backup.
+struct UnreadableLibraryView: View {
+    let model: AppModel
+    let reason: String
+
+    var body: some View {
+        ZStack {
+            Win95.desktop
+            VStack(spacing: 0) {
+                TitleBar("Quote Pilot", icon: .warning)
+                    .padding(2)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 14) {
+                        PixelIconView(.warning, size: 32)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Quote Pilot can't open your library.")
+                                .font(Win95.label)
+                            Text(reason)
+                            if newer {
+                                // A backup would be older than the file: restoring it rolls the library back.
+                                Text("Update Quote Pilot to open it.")
+                            }
+                            Text("The file has been left exactly as it is, and Quote Pilot won't save over it.")
+                            Text(model.store.libraryURL.path)
+                                .font(Win95.small.monospaced())
+                                .textSelection(.enabled)
+                            if let backup = model.latestBackup {
+                                Text("The latest backup is \(backup.lastPathComponent).")
+                            } else {
+                                Text("There are no backups to restore.")
+                            }
+                        }
+                        .font(Win95.body)
+                        .foregroundStyle(Win95.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack(spacing: 8) {
+                        Spacer()
+                        // Return restores, unless the file is from a newer Quote Pilot: then Return quits.
+                        defaultButton("Restore Latest Backup", isDefault: !newer) { model.restoreLatestBackup() }
+                            .disabled(model.latestBackup == nil)
+                        Button("Show in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([model.store.libraryURL])
+                        }
+                        .buttonStyle(.win95)
+                        defaultButton("Quit", isDefault: newer) { NSApp.terminate(nil) }
+                    }
+                }
+                .padding(16)
+            }
+            .frame(width: 560)
+            .background(Win95.face)
+            .overlay(Bevel(.raised))
+        }
+    }
+
+    private var newer: Bool { model.loadState.isFromNewerVersion }
+
+    /// A button that is the default one (heavy outline, Return) or a plain one.
+    @ViewBuilder
+    private func defaultButton(_ title: String, isDefault: Bool, action: @escaping () -> Void) -> some View {
+        if isDefault {
+            Button(title, action: action)
+                .buttonStyle(.win95Default)
+                .keyboardShortcut(.defaultAction)
+        } else {
+            Button(title, action: action)
+                .buttonStyle(.win95)
+        }
+    }
+}

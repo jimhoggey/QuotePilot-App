@@ -66,6 +66,13 @@ the visual design).
     public.
 - **Toolchain:** Command Line Tools 27.0, no Xcode. Test targets carry `testSettings` (the
   `-plugin-path …/host/plugins/testing` workaround).
+- **Build against the macOS 26 SDK** (added 15 Oct 2026, during Task 2):
+  - The tools' macOS 27 SDK turns SwiftUI's `@State` into a macro, and the macro's plugin
+    (`SwiftUIMacros`) only comes with Xcode.
+  - The tools also ship the macOS 26.5 SDK, which matches this Mac (macOS 26.6), so every
+    `swift build` and `swift test` runs with
+    `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk`. `build.sh` sets it itself.
+  - Write ordinary `@State`; never work around it in code.
 - **Files and commits:**
   - Create and change files with Edit/Write, never shell redirects or `sed -i`.
   - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
@@ -3625,6 +3632,12 @@ struct QuotePilotApp: App {
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Command Line Tools 27.0's macOS 27 SDK makes SwiftUI's @State a macro whose plugin only Xcode
+# ships. Build against the macOS 26.5 SDK the tools also include, when it's there.
+if [ -z "${SDKROOT:-}" ] && sdk="$(xcrun --sdk macosx26.5 --show-sdk-path 2>/dev/null)"; then
+    export SDKROOT="$sdk"
+fi
+
 swift build -c release --product QuotePilotApp
 binary="$(swift build -c release --show-bin-path)/QuotePilotApp"
 app="build/Quote Pilot.app"
@@ -5919,6 +5932,14 @@ In `## Building`, replace the paragraph and code block with:
 `swift build` builds the libraries (`QuotePilotCore` for the rules, `QuotePilotPDF` for the PDFs and
 `QuotePilotUI` for the screens), the app and the `qp` tool. `swift test` runs the tests, and
 `./build.sh` makes `build/Quote Pilot.app`.
+
+Command Line Tools 27.0 ship the macOS 27 SDK without SwiftUI's macro plugin, which only comes with
+Xcode. Without Xcode, build against the macOS 26.5 SDK the tools also include. `build.sh` does this
+itself; for the other commands, run this first:
+
+```bash
+export SDKROOT="$(xcrun --sdk macosx26.5 --show-sdk-path)"
+```
 
 ```bash
 swift build

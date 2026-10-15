@@ -4,12 +4,13 @@ A simple Mac app for the paperwork side of a one-person business: send a quote, 
 the lines they want right on the PDF, invoice for what they accepted, and see at a glance what's been
 paid and what's still owed.
 
-**Status:** in progress. The business rules and the PDFs are built and tested. The Mac app's screens
-come next.
+**Status:** the whole first version works. It covers quotes with a tick-box PDF, reading the
+returned PDF, invoices (deposit and balance, or full amount), payments, receipts, Mail drafts, a
+dashboard, and backups. It's built and tested on macOS 26 with Apple's Command Line Tools.
 
 ## Built and tested so far
 
-The engine the app will run on is written and covered by automated tests. Today you can try the quote, invoice and receipt PDFs with the `qp` tool; everything else runs once the app's screens arrive.
+The engine the app runs on is written and covered by automated tests. Everything below runs in the Mac app; the `qp` tool can also make sample PDFs and read a returned quote from the terminal.
 
 - **Quote PDFs the client can tick.** Every line has an ID and a tick box, with an "Accept all" box at
   the top and fields for the client's name and the date. The form is a standard PDF form (an AcroForm),
@@ -24,27 +25,68 @@ The engine the app will run on is written and covered by automated tests. Today 
 - **Safe storage.** One library file, saved atomically, never overwritten if it can't be read, with
   dated backups and restore.
 - **Import** of documents from the earlier single-page Invoice Generator.
-- **`qp`,** a small command-line tool for trying the PDFs before the app exists.
+- **`qp`,** a small command-line tool for trying the PDFs and a sample library from the terminal.
 
-## Coming next: the Mac app
+## The Mac app
 
-The screens: a dashboard, quote and invoice editors with a live PDF preview, dropping a returned quote
-onto the window, ticking lines by hand when a client can't fill the form, recording payments, your
-logo and font, and Mail drafts with the PDF attached (you always press Send yourself). Everything
-will stay on your Mac.
+A Windows 95-style window: a navy title bar, bevelled buttons and pixel icons, built to be read at a
+glance.
+
+- **Dashboard:** what you're waiting to be paid, what's overdue, what's come in this financial year
+  and what's quoted, in big numbers, with the lists behind them.
+- **Quotes:** an editor with a live preview of the PDF the client will tick. Quote Pilot never sends
+  email itself. **Send by Mail** opens a Mail draft with the PDF attached; you press Send in Mail,
+  then Quote Pilot asks "Did you send it?".
+- **Returned quotes:** drop the client's PDF anywhere on the window, or use File → Read Returned
+  Quote…. Check the ticks and confirm. A 50/50 quote then drafts its deposit invoice. If the
+  client's app lost the ticks, tick the lines by hand.
+- **Invoices:** deposits and balances from quotes (**Draft Invoice Now**, **Job Complete**), one-off
+  invoices, payments, receipts, and voiding. Payments are entered in the invoice screen, with no
+  dialog.
+- **Clients**, **Brand** (logo, heading font, colour, wording and terms) and **Activity**, a log of
+  what happened: quotes started and sent, Mail drafts, acceptances, invoices, payments and restores.
+  ⌘F finds in the Quotes, Invoices, Clients and Activity lists.
+  - Brand also remembers your hourly rate, so a new line in hours starts at it.
+- **File menu:** Import from Invoice Generator…, Export Payments for Tax Time…, Back Up To… and
+  Restore Backup…. Restore Backup… restores the daily backup you pick, with no extra question. The
+  status bar says which backup came back.
+- Every change saves as you make it, with a daily backup. If the library file is ever damaged,
+  Quote Pilot won't save over it and offers the latest backup instead. Every mailed PDF is also kept
+  in `~/Documents/Quote Pilot/<year>/`.
 
 ## Building
 
 Needs macOS 14 or later and Apple's Command Line Tools (Xcode isn't required).
 
-`swift build` builds the two libraries (`QuotePilotCore` for the rules, `QuotePilotPDF` for the PDFs) and the `qp` tool; `swift test` runs the tests.
+`swift build` builds the libraries (`QuotePilotCore` for the rules, `QuotePilotPDF` for the PDFs and
+`QuotePilotUI` for the screens), the app and the `qp` tool. `swift test` runs the tests, and
+`./build.sh` makes `build/Quote Pilot.app`.
+
+Command Line Tools 27.0 ship the macOS 27 SDK without SwiftUI's macro plugin, which only comes with
+Xcode. Without Xcode, build against the macOS 26.5 SDK the tools also include. `build.sh` does this
+itself; for the other commands, run this first:
+
+```bash
+export SDKROOT="$(xcrun --sdk macosx26.5 --show-sdk-path)"
+```
 
 ```bash
 swift build
 swift test
-swift run qp samples build/samples     # sample quote, invoices and receipt
+./build.sh                              # build/Quote Pilot.app
+swift run qp samples build/samples      # sample quote, invoices and receipt
 swift run qp read "build/samples/Q-0001 Sample Client Pty Ltd.pdf"
 ```
+
+To try the app with a made-up business instead of your own library:
+
+```bash
+swift run qp demo /tmp/quote-pilot-demo
+QP_LIBRARY_FOLDER=/tmp/quote-pilot-demo "build/Quote Pilot.app/Contents/MacOS/Quote Pilot"
+```
+
+Your real library lives in `~/Library/Application Support/Quote Pilot`, with daily backups in its
+`Backups` folder.
 
 ## Licence
 

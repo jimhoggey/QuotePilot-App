@@ -46,6 +46,35 @@ public struct LineItem: Codable, Hashable, Identifiable, Sendable {
     public var amount: Money { rate.times(quantity) }
 }
 
+extension LineItem {
+    /// The unit a line added with Add Line starts in: hours at the remembered hourly rate when there
+    /// is one, otherwise units. Blank or $0 on Brand means no rate (`Brand.hourlyRate`), as does nil.
+    public static func startingUnit(hourlyRate: Money?) -> Unit {
+        guard let hourlyRate, hourlyRate > .zero else { return .units }
+        return .hours
+    }
+
+    /// The blank line Add Line adds, for a quote and an invoice alike: no wording and, by default, the
+    /// unit `startingUnit` gives, which for hours takes the hourly rate. With no hourly rate it is a
+    /// line in units at $0, as it has always been.
+    public static func blank(unit: Unit? = nil, hourlyRate: Money?) -> LineItem {
+        LineItem(title: "", unit: unit ?? startingUnit(hourlyRate: hourlyRate), rate: .zero)
+            .withHourlyRate(hourlyRate, after: nil)
+    }
+
+    /// The one rule for the remembered hourly rate (`Brand.hourlyRate`): this line, with its rate set to `hourlyRate` when it
+    /// is in hours, has no rate yet ($0), and has only just got there, either because it is new
+    /// (`previous` is nil) or because its unit just changed to hours from `previous`'s. A rate that was
+    /// typed is never overwritten, nothing changes with no hourly rate, and a line that can't be
+    /// edited (`editable` false: a sent invoice, a quote its invoices lock) is returned as it is.
+    public func withHourlyRate(_ hourlyRate: Money?, after previous: LineItem?, editable: Bool = true) -> LineItem {
+        guard editable, let hourlyRate, unit == .hours, rate == .zero, previous?.unit != .hours else { return self }
+        var line = self
+        line.rate = hourlyRate
+        return line
+    }
+}
+
 extension Array where Element == LineItem {
     public var subtotal: Money { reduce(.zero) { $0 + $1.amount } }
 }
@@ -62,5 +91,23 @@ public struct Totals: Equatable, Sendable {
         self.subtotal = subtotal
         gst = taxed ? subtotal.percent(Totals.gstPercent) : .zero
         total = subtotal + gst
+    }
+}
+
+extension LineItem {
+    enum CodingKeys: String, CodingKey {
+        case id, code, title, detail, quantity, unit, rate, decision
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        code = try c.value(.code, or: "")
+        title = try c.value(.title, or: "")
+        detail = try c.value(.detail, or: "")
+        quantity = try c.value(.quantity, or: 1)
+        unit = try c.value(.unit, or: .units)
+        rate = try c.value(.rate, or: .zero)
+        decision = try c.decodeIfPresent(LineDecision.self, forKey: .decision)
     }
 }

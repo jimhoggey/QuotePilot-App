@@ -89,11 +89,27 @@ extension Library {
     public mutating func completeJob(quote id: UUID, on day: Day) throws -> Invoice? {
         let found = try acceptedQuote(id)
         let index = try quoteIndex(id)
-        quotes[index].completedOn = day
-        log("Marked the job for \(found.number) complete", number: found.number)
+        if quotes[index].completedOn == nil {
+            quotes[index].completedOn = day
+            log("Marked the job for \(found.number) complete", number: found.number)
+        }
         let closing: InvoiceKind = found.plan == .fiftyFifty ? .final : .full
         guard !invoices(forQuote: id).contains(where: { $0.kind.isClosing }) else { return nil }
         return draftInvoice(closing, for: found, on: day)
+    }
+
+    /// The quote's live closing invoice (the final one for 50/50, the full one otherwise), or nil when
+    /// it has none yet or its closing invoice was voided.
+    public func closingInvoice(forQuote id: UUID) -> Invoice? {
+        invoices(forQuote: id).first { $0.kind.isClosing }
+    }
+
+    /// The live closing invoice that still subtracts this deposit, or nil: the invoice isn't a deposit,
+    /// no closing invoice has been drafted, or it is void. While one exists the deposit can't be
+    /// voided, deleted or have its lines or tax changed, which is what a screen asks before offering
+    /// to.
+    public func finalDeducting(_ invoiceID: UUID) -> Invoice? {
+        invoice(invoiceID).flatMap(liveFinalDeducting)
     }
 
     /// The live closing (final or full) invoice that still subtracts this deposit, if any. Voiding,
@@ -150,7 +166,12 @@ extension Library {
         case .draft: throw LibraryError.notSent
         case .sent: break
         }
+        guard payment.amount > .zero else { throw LibraryError.paymentNotPositive }
+        let owing = invoices[index].owing
+        guard payment.amount <= owing else { throw LibraryError.paymentMoreThanOwing(owing) }
         invoices[index].payments.append(payment)
+        // A receipt already sent covers the payments up to then, not this one: Send Receipt… is offered again.
+        invoices[index].receiptSentAt = nil
         let number = invoices[index].number
         log("Recorded \(payment.amount.formatted()) paid on \(payment.date.long) by \(payment.method.label.lowercased()) for \(number)",
             number: number)
@@ -162,6 +183,8 @@ extension Library {
             throw LibraryError.notFound
         }
         let removed = invoices[index].payments.remove(at: position)
+        // No payments left means no receipt stands either.
+        if invoices[index].payments.isEmpty { invoices[index].receiptSentAt = nil }
         let number = invoices[index].number
         log("Removed the \(removed.amount.formatted()) payment of \(removed.date.long) from \(number)", number: number)
     }
@@ -183,6 +206,7 @@ extension Library {
 
     public mutating func markReceiptSent(invoice id: UUID, at time: Date = Date()) throws {
         let index = try invoiceIndex(id)
+        guard !invoices[index].payments.isEmpty else { throw LibraryError.noPayments }
         invoices[index].receiptSentAt = time
         log("Marked the receipt for \(invoices[index].number) as sent", number: invoices[index].number, at: time)
     }

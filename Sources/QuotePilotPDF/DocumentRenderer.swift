@@ -316,3 +316,20 @@ final class Layout {
         writer.y += 22
     }
 }
+
+extension DocumentRenderer {
+    /// True when quote PDF data carries its fillable form: the quote's Accept-all box, and an AcroForm
+    /// in the file. The AcroForm test searches the whole byte stream for "/AcroForm" rather than parsing
+    /// the catalog, which is enough for the bytes `render` writes. When `render` can't add an AcroForm,
+    /// it falls back to widgets that other viewers can't fill, and this returns false for those.
+    /// Checked before a quote goes into a Mail draft, so a form-less quote is never sent by accident.
+    public static func hasForm(_ data: Data, quoteNumber: String) -> Bool {
+        guard data.range(of: Data("/AcroForm".utf8)) != nil, let document = PDFDocument(data: data) else { return false }
+        let acceptAll = QuoteFormFields.acceptAll(quoteNumber)
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            if page.annotations.contains(where: { $0.fieldName == acceptAll }) { return true }
+        }
+        return false
+    }
+}

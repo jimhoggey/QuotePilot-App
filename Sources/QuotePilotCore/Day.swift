@@ -74,6 +74,14 @@ public struct Day: Hashable, Comparable, Sendable, Codable, CustomStringConverti
         Day(Day.utc.date(byAdding: .day, value: days, to: midnightUTC)!, timeZone: .gmt)
     }
 
+    /// Noon on this day in a time zone, for date pickers. Noon keeps daylight-saving
+    /// changes from moving the date.
+    public func date(in timeZone: TimeZone = .current) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    }
+
     /// Whole days from `other` to this day; positive when this day is later.
     public func days(since other: Day) -> Int {
         Day.utc.dateComponents([.day], from: other.midnightUTC, to: midnightUTC).day!

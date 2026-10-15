@@ -15,7 +15,14 @@ public struct LibraryStore: Sendable {
         /// The library as it stands encodes to JSON that this version can't read back.
         case wouldWriteUnreadableLibrary
         case backupFromNewerVersion(Int)
+        /// The backup holds numbers past the library's limits (`Library.problems()`), so restoring it
+        /// would only bring back a library the app can't open.
+        case backupHasProblems([String])
     }
+
+    /// How an unreadable reason starts when the file came from a newer Quote Pilot. Restoring a backup
+    /// then would roll the library back, so the unreadable screen leads with Quit instead.
+    public static let newerVersionReason = "It was saved by a newer version of Quote Pilot"
 
     public let folder: URL
 
@@ -44,9 +51,15 @@ public struct LibraryStore: Sendable {
             let data = try Data(contentsOf: libraryURL)
             let probe = try JSONDecoder().decode(FormatProbe.self, from: data)
             guard probe.format <= Library.currentFormat else {
-                return .unreadable(reason: "It was saved by a newer version of Quote Pilot (library format \(probe.format)).")
+                return .unreadable(reason: "\(LibraryStore.newerVersionReason) (library format \(probe.format)).")
             }
-            return .loaded(try Library.makeDecoder().decode(Library.self, from: data))
+            let library = try Library.makeDecoder().decode(Library.self, from: data)
+            // Numbers past the limits would trap when added up, before any screen could explain.
+            let problems = library.problems()
+            guard problems.isEmpty else {
+                return .unreadable(reason: Library.describe(problems, opening: "It holds numbers Quote Pilot can't work with."))
+            }
+            return .loaded(library)
         } catch {
             return .unreadable(reason: "The library file couldn't be read (\(error.localizedDescription)).")
         }
@@ -65,8 +78,10 @@ public struct LibraryStore: Sendable {
 
     /// The only place library.json is written: encodes the library, reads the result back the way the
     /// next launch will, and only then replaces the file atomically. Callers decide whether the
-    /// existing file may be replaced.
+    /// existing file may be replaced. A library with numbers past the limits would load as
+    /// unreadable, so it isn't written either.
     private func writeLibrary(_ library: Library) throws {
+        guard library.problems().isEmpty else { throw StoreError.wouldWriteUnreadableLibrary }
         let data = try Library.makeEncoder().encode(library)
         do {
             _ = try Library.makeDecoder().decode(Library.self, from: data)
@@ -99,8 +114,8 @@ public struct LibraryStore: Sendable {
             .sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
-    /// Replaces the library with a backup once the backup is known to read and is no newer than this
-    /// version. The file being replaced is copied beside it as `library-replaced-<time>.json` first, and
+    /// Replaces the library with a backup once the backup is known to read, is no newer than this
+    /// version and holds no numbers past the limits. The file being replaced is copied beside it as `library-replaced-<time>.json` first, and
     /// stays on disk until the restored library is written in its place.
     @discardableResult
     public func restore(from backup: URL, now: Date = Date()) throws -> Library {
@@ -110,6 +125,8 @@ public struct LibraryStore: Sendable {
             throw StoreError.backupFromNewerVersion(probe.format)
         }
         let library = try Library.makeDecoder().decode(Library.self, from: data)
+        let problems = library.problems()
+        guard problems.isEmpty else { throw StoreError.backupHasProblems(problems) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: libraryURL.path) {
             let stamp = ISO8601DateFormatter().string(from: now).replacingOccurrences(of: ":", with: "-")

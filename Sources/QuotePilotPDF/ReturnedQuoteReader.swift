@@ -60,4 +60,26 @@ public enum ReturnedQuoteReader {
         return ReturnedForm(quoteNumber: quote, acceptAll: acceptAll, ticked: ticked.sorted(),
                             unticked: unticked.sorted(), clientName: name, clientDate: date)
     }
+
+    /// The quote number a Quote Pilot PDF carries in its keywords ("quotepilot", "Q-0007"). That
+    /// usually survives when a PDF app flattens the form away, so a flattened quote can still be
+    /// matched to its quote for hand-ticking. Keywords may be separated by commas, semicolons or
+    /// spaces. Nil when the keywords aren't Quote Pilot's, and for invoices, whose keywords carry an
+    /// INV- number rather than a quote's.
+    public static func quoteNumber(inMetadataOf data: Data) -> String? {
+        guard let document = PDFDocument(data: data),
+              let value = document.documentAttributes?[PDFDocumentAttribute.keywordsAttribute]
+        else { return nil }
+        let separators = CharacterSet(charactersIn: ",; ")
+        let keywords: [String]
+        if let list = value as? [String] {
+            keywords = list.flatMap { $0.components(separatedBy: separators) }.filter { !$0.isEmpty }
+        } else if let text = value as? String {
+            keywords = text.components(separatedBy: separators).filter { !$0.isEmpty }
+        } else {
+            return nil
+        }
+        guard keywords.contains(where: { $0.caseInsensitiveCompare("quotepilot") == .orderedSame }) else { return nil }
+        return keywords.first { $0.uppercased().hasPrefix("Q-") }
+    }
 }

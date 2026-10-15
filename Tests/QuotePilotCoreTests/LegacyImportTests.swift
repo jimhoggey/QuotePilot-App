@@ -105,6 +105,46 @@ import Testing
         #expect(invoice.lines.map(\.amount) == [Money(cents: 4113)])
     }
 
+    /// A document with a number no real job has (a slip in the old tool) stays out, with a note,
+    /// because a library holding it wouldn't open. The others still come in.
+    @Test func aDocumentWithAnAbsurdAmountIsSkippedWithANote() throws {
+        let data = Data(#"""
+        {
+          "docs": {
+            "a1": { "type": "invoice", "number": "INV-0007", "issued": "2026-10-06",
+                    "to": { "name": "Example Bakery" },
+                    "items": [ { "title": "Typo", "qty": 1, "unit": "unit", "rate": 20000000 } ] },
+            "b2": { "type": "quote", "number": "Q-0008", "issued": "2026-10-07",
+                    "to": { "name": "Example Bakery" },
+                    "items": [ { "title": "Typo", "qty": 1e300, "unit": "hr", "rate": 40 } ] },
+            "c3": { "type": "invoice", "number": "INV-0009", "issued": "2026-10-08",
+                    "to": { "name": "Example Bakery" },
+                    "items": [ { "title": "Hosting", "qty": 1, "unit": "unit", "rate": 30 } ], "paid": 1e300 },
+            "d4": { "type": "quote", "number": "Q-0010", "issued": "2026-10-09",
+                    "to": { "name": "Example Bakery" },
+                    "items": [ { "title": "Typo", "qty": 1, "unit": "unit", "rate": -1e300 } ] },
+            "e5": { "type": "invoice", "number": "INV-0011", "issued": "2026-10-10",
+                    "to": { "name": "Sample Client Pty Ltd" },
+                    "items": [ { "title": "Hosting", "qty": 1, "unit": "unit", "rate": 30 } ] }
+          }
+        }
+        """#.utf8)
+        var library = Library()
+        let report = try LegacyImport.importBackup(data, into: &library, today: today)
+        #expect(report.addedInvoices == ["INV-0011"])
+        #expect(report.addedQuotes.isEmpty)
+        #expect(report.notes == [
+            "INV-0007 wasn't imported: line 01's rate is over $10,000,000.00. Correct it in Invoice Generator and import again.",
+            "Q-0008 wasn't imported: line 01's quantity is outside 0 to 100,000. Correct it in Invoice Generator and import again.",
+            "INV-0009 wasn't imported: the amount paid is over $10,000,000.00. Correct it in Invoice Generator and import again.",
+            "Q-0010 wasn't imported: line 01's rate is over $10,000,000.00. Correct it in Invoice Generator and import again.",
+        ])
+        // Nothing of a skipped document stays behind: not its number, and not its client.
+        #expect(library.usedNumbers == ["INV-0011"])
+        #expect(library.clients.map(\.name) == ["Sample Client Pty Ltd"])
+        #expect(library.problems().isEmpty)
+    }
+
     @Test func otherFilesAreRejected() {
         var library = Library()
         #expect(throws: LegacyImportError.notABackup) {

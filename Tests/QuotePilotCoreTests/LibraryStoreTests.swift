@@ -182,6 +182,70 @@ import Testing
         #expect(restored.brand.businessName == "Sample Studio")
     }
 
+    /// The fixture library with a $20,000,000 rate on Q-0001's line 02: a typo or a hand edit. Adding
+    /// amounts like that up can overflow, which would stop the app every time it opened.
+    func libraryWithAnAbsurdRate() -> Library {
+        var (library, _) = Fixture.libraryWithQuote()
+        library.quotes[0].lines[1].rate = Money(dollars: 20_000_000)
+        return library
+    }
+
+    @Test func aLibraryWithAnAbsurdAmountLoadsAsUnreadable() throws {
+        let store = tempStore()
+        try FileManager.default.createDirectory(at: store.folder, withIntermediateDirectories: true)
+        try Library.makeEncoder().encode(libraryWithAnAbsurdRate()).write(to: store.libraryURL)
+        guard case .unreadable(let reason) = store.load() else {
+            Issue.record("expected unreadable")
+            return
+        }
+        #expect(reason.contains("Q-0001 line 02 has a rate of $20,000,000.00, over the $10,000,000.00 limit."))
+        // Nothing saves over it, and it never becomes a backup.
+        let before = try Data(contentsOf: store.libraryURL)
+        #expect(throws: LibraryStore.StoreError.wouldOverwriteUnreadableLibrary) { try store.save(Library()) }
+        #expect(try store.backUpIfDue(today: Fixture.today) == nil)
+        #expect(try Data(contentsOf: store.libraryURL) == before)
+    }
+
+    @Test func theReasonListsThreeProblemsAndCountsTheRest() throws {
+        let store = tempStore()
+        var library = libraryWithAnAbsurdRate()
+        library.quotes[0].lines[0].quantity = -1
+        library.quotes[0].lines[2].quantity = 200_000
+        library.brand.paymentDueDays = 9_999
+        library.brand.quoteValidDays = 9_999
+        try FileManager.default.createDirectory(at: store.folder, withIntermediateDirectories: true)
+        try Library.makeEncoder().encode(library).write(to: store.libraryURL)
+        guard case .unreadable(let reason) = store.load() else {
+            Issue.record("expected unreadable")
+            return
+        }
+        #expect(reason.hasPrefix("It holds numbers Quote Pilot can't work with."))
+        #expect(reason.hasSuffix("And 2 more."))
+    }
+
+    @Test func neverWritesALibraryWithAbsurdAmounts() throws {
+        let store = tempStore()
+        #expect(throws: LibraryStore.StoreError.wouldWriteUnreadableLibrary) { try store.save(libraryWithAnAbsurdRate()) }
+        #expect(!FileManager.default.fileExists(atPath: store.libraryURL.path))
+    }
+
+    @Test func restoreRefusesABackupWithAbsurdAmounts() throws {
+        let store = tempStore()
+        try FileManager.default.createDirectory(at: store.folder, withIntermediateDirectories: true)
+        let damaged = Data("{ not json".utf8)
+        try damaged.write(to: store.libraryURL)
+        try FileManager.default.createDirectory(at: store.backupsFolder, withIntermediateDirectories: true)
+        let backup = store.backupsFolder.appendingPathComponent("library-2026-10-14.json")
+        try Library.makeEncoder().encode(libraryWithAnAbsurdRate()).write(to: backup)
+
+        let error = #expect(throws: LibraryStore.StoreError.self) { try store.restore(from: backup) }
+        #expect(error?.localizedDescription.hasPrefix("That backup holds numbers Quote Pilot can't work with") == true)
+        #expect(error?.localizedDescription.contains("$20,000,000.00") == true)
+        #expect(try Data(contentsOf: store.libraryURL) == damaged)
+        let names = try FileManager.default.contentsOfDirectory(atPath: store.folder.path)
+        #expect(!names.contains { $0.hasPrefix("library-replaced-") })
+    }
+
     @Test func exportsACopyAnywhere() throws {
         let store = tempStore()
         try store.save(Library())

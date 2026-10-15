@@ -2,9 +2,10 @@ import Foundation
 import QuotePilotCore
 import QuotePilotPDF
 
-// qp: try Quote Pilot's documents before the app exists. All data here is made up.
+// qp: try Quote Pilot's documents and app with made-up data.
 //   qp samples <folder>   writes a sample quote, deposit invoice, final invoice and receipt
 //   qp read <pdf>         reads a returned quote and shows what Quote Pilot would record
+//   qp demo <folder>      writes a sample business's library, for opening with QP_LIBRARY_FOLDER
 
 func sampleLibrary() -> (library: Library, quoteID: UUID) {
     var library = Library()
@@ -77,6 +78,26 @@ func read(_ path: String) {
     }
 }
 
+func demo(into folder: URL) {
+    let store = LibraryStore(folder: folder)
+    guard folder.standardizedFileURL.path != LibraryStore.defaultFolder.standardizedFileURL.path else {
+        print("qp demo never writes to the real library folder. Pick another folder.")
+        exit(1)
+    }
+    guard !FileManager.default.fileExists(atPath: store.libraryURL.path) else {
+        print("\(store.libraryURL.path) already exists, and qp demo never writes over a library.")
+        exit(1)
+    }
+    do {
+        try store.save(SampleLibrary.make(today: Day.today()))
+        print("Wrote a sample library to \(store.libraryURL.path)")
+        print("Open it with: QP_LIBRARY_FOLDER=\"\(folder.path)\" \"build/Quote Pilot.app/Contents/MacOS/Quote Pilot\"")
+    } catch {
+        print("Couldn't write the sample library: \(error.localizedDescription)")
+        exit(1)
+    }
+}
+
 let arguments = Array(CommandLine.arguments.dropFirst())
 switch (arguments.first, arguments.count) {
 case ("samples", 2):
@@ -88,7 +109,9 @@ case ("samples", 2):
     }
 case ("read", 2):
     read(arguments[1])
+case ("demo", 2):
+    demo(into: URL(fileURLWithPath: arguments[1], isDirectory: true))
 default:
-    print("usage: qp samples <folder>   |   qp read <returned quote.pdf>")
+    print("usage: qp samples <folder>   |   qp read <returned quote.pdf>   |   qp demo <folder>")
     exit(2)
 }

@@ -116,9 +116,9 @@ extension Library {
             .sorted { a, b in a.1.date == b.1.date ? a.0.number < b.0.number : a.1.date < b.1.date }
         let rows = pairs.map { pair -> String in
             let (invoice, payment) = pair
-            return [payment.date.iso, client(invoice.clientID)?.name ?? "", invoice.number,
-                    payment.amount.plain, payment.method.label, payment.note]
-                .map(csvField)
+            return [csvField(payment.date.iso), csvText(client(invoice.clientID)?.name ?? ""),
+                    csvField(invoice.number), csvField(payment.amount.plain), csvField(payment.method.label),
+                    csvText(payment.note)]
                 .joined(separator: ",")
         }
         return (["Date,Client,Invoice,Amount,Method,Note"] + rows).joined(separator: "\n") + "\n"
@@ -130,4 +130,11 @@ extension Library {
 func csvField(_ text: String) -> String {
     guard text.contains(where: { $0 == "," || $0 == "\"" || $0.isNewline }) else { return text }
     return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+}
+
+/// Text someone typed, made safe for a spreadsheet: a field starting with =, +, - or @ would run as
+/// a formula, so it gets a leading apostrophe.
+func csvText(_ text: String) -> String {
+    guard let first = text.first, "=+-@".contains(first) else { return csvField(text) }
+    return csvField("'" + text)
 }

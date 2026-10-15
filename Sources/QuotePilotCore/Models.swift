@@ -80,6 +80,8 @@ public struct Brand: Codable, Hashable, Sendable {
     public var currencyCode = "AUD"
     public var paymentDueDays = 14
     public var quoteValidDays = 30
+    /// The one rate that new lines in hours start at (`LineItem.withHourlyRate`); nil when none is set.
+    public var hourlyRate: Money?
 
     public init() {}
 }
@@ -322,5 +324,194 @@ public struct ActivityEntry: Codable, Hashable, Identifiable, Sendable {
         self.at = at
         self.number = number
         self.message = message
+    }
+}
+
+// MARK: - Tolerant decoding
+// A field added in a later version must not make an older library unreadable, so every
+// non-essential field falls back to its default when it's missing.
+
+extension Brand {
+    enum CodingKeys: String, CodingKey {
+        case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
+        case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
+        case hourlyRate
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = Brand()
+        businessName = try c.value(.businessName, or: d.businessName)
+        details = try c.value(.details, or: d.details)
+        abn = try c.value(.abn, or: d.abn)
+        paymentDetails = try c.value(.paymentDetails, or: d.paymentDetails)
+        accentHex = try c.value(.accentHex, or: d.accentHex)
+        logoFile = try c.decodeIfPresent(String.self, forKey: .logoFile)
+        headingFontFile = try c.decodeIfPresent(String.self, forKey: .headingFontFile)
+        quoteTerms = try c.value(.quoteTerms, or: d.quoteTerms)
+        invoiceTerms = try c.value(.invoiceTerms, or: d.invoiceTerms)
+        emails = try c.value(.emails, or: d.emails)
+        gstRegistered = try c.value(.gstRegistered, or: d.gstRegistered)
+        currencyCode = try c.value(.currencyCode, or: d.currencyCode)
+        paymentDueDays = try c.value(.paymentDueDays, or: d.paymentDueDays)
+        quoteValidDays = try c.value(.quoteValidDays, or: d.quoteValidDays)
+        hourlyRate = try c.decodeIfPresent(Money.self, forKey: .hourlyRate)
+    }
+}
+
+extension Client {
+    enum CodingKeys: String, CodingKey {
+        case id, name, contactName, email, phone, address, notes
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        contactName = try c.value(.contactName, or: "")
+        email = try c.value(.email, or: "")
+        phone = try c.value(.phone, or: "")
+        address = try c.value(.address, or: "")
+        notes = try c.value(.notes, or: "")
+    }
+}
+
+extension Quote {
+    enum CodingKeys: String, CodingKey {
+        case id, number, clientID, title, issued, validUntil, plan, taxed, lines, lastLineNumber
+        case summary, terms, stage, sentAt, acceptance, completedOn
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        number = try c.decode(String.self, forKey: .number)
+        clientID = try c.decodeIfPresent(UUID.self, forKey: .clientID)
+        title = try c.value(.title, or: "")
+        issued = try c.decode(Day.self, forKey: .issued)
+        validUntil = try c.decode(Day.self, forKey: .validUntil)
+        plan = try c.value(.plan, or: .fiftyFifty)
+        taxed = try c.value(.taxed, or: false)
+        lines = try c.value(.lines, or: [])
+        lastLineNumber = try c.value(.lastLineNumber, or: lines.compactMap { Int($0.code) }.max() ?? 0)
+        summary = try c.value(.summary, or: "")
+        terms = try c.value(.terms, or: "")
+        stage = try c.value(.stage, or: .draft)
+        sentAt = try c.decodeIfPresent(Date.self, forKey: .sentAt)
+        acceptance = try c.decodeIfPresent(Acceptance.self, forKey: .acceptance)
+        completedOn = try c.decodeIfPresent(Day.self, forKey: .completedOn)
+    }
+}
+
+extension Invoice {
+    enum CodingKeys: String, CodingKey {
+        case id, number, clientID, quoteID, kind, title, issued, due, taxed, lines, depositPercent
+        case deductions, terms, stage, sentAt, payments, receiptSentAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        number = try c.decode(String.self, forKey: .number)
+        clientID = try c.decodeIfPresent(UUID.self, forKey: .clientID)
+        quoteID = try c.decodeIfPresent(UUID.self, forKey: .quoteID)
+        kind = try c.decode(InvoiceKind.self, forKey: .kind)
+        title = try c.value(.title, or: "")
+        issued = try c.decode(Day.self, forKey: .issued)
+        due = try c.decode(Day.self, forKey: .due)
+        taxed = try c.value(.taxed, or: false)
+        lines = try c.value(.lines, or: [])
+        depositPercent = try c.decodeIfPresent(Int.self, forKey: .depositPercent)
+        deductions = try c.value(.deductions, or: [])
+        terms = try c.value(.terms, or: "")
+        stage = try c.value(.stage, or: .draft)
+        sentAt = try c.decodeIfPresent(Date.self, forKey: .sentAt)
+        payments = try c.value(.payments, or: [])
+        receiptSentAt = try c.decodeIfPresent(Date.self, forKey: .receiptSentAt)
+    }
+}
+
+extension EmailTemplate {
+    enum CodingKeys: String, CodingKey {
+        case subject, body
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        subject = try c.value(.subject, or: "")
+        body = try c.value(.body, or: "")
+    }
+}
+
+extension EmailTemplates {
+    enum CodingKeys: String, CodingKey {
+        case quote, invoice, receipt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let standard = EmailTemplates.standard
+        quote = try c.value(.quote, or: standard.quote)
+        invoice = try c.value(.invoice, or: standard.invoice)
+        receipt = try c.value(.receipt, or: standard.receipt)
+    }
+}
+
+extension Acceptance {
+    enum CodingKeys: String, CodingKey {
+        case recordedAt, source, fileName, clientName, clientDate, accepted, declined
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        recordedAt = try c.decode(Date.self, forKey: .recordedAt)
+        source = try c.decode(AcceptanceSource.self, forKey: .source)
+        fileName = try c.decodeIfPresent(String.self, forKey: .fileName)
+        clientName = try c.value(.clientName, or: "")
+        clientDate = try c.value(.clientDate, or: "")
+        accepted = try c.value(.accepted, or: [])
+        declined = try c.value(.declined, or: [])
+    }
+}
+
+extension Payment {
+    enum CodingKeys: String, CodingKey {
+        case id, date, amount, method, note
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        date = try c.decode(Day.self, forKey: .date)
+        amount = try c.decode(Money.self, forKey: .amount)
+        method = try c.value(.method, or: .bankTransfer)
+        note = try c.value(.note, or: "")
+    }
+}
+
+extension Deduction {
+    enum CodingKeys: String, CodingKey {
+        case label, invoiceNumber, amount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        label = try c.value(.label, or: "Less deposit")
+        invoiceNumber = try c.decode(String.self, forKey: .invoiceNumber)
+        amount = try c.decode(Money.self, forKey: .amount)
+    }
+}
+
+extension ActivityEntry {
+    enum CodingKeys: String, CodingKey {
+        case id, at, number, message
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        at = try c.decode(Date.self, forKey: .at)
+        number = try c.decodeIfPresent(String.self, forKey: .number)
+        message = try c.value(.message, or: "")
     }
 }

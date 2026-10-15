@@ -161,6 +161,7 @@ extension Library {
     /// billed can't shift underneath them.
     public mutating func recordAcceptance(_ acceptance: Acceptance, forQuote id: UUID) throws {
         let index = try quoteIndex(id)
+        guard quotes[index].stage != .draft else { throw LibraryError.notSent }
         guard !invoices.contains(where: { $0.quoteID == id && $0.stage != .void }) else {
             throw LibraryError.alreadyInvoiced
         }

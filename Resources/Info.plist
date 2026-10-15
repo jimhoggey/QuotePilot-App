@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Quote Pilot</string>
+    <key>CFBundleDisplayName</key>
+    <string>Quote Pilot</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.fynnprojects.quotepilot</string>
+    <key>CFBundleExecutable</key>
+    <string>Quote Pilot</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.2</string>
+    <key>CFBundleVersion</key>
+    <string>2</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>14.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.business</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Quote Pilot keeps a copy of every PDF you send by Mail in Documents › Quote Pilot, so you have a record of exactly what each client received.</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+</dict>
+</plist>
