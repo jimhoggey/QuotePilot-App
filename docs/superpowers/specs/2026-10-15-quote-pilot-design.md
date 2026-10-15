@@ -301,3 +301,108 @@ QuotePilotApp depends on the other two; QuotePilotPDF depends on QuotePilotCore;
   installing Command Line Tools for Xcode 27.0 (offered by Software Update). Step 1 confirms that
   `swift build` and `swift test` work before anything else is built.
 - **Mail must be set up with an account** for the compose service to work; the fallback covers it.
+
+## 15. Visual design: Windows 95 (added 15 Oct 2026)
+
+The user's direction: **inspired by Windows 95: cool, retro, still very functional, extremely
+powerful, easy to read at a glance.** This applies to the app's screens only. The client-facing PDFs
+keep their clean professional look (§7).
+
+**Approach:** Windows 95 chrome with modern readability. Build the look from bevels, grey faces, navy
+title bars, sunken fields, group boxes and pixel icons. Keep the text crisp and large enough to read at
+a glance. This isn't a pixel-font novelty skin.
+
+### Palette
+
+| Role | Colour |
+|---|---|
+| Window face (buttons, panels, bars) | `#C0C0C0` |
+| Bevel highlight | `#FFFFFF` |
+| Bevel light | `#DFDFDF` |
+| Bevel shadow | `#808080` |
+| Bevel dark | `#000000` |
+| Title bar (active window) | navy `#000080` with white bold text |
+| Title bar (inactive window) | `#808080` |
+| Desktop (behind panels, empty states) | teal `#008080` |
+| Selection | navy `#000080`, white text |
+| Fields and lists | white `#FFFFFF`, sunken |
+| Text | black `#000000` |
+| Tooltip and notes | `#FFFFE1` |
+| Overdue | `#C00000` (dark red) |
+| Paid and received | `#007000` (dark green) |
+| Warning | black on `#FFFF00` |
+
+- **Contrast:** every text pair is at least 4.5:1 (black on grey ≈ 11:1, white on navy ≈ 16:1).
+- **Colour is never the only signal.** Overdue and paid also carry a label or an icon.
+
+### Type
+
+- **Text:** the system font, 13 pt, black.
+- **Labels and title bars:** semibold.
+- **Money:** monospaced digits (SF Mono or `.monospacedDigit()`), so columns line up.
+- **Headline numbers:** 28 pt monospaced, in a sunken white panel (the dashboard and the big amount
+  on editors).
+- **Window and dialog titles:** bold, white on navy.
+- No bitmap or pixel font for body text.
+
+### Components (the Windows 95 kit)
+
+- **Bevels:** raised (white top-left, grey and black bottom-right, 2 pt) for buttons, bars and panels;
+  sunken (the reverse) for fields, lists and readouts. Pressed buttons sink.
+- **Window panel:**
+  - a navy title bar with a pixel icon and a title, over a grey body;
+  - the app window itself uses a hidden macOS title bar, with this navy bar drawn at the top (the
+    macOS window buttons stay and work);
+  - sections inside use **group boxes**: an etched frame with the title set into the top edge.
+- **Toolbar:** a row of raised square buttons with a pixel icon and a short label underneath (New
+  quote, New invoice, Send, Read returned quote, Record payment, Print or save PDF). Each disables
+  when it doesn't apply, and shows a tooltip naming its keyboard shortcut.
+- **Explorer-style layout:**
+  - a left tree pane (sunken, white) with Dashboard, Quotes, Invoices, Clients, Activity and Brand,
+    each with a 16 px pixel icon;
+  - a details list on the right, with raised column headers you can click to sort.
+- **Lists:** classic "Details view". Navy row selection, monospaced amounts aligned right, and a status
+  column with a small pixel icon plus a word (Draft, Sent, Overdue 5 d, Part paid, Paid, Void).
+- **Status bar:** sunken panels along the bottom of the window. They always show:
+  - waiting to be paid;
+  - the number of invoices overdue;
+  - received this financial year;
+  - the last save time ("Saved 2:41 pm").
+- **Dialogs:** Windows 95 message boxes, with a navy title, an icon (information, question or warning)
+  and bevelled buttons. Used for "Did you send it?", confirmations and errors. The default button gets
+  a heavy black outline.
+- **Progress:** chunky segmented blue bars, for a job's invoiced and received share.
+- **Tabs:** property-sheet tabs, where the selected tab is raised and joined to the panel. Used in
+  Brand.
+- **Focus:** a dotted focus rectangle around the focused control, as in Windows 95, so keyboard focus
+  is always visible.
+- **Pixel icons:** a small set drawn in code from 16×16 grids in the Windows 95 16-colour palette:
+  - quote (document with a tick), invoice (document with a $), receipt, client, dashboard (chart),
+    activity (log), brand (paint palette);
+  - mail (envelope), PDF/print, payment (coin), warning, information, question, folder.
+
+  No emoji, and no mixing with SF Symbols in the chrome.
+
+### Behaviour
+
+- **Everything is reachable from the keyboard,** with native macOS menus and shortcuts:
+  - ⌘N new quote, ⇧⌘N new invoice, ⌘S send, ⌘O read returned quote, ⌘P print or save PDF;
+  - ⌘1–⌘6 switch sections;
+  - ⌘F filter the current list.
+- **No animation** beyond instant state changes, as in Windows 95, which also respects reduced motion.
+- **Light appearance only:** Windows 95 had no dark mode, and the look depends on the grey face.
+- **"Easy to read at a glance":** the dashboard puts the four headline numbers (waiting to be paid,
+  overdue, received this FY, quotes out) in big sunken readouts at the top. Lists show status as icon
+  plus word, and the status bar repeats the key totals on every screen.
+
+### Build order for the app (plan 2, split for momentum)
+
+- **Plan 2a:** the Windows 95 kit, the app shell (window, tree, toolbar, status bar, menus, saving and
+  backups, the unreadable-library screen), Dashboard, Clients, Brand, and the quote list and quote
+  editor with live PDF preview. Plus `build.sh` → `Quote Pilot.app`.
+- **Plan 2b:**
+  - Mail drafts and "Did you send it?";
+  - reading returned quotes (drop-in and File menu) with the acceptance review sheet and
+    hand-ticking;
+  - invoices (Draft invoice now, Job complete, editor), payments, receipts and void;
+  - Activity, the tax-time export, import from Invoice Generator, and Back up / Restore.
