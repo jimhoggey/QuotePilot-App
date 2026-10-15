@@ -3,11 +3,15 @@ import QuotePilotCore
 import QuotePilotPDF
 
 extension AppModel {
-    /// What ⌘S sends: the open quote on Quotes, the open or selected invoice on Invoices.
+    /// What ⌘S sends: the open quote on Quotes, the open or selected invoice on Invoices. A void
+    /// invoice no longer counts, so nothing is sent for it: the menu item, ⌘S and the toolbar's Send
+    /// are greyed out.
     public var sendableDocument: MailDocument? {
         switch section {
         case .quotes: return (openQuoteID ?? selectedQuoteID).map(MailDocument.quote)
-        case .invoices: return (editingInvoiceID ?? selectedInvoiceID).map(MailDocument.invoice)
+        case .invoices:
+            guard let id = editingInvoiceID ?? selectedInvoiceID, library.invoice(id)?.stage != .void else { return nil }
+            return .invoice(id)
         default: return nil
         }
     }

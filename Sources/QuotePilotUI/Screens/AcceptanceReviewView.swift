@@ -66,15 +66,15 @@ struct AcceptanceReviewView: View {
                 Win95FieldRow("Date:", labelWidth: 110) {
                     Win95TextField("Date the client signed", text: $review.clientDate)
                 }
-                Text(Self.planNote(plan: quote?.plan, accepted: accepted, currencyCode: model.currencyCode))
+                Text(Self.planNote(plan: quote?.plan, accepted: accepted, ticked: !review.accepted.isEmpty,
+                                   currencyCode: model.currencyCode))
                     .font(Win95.small)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     Spacer()
-                    // With nothing ticked this records a decline, and the button says so.
-                    Button(review.confirmTitle) { model.confirmAcceptance(review) }
-                        .buttonStyle(.win95Default)
-                        .keyboardShortcut(.defaultAction)
+                    // With nothing ticked this records a decline, and the button says so. Hand-ticking
+                    // has no default button until a line is ticked, so a stray Return declines nothing.
+                    confirmButton
                         .disabled(!review.canBeConfirmed)
                     Button("Cancel") { model.dialog = nil }
                         .buttonStyle(.win95)
@@ -86,6 +86,20 @@ struct AcceptanceReviewView: View {
         .groupBoxStyle(.win95)
     }
 
+    /// The confirm button: the default one (heavy outline, Return) or, while `confirmIsDefault` is
+    /// false, a plain one that only a click presses.
+    @ViewBuilder
+    private var confirmButton: some View {
+        if review.confirmIsDefault {
+            Button(review.confirmTitle) { model.confirmAcceptance(review) }
+                .buttonStyle(.win95Default)
+                .keyboardShortcut(.defaultAction)
+        } else {
+            Button(review.confirmTitle) { model.confirmAcceptance(review) }
+                .buttonStyle(.win95)
+        }
+    }
+
     private var acceptAll: Binding<Bool> {
         Binding(get: { review.lines.allSatisfy(\.accepted) },
                 set: { value in
@@ -94,9 +108,10 @@ struct AcceptanceReviewView: View {
     }
 
     /// What confirming will do beyond recording the ticks. The deposit is the plan's own percentage,
-    /// the one `draftNextInvoice` uses.
-    static func planNote(plan: PaymentPlan?, accepted: Money, currencyCode: String) -> String {
-        guard accepted > .zero else {
+    /// the one `draftNextInvoice` uses. "Nothing is ticked" goes by `ticked` (whether any line is
+    /// ticked, as the button's title does), not by the money: a ticked line can cost nothing.
+    static func planNote(plan: PaymentPlan?, accepted: Money, ticked: Bool, currencyCode: String) -> String {
+        guard ticked else {
             return "Nothing is ticked: this records that the client declined every line."
         }
         guard let plan else { return "" }

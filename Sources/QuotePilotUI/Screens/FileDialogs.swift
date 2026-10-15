@@ -32,6 +32,16 @@ struct ImportReportView: View {
                         .buttonStyle(.win95Default)
                         .keyboardShortcut(.defaultAction)
                 }
+                // The lone OK is both the default and the way out, so Escape needs a home too (as in
+                // MessageBoxView): a button has only one keyboard shortcut. In the background, so it
+                // adds no height.
+                .background {
+                    Button("") { model.dialog = nil }
+                        .keyboardShortcut(.cancelAction)
+                        .opacity(0)
+                        .frame(width: 0, height: 0)
+                        .accessibilityHidden(true)
+                }
             }
             .font(Win95.body)
             .foregroundStyle(Win95.text)

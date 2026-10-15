@@ -428,6 +428,29 @@ import QuotePilotCore
         #expect(!model.canExportPDF)
     }
 
+    /// A void invoice no longer counts, so there is nothing to mail for it: ⌘S, the toolbar's Send and
+    /// the menu item are greyed out, whether it is selected in the list or open in the editor.
+    @Test func nothingCanBeSentForAVoidInvoice() throws {
+        let model = try UIFixture.sampleModel()
+        let care = try #require(model.library.invoices.first { $0.number == "INV-0002" })
+        model.section = .invoices
+        model.selectedInvoiceID = care.id
+        #expect(model.sendableDocument == .invoice(care.id))
+
+        model.change("test") { try $0.voidInvoice(care.id) }
+        #expect(model.library.invoice(care.id)?.stage == .void)
+        #expect(model.sendableDocument == nil)
+        model.openInvoice(care.id)
+        #expect(model.sendableDocument == nil)
+        // It can still be saved as a PDF: that is a record, not a send.
+        #expect(model.canExportPDF)
+
+        // Other invoices are unaffected.
+        model.openInvoiceID = nil
+        model.selectedInvoiceID = try #require(model.library.invoices.first { $0.number == "INV-0003" }).id
+        #expect(model.sendableDocument != nil)
+    }
+
     @Test func savingAPDFWithNothingToSaveBeepsInsteadOfExplaining() throws {
         let model = try UIFixture.sampleModel()
         var beeps = 0

@@ -2,7 +2,6 @@ import AppKit
 import QuotePilotCore
 import QuotePilotPDF
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Brand: everything documents carry about the business, on four tabs, beside a sample quote that
 /// redraws as you change things.
@@ -83,11 +82,11 @@ struct BusinessTab: View {
     }
 }
 
+/// The Brand screen's pickers don't have importers of their own: Choose… asks the model's one open
+/// panel (`FileChoice.logo`, `.headingFont`), which RootView shows and `fileChosen` answers.
 struct LookTab: View {
     let model: AppModel
     @Binding var brand: Brand
-    @State private var choosingLogo = false
-    @State private var choosingFont = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -98,7 +97,7 @@ struct LookTab: View {
                         Text(brand.logoFile == nil ? "No logo yet." : "Shown at the top of every document.")
                             .font(Win95.body)
                         HStack(spacing: 6) {
-                            Button("Choose…") { choosingLogo = true }
+                            Button("Choose…") { model.choosingFile = .logo }
                                 .buttonStyle(.win95)
                             Button("Remove") { model.removeLogo() }
                                 .buttonStyle(.win95)
@@ -108,16 +107,13 @@ struct LookTab: View {
                             .font(Win95.small)
                     }
                 }
-                .fileImporter(isPresented: $choosingLogo, allowedContentTypes: [.png, .jpeg, .pdf]) { result in
-                    use(result, model.importLogo)
-                }
             }
             GroupBox("Heading font") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(model.headingFontName ?? "The system font (no heading font chosen).")
                         .font(Win95.body)
                     HStack(spacing: 6) {
-                        Button("Choose…") { choosingFont = true }
+                        Button("Choose…") { model.choosingFile = .headingFont }
                             .buttonStyle(.win95)
                         Button("Remove") { model.removeHeadingFont() }
                             .buttonStyle(.win95)
@@ -126,26 +122,12 @@ struct LookTab: View {
                     Text("A TTF or OTF file, used for document titles and headings.")
                         .font(Win95.small)
                 }
-                .fileImporter(isPresented: $choosingFont, allowedContentTypes: [.font]) { result in
-                    use(result, model.importHeadingFont)
-                }
             }
             GroupBox("Accent colour") {
                 AccentPicker(hex: $brand.accentHex)
             }
         }
         .foregroundStyle(Win95.text)
-    }
-
-    private func use(_ result: Result<URL, Error>, _ importFile: (URL) -> Void) {
-        switch result {
-        case .success(let url):
-            let scoped = url.startAccessingSecurityScopedResource()
-            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            importFile(url)
-        case .failure(let error):
-            model.show(error, title: "Couldn't open that file")
-        }
     }
 }
 

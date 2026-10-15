@@ -61,6 +61,12 @@ public struct AcceptanceReview: Equatable {
     /// With nothing ticked the default button records a decline, and says so: one step, no box.
     public var confirmTitle: String { accepted.isEmpty ? "Record as Declined" : "Confirm" }
 
+    /// Whether the button is the dialog's default one (heavy outline, Return). Hand-ticking starts
+    /// with nothing ticked, so a stray Return there must not record a decline: it has no default
+    /// until a line is ticked, and a deliberate click on "Record as Declined" still works. A returned
+    /// PDF is the client's own answer, so it keeps its default even when nothing is ticked.
+    public var confirmIsDefault: Bool { source == .returnedPDF || !accepted.isEmpty }
+
     init(quote: Quote, proposal: AcceptanceProposal, source: AcceptanceSource, fileName: String?) {
         quoteID = quote.id
         self.source = source
@@ -90,16 +96,24 @@ public struct AcceptanceReview: Equatable {
     }
 }
 
-/// What the File menu's open panel is choosing a file for.
+/// What the open panel is choosing a file for. The whole app has one open panel (RootView's
+/// `fileImporter`), so every pick, the Brand screen's included, is one of these: stacked importers
+/// are a known SwiftUI hazard, where a pick can reach the wrong handler.
 public enum FileChoice: Equatable {
     case returnedQuote
     /// Invoice Generator's "Back up to file" JSON.
     case legacyBackup
+    /// The Brand screen's logo.
+    case logo
+    /// The Brand screen's heading font.
+    case headingFont
 
     var contentTypes: [UTType] {
         switch self {
         case .returnedQuote: return [.pdf]
         case .legacyBackup: return [.json]
+        case .logo: return [.png, .jpeg, .pdf]
+        case .headingFont: return [.font]
         }
     }
 }
@@ -192,14 +206,16 @@ extension AppModel {
     }
 
     /// The quote a PDF with no form belongs to: the number in its keywords, which usually survive
-    /// flattening, or else one in its file name.
+    /// flattening, or else the one quote number its file name holds. Nil, so the one error box shows,
+    /// when the keywords name a quote this library doesn't have (the PDF is for another quote, and its
+    /// file name mustn't pick a different one in its place) and when the file name holds more than
+    /// one of the library's quote numbers (it could be either).
     private func quoteBehindFlattened(data: Data, fileName: String) -> Quote? {
-        if let number = ReturnedQuoteReader.quoteNumber(inMetadataOf: data), let quote = library.quote(number: number) {
-            return quote
+        if let number = ReturnedQuoteReader.quoteNumber(inMetadataOf: data) {
+            return library.quote(number: number)
         }
-        return library.quotes
-            .filter { Self.fileName(fileName, mentions: $0.number) }
-            .max { $0.number.count < $1.number.count }
+        let named = library.quotes.filter { Self.fileName(fileName, mentions: $0.number) }
+        return named.count == 1 ? named[0] : nil
     }
 
     /// True when `number` is in `name` as a whole number: not run into letters or digits before it or
@@ -248,6 +264,8 @@ extension AppModel {
             switch choice {
             case .returnedQuote?: readReturnedQuote(at: url)
             case .legacyBackup?: importLegacyBackup(at: url)
+            case .logo?: importLogo(from: url)
+            case .headingFont?: importHeadingFont(from: url)
             case nil: break
             }
         }

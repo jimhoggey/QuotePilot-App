@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 import Testing
 import QuotePilotCore
+import QuotePilotPDF
 @testable import QuotePilotUI
 
 /// Where `SizeRecorder` leaves the size its content was given.
@@ -167,6 +168,55 @@ private struct SizeRecorder: Layout {
         }
     }
 
+    /// A file name that names two of the library's quotes could be either: pick neither, and say so in
+    /// the one error box. The same quote named twice is still one quote.
+    @Test func aFileNameWithTwoQuoteNumbersPicksNone() throws {
+        for name in ["Q-0002 and Q-0003 scan.pdf", "q-0003 q-0002.pdf", "Q-0001, Q-0002, Q-0004 reply.pdf"] {
+            let model = try UIFixture.sampleModel()
+            model.readReturnedQuote(at: try flattened(model, keepingKeywords: false, name: name))
+            #expect(model.message?.title == "No Tick Boxes", "\(name)")
+            #expect(model.message?.choices.count == 1, "\(name)")
+            #expect(model.dialog == nil, "\(name)")
+            #expect(model.openQuoteID == nil, "\(name)")
+        }
+        // One known number beside one that isn't a quote here is still just the one.
+        let model = try UIFixture.sampleModel()
+        let quote = try #require(model.library.quote(number: "Q-0002"))
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: false, name: "Q-0002 and Q-0099 scan.pdf"))
+        #expect(model.message == nil)
+        #expect(try review(model).quoteID == quote.id)
+        // The same number twice is one quote.
+        model.dialog = nil
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: false, name: "Q-0002 (Q-0002 again).pdf"))
+        #expect(try review(model).quoteID == quote.id)
+    }
+
+    /// The PDF's own keywords say which quote it is. When that quote isn't in the library, the file
+    /// name doesn't get to pick another one in its place.
+    @Test func aPDFWhoseKeywordNumberIsntInTheLibraryDoesntFallBackOnItsName() throws {
+        let maker = try UIFixture.sampleModel()
+        let makerQuote = try #require(maker.library.quote(number: "Q-0002"))
+        let data = maker.pdf(try #require(maker.quoteContent(makerQuote.id)))
+        let printed = UIFixture.flattened(data, keepingKeywords: true)
+        #expect(ReturnedQuoteReader.quoteNumber(inMetadataOf: printed) == "Q-0002")
+
+        var library = try SampleLibrary.make(today: UIFixture.today, now: UIFixture.today.date())
+        library.quotes.removeAll { $0.number == "Q-0002" }
+        let model = try UIFixture.model(library)
+        // Q-0003 is here and its number is in the name, but the PDF is Q-0002's.
+        model.readReturnedQuote(at: try UIFixture.file("Q-0003 scan.pdf", printed))
+        #expect(model.message?.title == "No Tick Boxes")
+        #expect(model.message?.choices.count == 1)
+        #expect(model.dialog == nil)
+        #expect(model.openQuoteID == nil)
+
+        // With the quote in the library, the keywords find it whatever the name says.
+        let whole = try UIFixture.sampleModel()
+        whole.readReturnedQuote(at: try UIFixture.file("Q-0003 scan.pdf", printed))
+        let wholeQuote = try #require(whole.library.quote(number: "Q-0002"))
+        #expect(try review(whole).quoteID == wholeQuote.id)
+    }
+
     @Test func aFlattenedPDFWithNoNumberJustSaysSo() throws {
         let model = try UIFixture.sampleModel()
         model.readReturnedQuote(at: try flattened(model, keepingKeywords: false, name: "scan.pdf"))
@@ -290,12 +340,63 @@ private struct SizeRecorder: Layout {
     }
 
     @Test func theDepositNoteUsesThePlansOwnPercent() {
-        let fifty = AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: Money(dollars: 450), currencyCode: "AUD")
+        let fifty = AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: Money(dollars: 450), ticked: true,
+                                                  currencyCode: "AUD")
         #expect(fifty.contains("$225.00"))
-        #expect(AcceptanceReviewView.planNote(plan: .fullAmount, accepted: Money(dollars: 450), currencyCode: "AUD")
-            .hasPrefix("Full amount"))
-        #expect(AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: .zero, currencyCode: "AUD")
+        #expect(AcceptanceReviewView.planNote(plan: .fullAmount, accepted: Money(dollars: 450), ticked: true,
+                                              currencyCode: "AUD").hasPrefix("Full amount"))
+        #expect(AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: .zero, ticked: false, currencyCode: "AUD")
             .hasPrefix("Nothing is ticked"))
+    }
+
+    /// The note and the button read the same thing: whether any line is ticked. A ticked line that
+    /// costs nothing still makes the button say Confirm, so the note must not say nothing is ticked.
+    @Test func theNothingTickedNoteAndTheButtonAgree() throws {
+        let note = { (ticked: Bool, money: Money) in
+            AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: money, ticked: ticked, currencyCode: "AUD")
+        }
+        #expect(note(false, .zero).hasPrefix("Nothing is ticked"))
+        #expect(!note(true, .zero).hasPrefix("Nothing is ticked"))
+        #expect(!note(true, Money(dollars: 450)).hasPrefix("Nothing is ticked"))
+
+        let model = try UIFixture.sampleModel()
+        var quote = try #require(model.library.quote(number: "Q-0002"))
+        quote.addLine(LineItem(title: "Courtesy check", rate: .zero))
+        model.updateQuote(quote)
+        model.startHandTicking(quote.id)
+        var review = try review(model)
+        #expect(review.confirmTitle == "Record as Declined")
+        review.lines[2].accepted = true
+        #expect(review.accepted == ["03"])
+        #expect(review.confirmTitle == "Confirm")
+        #expect(review.lines[2].amount == .zero)
+    }
+
+    /// Hand-ticking starts with nothing ticked, so Return there must not record a decline by a
+    /// stray press: no default button until a line is ticked. A returned PDF keeps its default.
+    @Test func handTickingHasNoDefaultButtonUntilALineIsTicked() throws {
+        let model = try UIFixture.sampleModel()
+        model.startHandTicking(try #require(model.library.quote(number: "Q-0002")?.id))
+        var review = try review(model)
+        #expect(!review.confirmIsDefault)
+        // The button is still there, and a deliberate click on it still records the decline.
+        #expect(review.confirmTitle == "Record as Declined")
+        #expect(review.canBeConfirmed)
+        review.lines[0].accepted = true
+        #expect(review.confirmIsDefault)
+        review.lines[0].accepted = false
+        #expect(!review.confirmIsDefault)
+        model.confirmAcceptance(review)
+        #expect(model.library.quote(number: "Q-0002")?.stage == .declined)
+
+        // A returned PDF with nothing ticked is the client's own answer: Return records it.
+        let fresh = try UIFixture.sampleModel()
+        fresh.readReturnedQuote(at: try returned(fresh, ticking: []))
+        let returnedReview = try self.review(fresh)
+        #expect(returnedReview.source == .returnedPDF)
+        #expect(returnedReview.accepted.isEmpty)
+        #expect(returnedReview.confirmIsDefault)
+        #expect(returnedReview.confirmTitle == "Record as Declined")
     }
 
     /// A hand-ticked review is recorded as ticked by hand, with the file it came from if it had one.
