@@ -1,8 +1,9 @@
-# Ticked: design spec
+# Quote Pilot: design spec
 
-Date: 15 October 2026. Status: **waiting for the user's review.**
+Date: 15 October 2026. Status: **approved by the user** ("build it", 15 Oct 2026). Renamed from
+"Ticked" to **Quote Pilot** the same day, at the user's request.
 
-Ticked is a simple, well-made Mac app for running the paperwork side of a one-person business. You
+Quote Pilot is a simple, well-made Mac app for running the paperwork side of a one-person business. You
 send a quote, the client ticks the lines they want and sends it back, you invoice for what they
 accepted, and you can see at a glance what you've been paid and what you're still waiting on.
 
@@ -15,7 +16,7 @@ Settled in conversation on 15 Oct 2026:
   accepts some or all of the lines, and you invoice for the accepted lines.
 - **Every quote line has an ID and a tick box.** The quote PDF is fillable. Every box starts
   **unticked**, and an **"Accept all"** box sits at the top. The client ticks, saves and sends it back.
-  Ticked reads the returned PDF and works out which lines were accepted and which were declined. If a
+  Quote Pilot reads the returned PDF and works out which lines were accepted and which were declined. If a
   client can't fill the form (Gmail's web preview, printing and scanning), **you tick the lines in the
   app yourself.**
 - **Payment plans on the quote:** **50/50** (half on acceptance, half on completion) and **full
@@ -33,7 +34,7 @@ Settled in conversation on 15 Oct 2026:
   - accepted jobs with money still to invoice
   - every quote and invoice, filterable
   - a spreadsheet export of payments received, for tax time
-- **Emails through Mail, for quotes, invoices and receipts.** Ticked opens a Mail draft with the PDF
+- **Emails through Mail, for quotes, invoices and receipts.** Quote Pilot opens a Mail draft with the PDF
   attached; **you press Send. The app never sends anything itself.** No payment reminders for now.
 - **No GST.** The user doesn't charge it. GST is a toggle, off by default.
 - **Build it, then shape it while using it.**
@@ -42,15 +43,15 @@ Settled in conversation on 15 Oct 2026:
 
 | Decision | Choice | Why |
 |---|---|---|
-| Name | **Ticked**; repo `jimhoggey/Ticked-App`, public, MIT licence | Clients tick lines, paid invoices get a tick; matches the `-App` repo names |
+| Name | **Quote Pilot** (the user's pick, 15 Oct 2026); repo `jimhoggey/QuotePilot-App`, public, MIT licence | A sibling to Runsheet Pilot; matches the `-App` repo names |
 | Mac version | macOS 14 (Sonoma) and later | Modern SwiftUI; this Mac runs 26 |
-| Where data lives | One library file in `~/Library/Application Support/Ticked/`, saved safely after every change, with an automatic backup copy each day (the last 30 kept) and **File → Back up to…** for a copy anywhere | Simple, private, recoverable |
-| Sent PDFs | Every PDF that goes into a Mail draft is also saved to `~/Documents/Ticked/<year>/` | A permanent record of exactly what each client received |
+| Where data lives | One library file in `~/Library/Application Support/Quote Pilot/`, saved safely after every change, with an automatic backup copy each day (the last 30 kept) and **File → Back up to…** for a copy anywhere | Simple, private, recoverable |
+| Sent PDFs | Every PDF that goes into a Mail draft is also saved to `~/Documents/Quote Pilot/<year>/` | A permanent record of exactly what each client received |
 | Body font | A built-in system font. Your loaded font is for headings and the big amount | Fine print stays readable whatever display font you choose |
 | Logo files | PNG, JPG or PDF (a PDF logo stays sharp at any size) | macOS draws all three reliably into PDFs |
 | "Full amount" plan | One invoice for the accepted total, drafted when you click **Job complete** | Small jobs are usually billed when done |
 | Billing early | On any accepted quote, **Draft invoice now** drafts the next invoice the plan calls for: the deposit if there isn't one yet, otherwise the final or full invoice | One button, no guessing which invoice comes next |
-| Was it sent? | After the Mail draft opens, Ticked asks "Did you send it?" and only marks it Sent when you say yes | Mail doesn't tell other apps whether a message was sent |
+| Was it sent? | After the Mail draft opens, Quote Pilot asks "Did you send it?" and only marks it Sent when you say yes | Mail doesn't tell other apps whether a message was sent |
 | Numbers | `Q-0001` and `INV-0001`, continuing from the highest number used (imports included). A number is never reused. Sent invoices can be **voided**, not deleted; drafts can be deleted | Clean records; no duplicate numbers |
 | Line IDs | `01`, `02`, … per quote. They renumber freely while the quote is a draft and are **frozen once it's sent** | The client's ticks must still match after you reorder |
 | Money | Stored as whole cents; quantities can have decimals (1.5 hrs). Each line rounds to the cent | No floating-point pennies going missing |
@@ -62,29 +63,29 @@ Settled in conversation on 15 Oct 2026:
 1. **A Swift package with three parts, a core, PDFs and the app, built with Apple's Command Line Tools
    (chosen).** The money rules and PDF code sit apart from the screens, so they get proper automated
    tests (Swift Testing ships with the Command Line Tools on this Mac). A `build.sh` wraps the result
-   into `Ticked.app`. No Xcode needed.
+   into `Quote Pilot.app`. No Xcode needed.
 2. **One big Swift file, like Booth Check.** Fastest to start, but Booth Check's single file has
    reached 212 KB. Money code deserves smaller, tested pieces.
 3. **Install Xcode and use an Xcode project.** A 10 GB+ install and a project file to babysit, for
    nothing the Command Line Tools can't do here.
 
 For the PDFs: **drawn directly with Core Text (chosen)** rather than built as HTML and printed through
-WebKit. Drawing directly means Ticked knows exactly where every line and tick box lands on every page,
+WebKit. Drawing directly means Quote Pilot knows exactly where every line and tick box lands on every page,
 which the fillable form depends on. It also embeds your font and splits long quotes across pages
 predictably.
 
 ## 4. How it fits together
 
 ```
-TickedCore   pure Swift, no UI. Models, money maths, payment plans, statuses, numbering,
+QuotePilotCore   pure Swift, no UI. Models, money maths, payment plans, statuses, numbering,
              dashboard figures, financial years, CSV export, import from the old HTML tool,
              loading and saving the library, backups.
-TickedPDF    Core Text + PDFKit. Draws quote, invoice and receipt PDFs from a model, adds the
+QuotePilotPDF    Core Text + PDFKit. Draws quote, invoice and receipt PDFs from a model, adds the
              tick-box form to quotes, and reads ticks back out of a returned PDF.
-TickedApp    SwiftUI. Windows, editors, dashboard, drag-and-drop, Mail drafts, activity log.
+QuotePilotApp    SwiftUI. Windows, editors, dashboard, drag-and-drop, Mail drafts, activity log.
 ```
 
-TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore depends on nothing.
+QuotePilotApp depends on the other two; QuotePilotPDF depends on QuotePilotCore; QuotePilotCore depends on nothing.
 
 ## 5. The data
 
@@ -166,7 +167,7 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
 - **Invoice editor:**
   - Laid out like the quote editor.
   - **Actions:** Send by Mail, Record payment, Send receipt (once a payment exists), Void.
-- **Drop a returned PDF anywhere** in the window, or use **File → Read returned quote…**. Ticked finds
+- **Drop a returned PDF anywhere** in the window, or use **File → Read returned quote…**. Quote Pilot finds
   the quote from the form itself.
 - **Clients:** a list and a simple form.
 - **Brand:** everything in the Brand data above, with a live sample PDF.
@@ -189,15 +190,15 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
   - Below the totals: **Name** and **Date** fields for the client to type into.
   - The payment plan is spelled out ("50% when accepted, 50% on completion").
 - **Form field names** carry the quote number, so a returned PDF identifies itself:
-  `ticked.Q-0007.all`, `ticked.Q-0007.line.03`, `ticked.Q-0007.name`, `ticked.Q-0007.date`. The PDF's
+  `quotepilot.Q-0007.all`, `quotepilot.Q-0007.line.03`, `quotepilot.Q-0007.name`, `quotepilot.Q-0007.date`. The PDF's
   title and keywords also carry the number.
 - **Reading a returned PDF:**
   - **Accept all ticked:** every line is accepted.
   - **Otherwise:** ticked lines are accepted and unticked lines declined.
-  - **Nothing ticked at all:** Ticked asks whether the client declined everything or their app lost
+  - **Nothing ticked at all:** Quote Pilot asks whether the client declined everything or their app lost
     the ticks.
-  - **No form at all** (the client's app flattened it): Ticked says so and opens the hand-ticking view.
-  - **Number not matching any quote, or line IDs that don't exist:** Ticked says exactly what didn't
+  - **No form at all** (the client's app flattened it): Quote Pilot says so and opens the hand-ticking view.
+  - **Number not matching any quote, or line IDs that don't exist:** Quote Pilot says exactly what didn't
     match and changes nothing.
 - **Invoice PDF:**
   - No form.
@@ -209,14 +210,14 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
 
 ## 8. Mail
 
-- Ticked uses macOS's own "compose email" share service. It opens a new message in Mail containing:
+- Quote Pilot uses macOS's own "compose email" share service. It opens a new message in Mail containing:
   - the client's address
   - the brand's subject and wording, with the placeholders filled in
   - the PDF attached
-- **You review it and press Send in Mail.** Ticked then asks "Did you send it?". **Yes** marks the
+- **You review it and press Send in Mail.** Quote Pilot then asks "Did you send it?". **Yes** marks the
   document Sent and logs it; **Not yet** changes nothing.
-- **No client email:** Ticked asks for one before opening Mail.
-- **The compose service is unavailable:** Ticked shows the PDF in Finder and copies the message to
+- **No client email:** Quote Pilot asks for one before opening Mail.
+- **The compose service is unavailable:** Quote Pilot shows the PDF in Finder and copies the message to
   the clipboard, and says so.
 
 ## 9. Importing from the old HTML tool
@@ -235,9 +236,9 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
 
 - **Saving:** every change saves the whole library to a temporary file first, then swaps it in. A
   crash mid-save can't damage it.
-- **Backups:** on launch, and once a day, Ticked copies the library into `Backups/` (the last 30
+- **Backups:** on launch, and once a day, Quote Pilot copies the library into `Backups/` (the last 30
   kept).
-- **Unreadable library:** Ticked never overwrites it. It explains, keeps the file, and offers to
+- **Unreadable library:** Quote Pilot never overwrites it. It explains, keeps the file, and offers to
   restore the latest backup.
 - **Format version:** the file carries one, so later versions can upgrade it.
 - **No silent failures:** anything that fails to save, read or open Mail shows a clear message and
@@ -245,7 +246,7 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
 
 ## 11. Testing
 
-- **TickedCore, with Swift Testing (`swift test`):**
+- **QuotePilotCore, with Swift Testing (`swift test`):**
   - line rounding
   - 50/50 splits that always add up, including odd cents
   - statuses, including overdue and expired at day boundaries
@@ -254,7 +255,7 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
   - the CSV output
   - import mapping, against a sample backup made from made-up data
   - save, load and backup, including an unreadable file
-- **TickedPDF:**
+- **QuotePilotPDF:**
   - **Round trip:** generate a quote PDF, tick boxes in code with PDFKit, save, read it back, and
     check the accepted and declined lines.
   - **Error cases:** "Accept all" alone, nothing ticked, a flattened PDF, a quote-number mismatch,
@@ -264,22 +265,22 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
 - **App:** it builds, launches and shows the dashboard. Screens are also rendered to images for a
   visual check.
 - **Real-world check early on (needs you, once):** open a generated quote in Preview, tick two lines,
-  save, and drop it back into Ticked. Preview is what most clients will use, so this proves the core
+  save, and drop it back into Quote Pilot. Preview is what most clients will use, so this proves the core
   idea before everything else is built on it.
 
 ## 12. Repo and project setup
 
-- **Public repo `jimhoggey/Ticked-App`:**
+- **Public repo `jimhoggey/QuotePilot-App`:**
   - README, MIT licence, and made-up sample data only
   - git-ignores `CLAUDE.md`, `Invoice Generator.html` (it holds real client details), build output
     and any backup or PDF files
 - **Local folder:** it stays `~/Claude/Projects/FynnProjectManagement/QuoteInvoiceBuilder`.
-- **Builds:** `./build.sh` → `build/Ticked.app`, ad-hoc signed. `swift test` runs the tests. Releases
+- **Builds:** `./build.sh` → `build/Quote Pilot.app`, ad-hoc signed. `swift test` runs the tests. Releases
   and auto-update come later, if wanted.
 
 ## 13. Build order (each step usable on its own)
 
-1. Package skeleton, TickedCore models and money rules, with tests.
+1. Package skeleton, QuotePilotCore models and money rules, with tests.
 2. The quote PDF with its tick-box form, plus the round-trip reader, then **the real-world Preview
    check**.
 3. App shell, Brand, Clients, and the quote editor with live preview.
@@ -295,6 +296,8 @@ TickedApp depends on the other two; TickedPDF depends on TickedCore; TickedCore 
 - **Not every PDF app can fill forms**, and some flatten them on save. Mitigation: hand-ticking in
   the app, a clear instruction line on the quote, and a clear message when a returned PDF has no
   form.
-- **The Command Line Tools' default SDK** (27.0) doesn't match this compiler (6.3.3), the quirk Booth
-  Check hit. The build may need to point at `MacOSX26.5.sdk`. Step 1 settles this.
+- **The Command Line Tools on this Mac were broken** (found 15 Oct 2026): leftovers from a macOS 27
+  beta made `swift-package` crash and gave the 6.3.3 compiler an SDK it can't read. The fix is
+  installing Command Line Tools for Xcode 27.0 (offered by Software Update). Step 1 confirms that
+  `swift build` and `swift test` work before anything else is built.
 - **Mail must be set up with an account** for the compose service to work; the fallback covers it.
