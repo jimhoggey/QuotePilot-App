@@ -549,13 +549,16 @@ public final class AppModel {
         return .invoice(invoice, client: library.client(invoice.clientID), brand: library.brand, quoteNumber: quoteNumber)
     }
 
-    /// A made-up quote in the current brand, for the Brand screen's preview.
+    /// A made-up quote in the current brand, for the Brand screen's preview. Its hours line is at the
+    /// brand's hourly rate when there is one ($0 is none), so changing the rate shows in the amount
+    /// and the total; otherwise at $90.
     public func sampleContent() -> DocumentContent {
         let brand = library.brand
+        let hourlyRate = brand.hourlyRate.flatMap { $0 > .zero ? $0 : nil } ?? Money(dollars: 90)
         var quote = Quote(number: "Q-0000", title: "Sample job", issued: today,
                           validUntil: today.adding(days: brand.quoteValidDays), taxed: brand.gstRegistered,
                           summary: "What's included:\n- A planning meeting\n- Design and build", terms: brand.quoteTerms)
-        quote.addLine(LineItem(title: "Planning meeting", quantity: 2, unit: .hours, rate: Money(dollars: 90)))
+        quote.addLine(LineItem(title: "Planning meeting", quantity: 2, unit: .hours, rate: hourlyRate))
         quote.addLine(LineItem(title: "Design", rate: Money(dollars: 600)))
         quote.addLine(LineItem(title: "Build", rate: Money(dollars: 1200)))
         let client = Client(name: "Sample Client Pty Ltd", contactName: "Sam Example", email: "sam@example.com")
