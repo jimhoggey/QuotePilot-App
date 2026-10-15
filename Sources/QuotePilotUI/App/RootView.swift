@@ -117,7 +117,7 @@ struct Win95Toolbar: View {
         VStack(spacing: 0) {
             HStack(spacing: 2) {
                 tool("New Quote", .quote, help: "Start a new quote (⌘N)") { model.newQuote() }
-                tool("New Invoice", .invoice, help: later, enabled: false) {}
+                tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)") { model.newInvoice() }
                 ToolbarSeparator()
                 tool("Send", .mail, help: "Open a Mail draft of the open quote or invoice (⌘S)",
                      enabled: model.sendableDocument != nil) {

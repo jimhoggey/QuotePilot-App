@@ -101,13 +101,13 @@ import QuotePilotCore
     @Test func theRemoveLineQuestionNamesTheLineButNotAnEssay() {
         var line = LineItem(title: "Design", rate: .zero)
         line.code = "02"
-        #expect(LinesEditor.lineName(line) == "line 02, Design")
+        #expect(LinesEditor<EmptyView>.lineName(line) == "line 02, Design")
         line.title = ""
-        #expect(LinesEditor.lineName(line) == "line 02")
+        #expect(LinesEditor<EmptyView>.lineName(line) == "line 02")
         line.title = String(repeating: "x", count: 60)
-        #expect(LinesEditor.lineName(line) == "line 02, " + String(repeating: "x", count: 60))
+        #expect(LinesEditor<EmptyView>.lineName(line) == "line 02, " + String(repeating: "x", count: 60))
         line.title = String(repeating: "x", count: 61)
-        #expect(LinesEditor.lineName(line) == "line 02, " + String(repeating: "x", count: 60) + "…")
+        #expect(LinesEditor<EmptyView>.lineName(line) == "line 02, " + String(repeating: "x", count: 60) + "…")
     }
 
     @Test func theQuoteListDraws() throws {

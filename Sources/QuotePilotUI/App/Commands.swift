@@ -15,6 +15,8 @@ public struct QuotePilotCommands: Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Quote") { model.whenFree { model.newQuote() } }
                 .keyboardShortcut("n")
+            Button("New Invoice") { model.whenFree { model.newInvoice() } }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             Button("New Client") { model.whenFree { model.newClient() } }
                 .keyboardShortcut("n", modifiers: [.command, .option])
             Divider()

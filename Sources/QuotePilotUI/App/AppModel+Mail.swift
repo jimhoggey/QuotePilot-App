@@ -3,11 +3,11 @@ import QuotePilotCore
 import QuotePilotPDF
 
 extension AppModel {
-    /// What ⌘S sends: the open quote on Quotes, the selected invoice on Invoices.
+    /// What ⌘S sends: the open quote on Quotes, the open or selected invoice on Invoices.
     public var sendableDocument: MailDocument? {
         switch section {
         case .quotes: return (openQuoteID ?? selectedQuoteID).map(MailDocument.quote)
-        case .invoices: return selectedInvoiceID.map(MailDocument.invoice)
+        case .invoices: return (openInvoiceID ?? selectedInvoiceID).map(MailDocument.invoice)
         default: return nil
         }
     }

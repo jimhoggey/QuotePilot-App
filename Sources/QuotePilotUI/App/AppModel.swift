@@ -59,6 +59,8 @@ public final class AppModel {
     /// The quote open in the editor; nil shows the quote list.
     public var openQuoteID: UUID?
     public var selectedInvoiceID: UUID?
+    /// The invoice open in the editor; nil shows the invoice list.
+    public var openInvoiceID: UUID?
     public var selectedClientID: UUID?
     public var message: MessageBox?
     public var pendingExport: PDFExport?
@@ -213,10 +215,11 @@ public final class AppModel {
 
     // MARK: Going places
 
-    /// Shows a section. Choosing Quotes while already on Quotes goes back to the list from the
-    /// editor; the tree, its arrow keys and the Go menu all come through here.
+    /// Shows a section. Choosing Quotes (or Invoices) while already there goes back to the list from
+    /// the editor; the tree, its arrow keys and the Go menu all come through here.
     public func go(to section: AppSection) {
         if section == .quotes, self.section == .quotes { openQuoteID = nil }
+        if section == .invoices, self.section == .invoices { openInvoiceID = nil }
         self.section = section
     }
 
@@ -229,6 +232,7 @@ public final class AppModel {
     public func openInvoice(_ id: UUID) {
         section = .invoices
         selectedInvoiceID = id
+        openInvoiceID = id
     }
 
     /// Opens the quote or invoice with this number, as Activity's double-click does.
@@ -414,11 +418,11 @@ public final class AppModel {
         DocumentRenderer.render(content, style: PDFStyle(brand: library.brand, assetsFolder: store.assetsFolder))
     }
 
-    /// What ⌘P saves: the open or selected quote on Quotes, the selected invoice on Invoices.
+    /// What ⌘P saves: the open or selected quote on Quotes, the open or selected invoice on Invoices.
     public var exportableContent: DocumentContent? {
         switch section {
         case .quotes: return (openQuoteID ?? selectedQuoteID).flatMap(quoteContent)
-        case .invoices: return selectedInvoiceID.flatMap(invoiceContent)
+        case .invoices: return (openInvoiceID ?? selectedInvoiceID).flatMap(invoiceContent)
         default: return nil
         }
     }

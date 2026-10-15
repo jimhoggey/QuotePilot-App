@@ -1,21 +1,40 @@
 import QuotePilotCore
 import SwiftUI
 
-/// Invoices: the list, with the selected invoice's PDF beside it. Editing arrives in plan 2b.
+/// Invoices: the list, with the selected invoice's PDF beside it, or the editor when an invoice is open.
 struct InvoicesView: View {
     @Bindable var model: AppModel
 
     var body: some View {
+        if let id = model.openInvoiceID, model.library.invoice(id) != nil {
+            // A fresh editor per invoice, so Duplicate never shows the previous invoice's state.
+            InvoiceEditorView(model: model, invoiceID: id)
+                .id(id)
+        } else {
+            list
+        }
+    }
+
+    private var list: some View {
         let rows = model.library.invoices.map { InvoiceRow($0, library: model.library, today: model.today) }
-        GeometryReader { geometry in
+        return GeometryReader { geometry in
             let layout = Self.layout(width: geometry.size.width)
             let columns = Self.columns(showKind: layout.showKind, currencyCode: model.currencyCode)
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 6) {
-                    NoteBanner("Invoices are drafted from accepted quotes. Drafting, sending and recording payments arrive in the next build.")
+                    HStack(spacing: 6) {
+                        Button("New Invoice") { model.newInvoice() }
+                            .buttonStyle(.win95)
+                        Button("Open") { if let id = model.selectedInvoiceID { model.openInvoice(id) } }
+                            .buttonStyle(.win95)
+                            .disabled(model.selectedInvoiceID == nil)
+                        Spacer()
+                    }
+                    NoteBanner("Double-click an invoice to open it. New Invoice (⇧⌘N) starts a one-off invoice; invoices for a job come from its quote.")
                     DetailsList(rows, id: \.id, columns: columns, selection: $model.selectedInvoiceID,
                                 sort: DetailsSort(column: 0, ascending: false),
-                                emptyText: "No invoices yet.")
+                                emptyText: "No invoices yet.",
+                                onOpen: { model.openInvoice($0) })
                         // A sort is a column number, so a different set of columns starts afresh.
                         .id(layout.showKind)
                 }
@@ -101,7 +120,8 @@ struct InvoicesView: View {
     }
 }
 
-/// One invoice as the list shows it. A void invoice owes nothing.
+/// One invoice as the list shows it. Only a sent invoice owes anything: a draft isn't owed until it is
+/// sent, and a void one never is (the dashboard counts the same way).
 struct InvoiceRow: Identifiable {
     let id: UUID
     let number: String
@@ -120,7 +140,7 @@ struct InvoiceRow: Identifiable {
         due = invoice.due
         status = invoice.status(on: today)
         amount = invoice.amount
-        owing = invoice.stage == .void ? .zero : max(invoice.owing, .zero)
+        owing = invoice.stage == .sent ? max(invoice.owing, .zero) : .zero
     }
 }
 

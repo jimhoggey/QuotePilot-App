@@ -33,41 +33,65 @@ struct QuoteEditorView: View {
         .groupBoxStyle(.win95)
     }
 
+    /// Two rows: the quote's name, status and total above; the actions below, where a long set of
+    /// buttons has the whole width to itself.
     private func header(_ quote: Quote) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            Button("All Quotes") { model.openQuoteID = nil }
-                .buttonStyle(.win95)
-                .help("Back to the list of quotes")
-            PixelIconView(.quote, size: 32)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Quote \(quote.number)")
-                    .font(Win95.title)
-                    .foregroundStyle(Win95.text)
-                StatusLabel.cell(quote.status(on: model.today), selected: false)
-            }
-            Spacer()
-            Button("Send by Mail…") { model.send(.quote(quoteID)) }
-                .buttonStyle(.win95Default)
-                .help("Open a Mail draft with this quote attached (⌘S)")
-            Button("Duplicate") { model.duplicateQuote(quoteID) }
-                .buttonStyle(.win95)
-            if quote.stage == .draft {
-                Button("Delete Draft") { model.deleteDraftQuote(quoteID) }
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 10) {
+                Button("All Quotes") { model.openQuoteID = nil }
                     .buttonStyle(.win95)
+                    .help("Back to the list of quotes")
+                PixelIconView(.quote, size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Quote \(quote.number)")
+                        .font(Win95.title)
+                        .foregroundStyle(Win95.text)
+                    HStack(spacing: 8) {
+                        StatusLabel.cell(quote.status(on: model.today), selected: false)
+                        if let done = quote.completedOn {
+                            Text("Job completed \(done.short)")
+                                .font(Win95.body)
+                                .foregroundStyle(Win95.text)
+                        }
+                    }
+                }
+                Spacer()
+                Text(model.money(quote.totals.total))
+                    .font(Win95.readout)
+                    .foregroundStyle(Win95.text)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .frame(minWidth: 190, alignment: .trailing)
+                    .win95Sunken()
+                    .accessibilityLabel("Total \(model.money(quote.totals.total))")
             }
-            Button("Save PDF…") { model.exportPDF() }
-                .buttonStyle(.win95)
-            Text(model.money(quote.totals.total))
-                .font(Win95.readout)
-                .foregroundStyle(Win95.text)
-                .lineLimit(1)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .frame(minWidth: 190, alignment: .trailing)
-                .win95Sunken()
-                .accessibilityLabel("Total \(model.money(quote.totals.total))")
+            .padding(8)
+            HStack(spacing: 6) {
+                Button("Send by Mail…") { model.send(.quote(quoteID)) }
+                    .buttonStyle(.win95Default)
+                    .help("Open a Mail draft with this quote attached (⌘S)")
+                if quote.stage != .draft, model.library.invoices(forQuote: quoteID).isEmpty {
+                    Button("Record Acceptance…") { model.startHandTicking(quoteID) }
+                        .help("Tick the lines the client accepted, when they couldn't fill in the PDF")
+                }
+                if model.library.nextInvoiceKind(forQuote: quoteID) != nil {
+                    Button("Draft Invoice Now") { model.draftInvoiceNow(forQuote: quoteID) }
+                        .help("Draft the next invoice the payment plan calls for")
+                    Button("Job Complete") { model.completeJob(quoteID) }
+                        .help("Record the job as done and draft its final invoice")
+                }
+                Button("Duplicate") { model.duplicateQuote(quoteID) }
+                if quote.stage == .draft {
+                    Button("Delete Draft") { model.deleteDraftQuote(quoteID) }
+                }
+                Button("Save PDF…") { model.exportPDF() }
+                Spacer()
+            }
+            .buttonStyle(.win95)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 8)
         }
-        .padding(8)
         .background(Win95.face)
         .overlay(alignment: .bottom) { EtchedLine() }
     }
@@ -77,19 +101,6 @@ struct QuoteEditorView: View {
         return VStack(alignment: .leading, spacing: 10) {
             if current.stage != .draft {
                 NoteBanner("This quote has been sent. Changes here change Quote Pilot's copy, not the PDF your client already has.")
-                // Beside the banner, not in the header: at the smallest window the header has no room
-                // for another button without cutting the others' names short.
-                if model.library.invoices(forQuote: quoteID).isEmpty {
-                    HStack(spacing: 8) {
-                        Button("Record Acceptance…") { model.startHandTicking(quoteID) }
-                            .buttonStyle(.win95)
-                            .help("Tick the lines the client accepted, when they couldn't fill in the PDF")
-                        Text("Tick the lines the client accepted, when they couldn't fill in the PDF.")
-                            .font(Win95.small)
-                            .foregroundStyle(Win95.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
             }
             GroupBox("Quote") {
                 VStack(alignment: .leading, spacing: 6) {
@@ -108,7 +119,15 @@ struct QuoteEditorView: View {
                 }
             }
             GroupBox("Lines") {
-                LinesEditor(model: model, quote: quote)
+                LinesEditor(model: model, lines: quote.lines,
+                            showDecision: current.stage == .accepted || current.stage == .declined,
+                            onAdd: {
+                                var edited = quote.wrappedValue
+                                edited.addLine(LineItem(title: "", rate: .zero))
+                                quote.wrappedValue = edited
+                            }) {
+                    DocumentTotals(totals: model.quoteContent(quoteID)?.totals ?? [])
+                }
             }
             GroupBox("Work summary") {
                 VStack(alignment: .leading, spacing: 4) {
@@ -124,172 +143,6 @@ struct QuoteEditorView: View {
                     .frame(height: 60)
             }
         }
-    }
-}
-
-/// The quote's lines, each with its ID, wording, quantity, unit, rate and amount, plus totals.
-struct LinesEditor: View {
-    let model: AppModel
-    @Binding var quote: Quote
-
-    var body: some View {
-        let currency = model.currencyCode
-        let showDecision = quote.stage == .accepted || quote.stage == .declined
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                columnHead("ID", width: 24)
-                columnHead("Item", width: nil)
-                columnHead("Qty", width: 48)
-                columnHead("Unit", width: 72)
-                columnHead("Rate", width: 92)
-                columnHead("Amount", width: 88, trailing: true)
-                Spacer().frame(width: 3 * 20 + 2 * 4)
-            }
-            ForEach(Array(quote.lines.enumerated()), id: \.element.id) { index, line in
-                LineRow(line: lineBinding(line.id), currency: currency, showDecision: showDecision,
-                        canMoveUp: index > 0, canMoveDown: index < quote.lines.count - 1,
-                        move: { move(line.id, by: $0) }, remove: { remove(line) })
-            }
-            if quote.lines.isEmpty {
-                Text("No lines yet. Add one for each piece of work the client can tick.")
-                    .font(Win95.body)
-                    .foregroundStyle(Win95.text)
-            }
-            HStack(alignment: .top) {
-                Button("Add Line") { add() }
-                    .buttonStyle(.win95)
-                Spacer()
-                totals(currency)
-            }
-            .padding(.top, 4)
-        }
-    }
-
-    private func columnHead(_ title: String, width: CGFloat?, trailing: Bool = false) -> some View {
-        Text(title)
-            .font(Win95.label)
-            .foregroundStyle(Win95.text)
-            .frame(width: width, alignment: trailing ? .trailing : .leading)
-            .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
-    }
-
-    private func totals(_ currency: String) -> some View {
-        let totals = quote.totals
-        return Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 2) {
-            if quote.taxed {
-                GridRow {
-                    Text("Subtotal")
-                    Text(totals.subtotal.formatted(currencyCode: currency)).font(Win95.money)
-                }
-                GridRow {
-                    Text("GST (10%)")
-                    Text(totals.gst.formatted(currencyCode: currency)).font(Win95.money)
-                }
-            }
-            GridRow {
-                Text("Total").font(Win95.label)
-                Text(totals.total.formatted(currencyCode: currency)).font(Win95.money.bold())
-            }
-        }
-        .font(Win95.body)
-        .foregroundStyle(Win95.text)
-    }
-
-    /// A line found by its identity, so a removed or moved line can never index past the end.
-    private func lineBinding(_ id: UUID) -> Binding<LineItem> {
-        Binding(
-            get: { quote.lines.first { $0.id == id } ?? LineItem(id: id, title: "", rate: .zero) },
-            set: { line in
-                var edited = quote
-                guard let index = edited.lines.firstIndex(where: { $0.id == id }) else { return }
-                edited.lines[index] = line
-                quote = edited
-            })
-    }
-
-    private func add() {
-        var edited = quote
-        edited.addLine(LineItem(title: "", rate: .zero))
-        quote = edited
-    }
-
-    private func move(_ id: UUID, by offset: Int) {
-        var edited = quote
-        guard let index = edited.lines.firstIndex(where: { $0.id == id }),
-              edited.lines.indices.contains(index + offset)
-        else { return }
-        edited.lines.swapAt(index, index + offset)
-        quote = edited
-    }
-
-    /// How the Remove Line question names a line: "line 02, Design", with a long title cut at 60
-    /// characters so the message box stays a message box.
-    static func lineName(_ line: LineItem) -> String {
-        guard !line.title.isEmpty else { return "line \(line.code)" }
-        let title = line.title.count > 60 ? String(line.title.prefix(60)) + "…" : line.title
-        return "line \(line.code), \(title)"
-    }
-
-    private func remove(_ line: LineItem) {
-        model.confirm(title: "Remove Line", text: "Remove \(Self.lineName(line))?", confirm: "Remove") {
-            var edited = quote
-            edited.lines.removeAll { $0.id == line.id }
-            quote = edited
-        }
-    }
-}
-
-struct LineRow: View {
-    @Binding var line: LineItem
-    let currency: String
-    let showDecision: Bool
-    let canMoveUp: Bool
-    let canMoveDown: Bool
-    let move: (Int) -> Void
-    let remove: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 4) {
-                Text(line.code)
-                    .font(Win95.money)
-                    .foregroundStyle(Win95.text)
-                    .frame(width: 24, alignment: .leading)
-                Win95TextField("Line \(line.code) item", text: $line.title, prompt: "What the work is")
-                CommitField(label: "Line \(line.code) quantity", value: line.quantity,
-                            format: FieldParser.quantityText, parse: FieldParser.quantity) { line.quantity = $0 }
-                    .frame(width: 48)
-                Picker("Line \(line.code) unit", selection: $line.unit) {
-                    ForEach(QuotePilotCore.Unit.allCases, id: \.self) { unit in
-                        Text(unit.label).tag(unit)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 72)
-                CommitField(label: "Line \(line.code) rate", value: line.rate,
-                            format: { $0.formatted(currencyCode: currency) }, parse: FieldParser.money) { line.rate = $0 }
-                    .frame(width: 92)
-                Text(line.amount.formatted(currencyCode: currency))
-                    .font(Win95.money)
-                    .foregroundStyle(Win95.text)
-                    .lineLimit(1)
-                    .frame(width: 88, alignment: .trailing)
-                SquareButton(PixelGlyph.up, label: "Move line \(line.code) up") { move(-1) }
-                    .disabled(!canMoveUp)
-                SquareButton(PixelGlyph.down, label: "Move line \(line.code) down") { move(1) }
-                    .disabled(!canMoveDown)
-                SquareButton(PixelGlyph.cross, label: "Remove line \(line.code)", action: remove)
-            }
-            HStack(spacing: 4) {
-                Spacer().frame(width: 28)
-                Win95TextField("Line \(line.code) detail", text: $line.detail, prompt: "Detail (optional)")
-                if showDecision, let decision = line.decision {
-                    StatusLabel(decision == .accepted ? .tick : .cross, decision == .accepted ? "Accepted" : "Declined")
-                        .frame(width: 110, alignment: .leading)
-                }
-            }
-        }
-        .padding(.vertical, 3)
     }
 }
 
@@ -400,41 +253,6 @@ struct ClientPicker: View {
         .labelsHidden()
         .pickerStyle(.menu)
         .frame(maxWidth: 300, alignment: .leading)
-    }
-}
-
-/// A small square Windows 95 button showing a glyph, for line actions.
-struct SquareButton: View {
-    let glyph: [String]
-    let label: String
-    let action: () -> Void
-    @Environment(\.isEnabled) private var isEnabled
-
-    init(_ glyph: [String], label: String, action: @escaping () -> Void) {
-        self.glyph = glyph
-        self.label = label
-        self.action = action
-    }
-
-    var body: some View {
-        Button(action: action) {
-            PixelGlyph(glyph, color: isEnabled ? Win95.dark : Win95.shadow)
-                .frame(width: 7, height: CGFloat(glyph.count))
-        }
-        .buttonStyle(SquareButtonStyle())
-        .accessibilityLabel(label)
-        .help(label)
-    }
-}
-
-struct SquareButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .offset(x: configuration.isPressed ? 1 : 0, y: configuration.isPressed ? 1 : 0)
-            .frame(width: 20, height: 20)
-            .background(Win95.face)
-            .overlay(Bevel(configuration.isPressed ? .pressed : .raised))
-            .contentShape(Rectangle())
     }
 }
 
