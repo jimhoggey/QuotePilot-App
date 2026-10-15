@@ -70,12 +70,15 @@ struct Win95ToolbarButtonBody: View {
 
 // MARK: Text
 
-/// A sunken white text field with the dotted focus rectangle.
+/// A sunken white text field with the dotted focus rectangle. Disabled, it is the window's grey with
+/// grey text, as a locked field is in Windows 95, so a record that can't be edited doesn't look as
+/// if it can.
 public struct Win95TextField: View {
     let label: String
     @Binding var text: String
     let prompt: String
     @FocusState private var focused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     public init(_ label: String, text: Binding<String>, prompt: String = "") {
         self.label = label
@@ -84,15 +87,16 @@ public struct Win95TextField: View {
     }
 
     public var body: some View {
-        TextField(label, text: $text, prompt: Text(prompt))
+        // A locked field shows no hint to type: an empty one stays blank.
+        TextField(label, text: $text, prompt: Text(isEnabled ? prompt : ""))
             .textFieldStyle(.plain)
             .labelsHidden()
             .font(Win95.body)
-            .foregroundStyle(Win95.text)
+            .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
             .focused($focused)
             .padding(.horizontal, 5)
             .padding(.vertical, 4)
-            .background(Win95.field)
+            .background(isEnabled ? Win95.field : Win95.face)
             .overlay(Bevel(.sunken))
             .overlay(focused ? FocusRect().padding(3) : nil)
             .accessibilityLabel(label)
@@ -101,10 +105,12 @@ public struct Win95TextField: View {
 
 /// A sunken multi-line editor with the dotted focus rectangle. Give it a label for VoiceOver
 /// when the visible label sits outside it, as in a field row; leave the label empty to add none.
+/// Disabled, it is grey with grey text, like `Win95TextField`.
 public struct Win95TextEditor: View {
     let label: String
     @Binding var text: String
     @FocusState private var focused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     public init(_ label: String = "", text: Binding<String>) {
         self.label = label
@@ -114,11 +120,11 @@ public struct Win95TextEditor: View {
     private var editor: some View {
         TextEditor(text: $text)
             .font(Win95.body)
-            .foregroundStyle(Win95.text)
+            .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
             .scrollContentBackground(.hidden)
             .focused($focused)
             .padding(4)
-            .background(Win95.field)
+            .background(isEnabled ? Win95.field : Win95.face)
             .overlay(Bevel(.sunken))
             .overlay(focused ? FocusRect().padding(3) : nil)
             // A text editor reports no baseline of its own, which left a row's label floating
@@ -189,28 +195,49 @@ public extension GroupBoxStyle where Self == Win95GroupBoxStyle {
 
 // MARK: Checkbox and radio
 
-/// A sunken white square with a black tick.
+/// The label of a button, as it is: what a disabled `.plain` button would dim, a control that draws
+/// its own disabled look (a grey box, grey words) leaves alone, so it isn't dimmed twice.
+struct Win95LabelButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
+}
+
+/// A sunken white square with a black tick. Disabled, the square is grey and the tick and words are
+/// grey, like a locked field.
 public struct Win95CheckboxStyle: ToggleStyle {
     public init() {}
 
     public func makeBody(configuration: Configuration) -> some View {
+        Win95CheckboxBody(configuration: configuration)
+    }
+}
+
+struct Win95CheckboxBody: View {
+    let configuration: ToggleStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
         Button {
             configuration.isOn.toggle()
         } label: {
             HStack(spacing: 6) {
                 ZStack {
-                    Win95.field
-                    if configuration.isOn { PixelGlyph(PixelGlyph.tick).frame(width: 7, height: 7) }
+                    isEnabled ? Win95.field : Win95.face
+                    if configuration.isOn {
+                        PixelGlyph(PixelGlyph.tick, color: isEnabled ? Win95.dark : Win95.shadow)
+                            .frame(width: 7, height: 7)
+                    }
                 }
                 .frame(width: 13, height: 13)
                 .overlay(Bevel(.sunken))
                 configuration.label
                     .font(Win95.body)
-                    .foregroundStyle(Win95.text)
+                    .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Win95LabelButtonStyle())
         .accessibilityValue(configuration.isOn ? "On" : "Off")
     }
 }
@@ -250,38 +277,48 @@ public struct PixelGlyph: View {
     }
 }
 
-/// Round option buttons, one choice per row.
+/// Round option buttons, one choice per row, or side by side with `axis: .horizontal`. Disabled, the
+/// buttons and words go grey like a locked field.
 public struct Win95RadioGroup<Value: Hashable>: View {
     @Binding var selection: Value
     let options: [(Value, String)]
+    let axis: Axis
+    @Environment(\.isEnabled) private var isEnabled
 
-    public init(selection: Binding<Value>, options: [(Value, String)]) {
+    public init(selection: Binding<Value>, options: [(Value, String)], axis: Axis = .vertical) {
         self._selection = selection
         self.options = options
+        self.axis = axis
+    }
+
+    private var layout: AnyLayout {
+        axis == .horizontal
+            ? AnyLayout(HStackLayout(spacing: 16))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        layout {
             ForEach(Array(options.enumerated()), id: \.offset) { _, option in
                 Button {
                     selection = option.0
                 } label: {
                     HStack(spacing: 6) {
                         ZStack {
-                            Circle().fill(Win95.field)
+                            Circle().fill(isEnabled ? Win95.field : Win95.face)
                             Circle().strokeBorder(Win95.shadow, lineWidth: 1)
                             if selection == option.0 {
-                                Circle().fill(Win95.dark).frame(width: 5, height: 5)
+                                Circle().fill(isEnabled ? Win95.dark : Win95.shadow).frame(width: 5, height: 5)
                             }
                         }
                         .frame(width: 13, height: 13)
                         Text(option.1)
                             .font(Win95.body)
-                            .foregroundStyle(Win95.text)
+                            .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Win95LabelButtonStyle())
                 .accessibilityAddTraits(selection == option.0 ? .isSelected : [])
             }
         }

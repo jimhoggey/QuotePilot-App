@@ -155,7 +155,8 @@ struct QuoteEditorView: View {
 /// the cursor is still in the field uses what is showing. Half-typed text ("1.", "$") is left alone
 /// and the text itself is never rewritten while you type. When you press Return or leave the field,
 /// text that doesn't parse beeps and the stored value is put back, so it never reaches the library;
-/// valid text is tidied to the field's own format ("1500" becomes "$1,500.00").
+/// valid text is tidied to the field's own format ("1500" becomes "$1,500.00"). Disabled, it is grey
+/// with grey text, like `Win95TextField`.
 struct CommitField<Value: Equatable>: View {
     let label: String
     let value: Value
@@ -188,7 +189,7 @@ struct CommitField<Value: Equatable>: View {
             .textFieldStyle(.plain)
             .labelsHidden()
             .font(Win95.money)
-            .foregroundStyle(Win95.text)
+            .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
             .multilineTextAlignment(alignment)
             .focused($focused)
             .onSubmit(apply)
@@ -213,7 +214,7 @@ struct CommitField<Value: Equatable>: View {
             .onAppear { text = format(value) }
             .padding(.horizontal, 5)
             .padding(.vertical, 4)
-            .background(Win95.field)
+            .background(isEnabled ? Win95.field : Win95.face)
             .overlay(Bevel(.sunken))
             .overlay(focused ? FocusRect().padding(3) : nil)
             .accessibilityLabel(label)
