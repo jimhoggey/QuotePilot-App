@@ -99,9 +99,16 @@ struct QuoteListView: View {
     private func menu(_ id: UUID) -> some View {
         Button("Open") { model.openQuote(id) }
         Button("Duplicate") { model.duplicateQuote(id) }
+        Divider()
+        // A draft keeps its own Delete Draft… (and its own question); any other quote, whatever its
+        // stage, can be deleted here, with its invoices.
         if model.library.quote(id)?.stage == .draft {
-            Divider()
             Button("Delete Draft…") { model.deleteDraftQuote(id) }
+        } else {
+            Button("Delete…") {
+                model.selectedQuoteID = id
+                model.deleteQuote(id)
+            }
         }
     }
 }

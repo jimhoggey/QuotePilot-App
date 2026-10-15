@@ -280,7 +280,13 @@ public struct DetailsList<Row, ID: Hashable>: View {
             .accessibilityAddTraits(selected ? .isSelected : [])
             .accessibilityAction(named: "Open") { onOpen?(rowID) }
         if let rowMenu {
-            base.contextMenu { rowMenu(rowID) }
+            // A right-click chooses the row first, then its menu opens.
+            base
+                .background(SelectOnRightClick {
+                    selection = rowID
+                    focused = true
+                })
+                .contextMenu { rowMenu(rowID) }
         } else {
             base
         }

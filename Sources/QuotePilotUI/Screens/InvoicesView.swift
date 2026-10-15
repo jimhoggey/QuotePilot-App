@@ -45,7 +45,8 @@ struct InvoicesView: View {
                                 emptyText: model.findText[.invoices, default: ""].isEmpty
                                     ? "No invoices yet."
                                     : "No invoices match \"\(model.findText[.invoices, default: ""])\".",
-                                onOpen: { model.openInvoice($0) })
+                                onOpen: { model.openInvoice($0) },
+                                rowMenu: { id in AnyView(rowMenu(id)) })
                         // A sort is a column number, so a different set of columns starts afresh.
                         .id(layout.showKind)
                 }
@@ -72,6 +73,15 @@ struct InvoicesView: View {
             .padding(8)
         }
         .groupBoxStyle(.win95)
+    }
+
+    /// A right-click on a row: Delete…, for an invoice at any stage (the question says what goes with
+    /// it, and a deposit the final invoice still deducts says why it can't).
+    private func rowMenu(_ id: UUID) -> some View {
+        Button("Delete…") {
+            model.selectedInvoiceID = id
+            model.deleteInvoice(id)
+        }
     }
 
     // MARK: Fitting the window
