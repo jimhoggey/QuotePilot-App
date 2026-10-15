@@ -13,9 +13,13 @@ public struct RootView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // The macOS window buttons sit over the left end of this bar.
+            // The macOS window buttons sit over the left end of this bar. It is drawn above the rows
+            // under it (`zIndex`): a background there, such as the toolbar's, grows up through the
+            // system title bar's safe-area inset to the top of the window, and would otherwise paint
+            // over this bar, leaving plain grey under the window buttons.
             TitleBar(windowTitle, icon: titleIcon, height: 28, leadingInset: 72)
                 .overlay(WindowDragArea())
+                .zIndex(1)
             switch model.loadState {
             case .ready:
                 // While a message box, dialog, save panel or open panel is up (`isBusy`), nothing
@@ -40,11 +44,16 @@ public struct RootView: View {
                     .disabled(model.isBusy)
             }
         }
-        .ignoresSafeArea(.container, edges: .top)
         .frame(minWidth: 980, minHeight: 620)
         .background(Win95.face)
         .preferredColorScheme(.light)
+        // Makes the real window's own title bar transparent and untitled, with the content under it
+        // (see `WindowAccessor`); the drawn bar above is the only one anyone sees.
+        .background(WindowAccessor(title: windowTitle))
         .overlay { messageOverlay }
+        // The last layout modifier, so nothing between this and the window can keep the content out
+        // of the title-bar area: the drawn bar starts at the very top, under the window buttons.
+        .ignoresSafeArea(.all, edges: .top)
         .fileExporter(isPresented: exporting, document: model.pendingExport.map { ExportFile(data: $0.data) },
                       contentType: model.pendingExport?.contentType ?? .pdf,
                       defaultFilename: model.pendingExport?.fileName) { result in
