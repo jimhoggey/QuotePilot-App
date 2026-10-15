@@ -64,6 +64,13 @@ public final class AppModel {
     public var pendingExport: PDFExport?
     /// The dialog panel showing over the window, if any (the email prompt, the acceptance review…).
     public var dialog: Dialog?
+    /// What the open panel is choosing a file for, while it's showing.
+    public var choosingFile: FileChoice? {
+        didSet { if let choosingFile { lastFileChoice = choosingFile } }
+    }
+    /// The last thing the open panel was asked for, kept for `fileChosen`: SwiftUI may clear
+    /// `choosingFile` as the panel closes, before it hands over the file.
+    @ObservationIgnored var lastFileChoice: FileChoice?
     /// Opens Mail drafts; tests use a fake.
     @ObservationIgnored public let mail: any MailComposer
     /// Where copies of mailed PDFs go: `~/Documents/Quote Pilot`, or a temporary folder in tests.
@@ -182,12 +189,14 @@ public final class AppModel {
         choice.action()
     }
 
-    /// Runs `action` only when no message box, dialog or save panel is up, and beeps otherwise. A message box or
-    /// dialog is modal to the keyboard and the menus as well as the mouse, as in Windows 95: every
-    /// menu command goes through here, so a second command can't replace an error that hasn't been read.
+    /// Runs `action` only when no message box, dialog, save panel or open panel is up, and beeps
+    /// otherwise. A message box or dialog is modal to the keyboard and the menus as well as the mouse,
+    /// as in Windows 95: every menu command goes through here, so a second command can't replace an
+    /// error that hasn't been read.
     public func whenFree(_ action: () -> Void) {
-        // The save panel is modal as well: a command behind it could change what it's saving.
-        guard message == nil, dialog == nil, pendingExport == nil else {
+        // The save and open panels are modal as well: a command behind one could change what it's
+        // saving or opening for.
+        guard message == nil, dialog == nil, pendingExport == nil, choosingFile == nil else {
             beep()
             return
         }

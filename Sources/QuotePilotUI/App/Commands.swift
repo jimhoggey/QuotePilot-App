@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 
 /// The menu bar. Each command checks for itself whether it applies, and says so in a message box
-/// when it doesn't. While a message box, dialog or save panel is up every command but Close waits
-/// (`whenFree`).
+/// when it doesn't. While a message box, dialog, save panel or open panel is up every command but
+/// Close waits (`whenFree`).
 public struct QuotePilotCommands: Commands {
     let model: AppModel
 
@@ -17,6 +17,9 @@ public struct QuotePilotCommands: Commands {
                 .keyboardShortcut("n")
             Button("New Client") { model.whenFree { model.newClient() } }
                 .keyboardShortcut("n", modifiers: [.command, .option])
+            Divider()
+            Button("Read Returned Quote…") { model.whenFree { model.choosingFile = .returnedQuote } }
+                .keyboardShortcut("o")
         }
         // Every change saves itself, so there's no Save. Close lives in the same group, so it's put
         // back; it isn't held by whenFree, as closing the window is always allowed.

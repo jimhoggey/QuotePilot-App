@@ -296,6 +296,24 @@ import QuotePilotCore
         #expect(beeps == 1)
     }
 
+    /// The open panel is modal too, like the save panel.
+    @Test func commandsWaitWhileTheOpenPanelIsUp() throws {
+        let model = try UIFixture.model()
+        var beeps = 0
+        model.beep = { beeps += 1 }
+        var ran = 0
+
+        model.choosingFile = .returnedQuote
+        model.whenFree { ran += 1 }
+        #expect(ran == 0)
+        #expect(beeps == 1)
+
+        model.choosingFile = nil
+        model.whenFree { ran += 1 }
+        #expect(ran == 1)
+        #expect(beeps == 1)
+    }
+
     /// `QP_LIBRARY_FOLDER` points the app at a demo library; its mailed copies go beside it, never
     /// into ~/Documents. (Only URLs are worked out here; no folder is touched.)
     @Test func aDemoLibraryKeepsItsSentCopiesBesideIt() {

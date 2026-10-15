@@ -77,6 +77,19 @@ struct QuoteEditorView: View {
         return VStack(alignment: .leading, spacing: 10) {
             if current.stage != .draft {
                 NoteBanner("This quote has been sent. Changes here change Quote Pilot's copy, not the PDF your client already has.")
+                // Beside the banner, not in the header: at the smallest window the header has no room
+                // for another button without cutting the others' names short.
+                if model.library.invoices(forQuote: quoteID).isEmpty {
+                    HStack(spacing: 8) {
+                        Button("Record Acceptance…") { model.startHandTicking(quoteID) }
+                            .buttonStyle(.win95)
+                            .help("Tick the lines the client accepted, when they couldn't fill in the PDF")
+                        Text("Tick the lines the client accepted, when they couldn't fill in the PDF.")
+                            .font(Win95.small)
+                            .foregroundStyle(Win95.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
             GroupBox("Quote") {
                 VStack(alignment: .leading, spacing: 6) {

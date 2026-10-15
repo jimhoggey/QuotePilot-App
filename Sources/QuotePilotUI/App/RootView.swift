@@ -48,6 +48,13 @@ public struct RootView: View {
                       contentType: .pdf, defaultFilename: model.pendingExport?.fileName) { result in
             model.finishExport(result)
         }
+        .fileImporter(isPresented: choosing, allowedContentTypes: model.choosingFile?.contentTypes ?? [.pdf]) { result in
+            model.fileChosen(result)
+        }
+        // A PDF dropped anywhere on the window is read as a returned quote.
+        .dropDestination(for: URL.self) { urls, _ in
+            model.dropped(urls)
+        }
     }
 
     private var boxIsUp: Bool { model.message != nil || model.dialog != nil }
@@ -64,6 +71,10 @@ public struct RootView: View {
 
     private var exporting: Binding<Bool> {
         Binding(get: { model.pendingExport != nil }, set: { if !$0 { model.pendingExport = nil } })
+    }
+
+    private var choosing: Binding<Bool> {
+        Binding(get: { model.choosingFile != nil }, set: { if !$0 { model.choosingFile = nil } })
     }
 
     @ViewBuilder
@@ -112,7 +123,9 @@ struct Win95Toolbar: View {
                      enabled: model.sendableDocument != nil) {
                     if let document = model.sendableDocument { model.send(document) }
                 }
-                tool("Read Reply", .folder, help: later, enabled: false) {}
+                tool("Read Reply", .folder, help: "Read a returned quote PDF, or drop one on the window (⌘O)") {
+                    model.choosingFile = .returnedQuote
+                }
                 tool("Payment", .payment, help: later, enabled: false) {}
                 ToolbarSeparator()
                 tool("Save PDF", .pdf, help: "Save the open quote or invoice as a PDF (⌘P)",

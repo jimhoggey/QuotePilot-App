@@ -1,6 +1,8 @@
 import AppKit
 import Foundation
+import PDFKit
 import QuotePilotCore
+import QuotePilotPDF
 @testable import QuotePilotUI
 
 /// Stands in for Mail: records each draft, and can pretend Mail isn't available.
@@ -84,5 +86,41 @@ enum UIFixture {
         let url = folder.appendingPathComponent(name)
         try data.write(to: url)
         return url
+    }
+
+    /// Fills a quote PDF's form the way a client's PDF app would, then saves it.
+    static func fill(_ data: Data, ticking codes: [String] = [], acceptAll: Bool = false,
+                     name: String = "", date: String = "") -> Data {
+        let document = PDFDocument(data: data)!
+        for index in 0..<document.pageCount {
+            for widget in document.page(at: index)!.annotations {
+                switch widget.fieldName.flatMap({ QuoteFormFields.parse($0) })?.part {
+                case .line(let code)? where codes.contains(code): widget.buttonWidgetState = .onState
+                case .all? where acceptAll: widget.buttonWidgetState = .onState
+                case .name?: widget.widgetStringValue = name
+                case .date?: widget.widgetStringValue = date
+                default: break
+                }
+            }
+        }
+        return document.dataRepresentation()!
+    }
+
+    /// Redraws page 1 into a new PDF, the way printing to PDF does: the form is gone. Keeps Quote
+    /// Pilot's keywords when asked, as most PDF apps do.
+    static func flattened(_ data: Data, keepingKeywords: Bool) -> Data {
+        let document = PDFDocument(data: data)!
+        let page = document.page(at: 0)!
+        let keywords = document.documentAttributes?[PDFDocumentAttribute.keywordsAttribute]
+        let info: [CFString: Any]? = keepingKeywords ? [kCGPDFContextKeywords: keywords as Any] : nil
+        let flat = NSMutableData()
+        var box = page.bounds(for: .mediaBox)
+        let context = CGContext(consumer: CGDataConsumer(data: flat as CFMutableData)!, mediaBox: &box,
+                                info as CFDictionary?)!
+        context.beginPDFPage(nil)
+        page.draw(with: .mediaBox, to: context)
+        context.endPDFPage()
+        context.closePDF()
+        return flat as Data
     }
 }

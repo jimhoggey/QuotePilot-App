@@ -5,6 +5,8 @@ import SwiftUI
 public enum Dialog: Equatable {
     /// The client has no email yet: ask for it, then carry on sending `document`.
     case emailPrompt(clientID: UUID, document: MailDocument)
+    /// Check what the client accepted, then confirm.
+    case acceptance(AcceptanceReview)
 }
 
 /// A Windows 95 dialog: navy title bar, grey body, bevelled edge.
@@ -32,6 +34,7 @@ struct DialogPanel<Content: View>: View {
         .background(Win95.face)
         .overlay(Bevel(.raised))
         .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
         .accessibilityLabel(title)
     }
 }
@@ -44,10 +47,20 @@ struct DialogOverlay: View {
     var body: some View {
         ZStack {
             Color.white.opacity(0.001)
-            switch dialog {
-            case .emailPrompt(let clientID, let document):
-                EmailPromptView(model: model, clientID: clientID, document: document)
-            }
+            // A message box over the dialog owns Return and Escape, as the one on top of a Windows 95
+            // dialog does: the dialog's own buttons wait until it's answered.
+            content
+                .disabled(model.message != nil)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch dialog {
+        case .emailPrompt(let clientID, let document):
+            EmailPromptView(model: model, clientID: clientID, document: document)
+        case .acceptance(let review):
+            AcceptanceReviewView(model: model, review: review)
         }
     }
 }
