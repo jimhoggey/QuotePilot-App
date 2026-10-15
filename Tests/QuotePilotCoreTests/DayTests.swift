@@ -43,4 +43,27 @@ import Testing
         #expect(String(decoding: data, as: UTF8.self) == "[\"2026-10-15\"]")
         #expect(try JSONDecoder().decode([Day].self, from: data) == [Day(year: 2026, month: 10, day: 15)])
     }
+
+    @Test func rejectsTextThatIsNotExactlyISO() {
+        #expect(Day(iso: "2026-10-15-abc") == nil)
+        #expect(Day(iso: "x-2026-10-15") == nil)
+        #expect(Day(iso: "-2026-10-15") == nil)
+        #expect(Day(iso: "2026-+1-+5") == nil)
+        #expect(Day(iso: "1-1-1") == nil)
+        #expect(Day(iso: "15-10-26") == nil)
+    }
+
+    @Test func rejectsDaysThatDoNotExist() {
+        #expect(Day(iso: "2027-02-29") == nil)
+        #expect(Day(iso: "2028-02-29") == Day(year: 2028, month: 2, day: 29))
+    }
+
+    @Test func decodingRejectsBadDates() {
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode([Day].self, from: Data("[\"2026-02-31\"]".utf8))
+        }
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode([Day].self, from: Data("[\"15-10-26\"]".utf8))
+        }
+    }
 }

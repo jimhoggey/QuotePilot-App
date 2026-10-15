@@ -22,11 +22,24 @@ public struct Day: Hashable, Comparable, Sendable, Codable, CustomStringConverti
 
     public static func today() -> Day { Day(Date()) }
 
-    /// "2026-10-15". Returns nil for text that isn't a real date.
+    /// "2026-10-15". Returns nil unless the text is exactly YYYY-MM-DD and names a real day.
     public init?(iso: String) {
-        let parts = iso.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3, (1...12).contains(parts[1]), (1...31).contains(parts[2]) else { return nil }
-        let candidate = Day(year: parts[0], month: parts[1], day: parts[2])
+        // Ten ASCII characters: four digits, a hyphen, two digits, a hyphen, two digits.
+        let bytes = Array(iso.utf8)
+        guard bytes.count == 10 else { return nil }
+        for (index, byte) in bytes.enumerated() {
+            let isHyphenPosition = index == 4 || index == 7
+            let isValid = isHyphenPosition
+                ? byte == UInt8(ascii: "-")
+                : (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
+            guard isValid else { return nil }
+        }
+        guard let year = Int(iso.prefix(4)),
+              let month = Int(iso.dropFirst(5).prefix(2)),
+              let day = Int(iso.suffix(2)),
+              (1...12).contains(month), (1...31).contains(day)
+        else { return nil }
+        let candidate = Day(year: year, month: month, day: day)
         // 2026-02-31 would roll over to March; reject it.
         guard Day(candidate.midnightUTC, timeZone: .gmt) == candidate else { return nil }
         self = candidate

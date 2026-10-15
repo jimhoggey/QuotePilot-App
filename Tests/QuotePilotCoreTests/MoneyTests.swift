@@ -27,6 +27,24 @@ import Testing
         #expect(Money(parsing: "abc") == nil)
     }
 
+    @Test func rejectsMalformedAmounts() {
+        #expect(Money(parsing: "1-500") == nil)
+        #expect(Money(parsing: "1.2.3") == nil)
+        #expect(Money(parsing: "1500.50.00") == nil)
+        #expect(Money(parsing: "-") == nil)
+        #expect(Money(parsing: ".") == nil)
+        #expect(Money(parsing: "--5") == nil)
+    }
+
+    @Test func rejectsAmountsTooLargeForCents() {
+        #expect(Money(parsing: "9223372036854775807") == nil)
+        #expect(Money(parsing: "99999999999999999999999") == nil)
+    }
+
+    @Test func parsesNegativeAmounts() {
+        #expect(Money(parsing: "-12.50") == Money(cents: -1250))
+    }
+
     @Test func plainTextForSpreadsheets() {
         #expect(Money(cents: 75_000).plain == "750.00")
         #expect(Money(cents: 5).plain == "0.05")

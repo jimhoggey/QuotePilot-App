@@ -13,13 +13,32 @@ public struct Money: Hashable, Comparable, Sendable, Codable, CustomStringConver
         self.cents = dollars * 100 + cents
     }
 
-    /// Reads what someone types into an amount field: "1500", "$1,500.50", "12.345" (rounds to the cent).
+    /// Reads what someone types into an amount field: "1500", "$1,500.50", "-12.50", "12.345" (rounds to the cent).
+    /// Only "$", "," and spaces are ignored. Returns nil for anything else that isn't a plain amount,
+    /// and for amounts too large to hold in whole cents.
     public init?(parsing text: String) {
-        let cleaned = text.filter { "0123456789.-".contains($0) }
-        guard !cleaned.isEmpty,
-              let dollars = Decimal(string: cleaned, locale: Locale(identifier: "en_US_POSIX"))
+        var amount = Substring(text.filter { $0 != "$" && $0 != "," && $0 != " " })
+        let isNegative = amount.hasPrefix("-")
+        if isNegative { amount = amount.dropFirst() }
+
+        // Digits with at most one decimal point, and at least one digit.
+        let parts = amount.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count <= 2,
+              parts.allSatisfy({ $0.allSatisfy { $0.isASCII && $0.isNumber } }),
+              parts.contains(where: { !$0.isEmpty })
         else { return nil }
-        self = Money(cents: 100).times(dollars)
+
+        let digits = String(amount)
+        guard let dollars = Decimal(string: isNegative ? "-" + digits : digits,
+                                    locale: Locale(identifier: "en_US_POSIX"))
+        else { return nil }
+
+        var exactCents = dollars * 100
+        var rounded = Decimal()
+        NSDecimalRound(&rounded, &exactCents, 0, .plain)
+        // Check the range before converting, so an overflow returns nil instead of wrapping.
+        guard !rounded.isNaN, rounded >= Decimal(Int.min), rounded <= Decimal(Int.max) else { return nil }
+        self = Money(cents: NSDecimalNumber(decimal: rounded).intValue)
     }
 
     public static let zero = Money(cents: 0)
