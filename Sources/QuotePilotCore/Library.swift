@@ -272,6 +272,11 @@ extension Library {
             found.append("Brand: quotes are valid for \(brand.quoteValidDays) days, outside 0 to 365.")
         }
         let over = "over the \(Library.amountLimit.formatted(currencyCode: currency)) limit"
+        // The same limit as a line's rate, but never below 0: a discount is a line, not an hourly rate.
+        if let rate = brand.hourlyRate, rate < .zero || !Library.allows(rate) {
+            found.append("Brand: the hourly rate is \(rate.formatted(currencyCode: currency)), outside "
+                + "\(Money.zero.formatted(currencyCode: currency)) to \(Library.amountLimit.formatted(currencyCode: currency)).")
+        }
         func check(_ lines: [LineItem], of number: String) {
             for (index, line) in lines.enumerated() {
                 let name = "\(number) line \(line.code.isEmpty ? String(index + 1) : line.code)"

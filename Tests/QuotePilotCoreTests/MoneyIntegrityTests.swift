@@ -290,6 +290,40 @@ import Testing
         ])
     }
 
+    /// The hourly rate shares a line rate's $10,000,000 limit, but is never below $0.
+    @Test func anHourlyRateOutsideZeroToTenMillionIsAProblem() {
+        var library = Library()
+        for rate in [Money.zero, Money(dollars: 95), Money(dollars: 10_000_000)] {
+            library.brand.hourlyRate = rate
+            #expect(library.problems().isEmpty, "\(rate)")
+        }
+        library.brand.hourlyRate = nil
+        #expect(library.problems().isEmpty)
+
+        library.brand.hourlyRate = Money(cents: 1_000_000_001)
+        #expect(library.problems() == ["Brand: the hourly rate is $10,000,000.01, outside $0.00 to $10,000,000.00."])
+        library.brand.hourlyRate = Money(cents: -1)
+        #expect(library.problems() == ["Brand: the hourly rate is -$0.01, outside $0.00 to $10,000,000.00."])
+        library.brand.hourlyRate = Money(dollars: -20)
+        #expect(library.problems().count == 1)
+    }
+
+    @Test func aLibraryWithAnOutOfRangeHourlyRateWontBeSaved() throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuotePilotTests-\(UUID().uuidString)", isDirectory: true)
+        let store = LibraryStore(folder: folder)
+        var library = Library()
+        library.brand.hourlyRate = Money(dollars: 20_000_000)
+        #expect(throws: LibraryStore.StoreError.wouldWriteUnreadableLibrary) { try store.save(library) }
+        library.brand.hourlyRate = Money(dollars: 95)
+        try store.save(library)
+        guard case .loaded(let loaded) = store.load() else {
+            Issue.record("Not saved")
+            return
+        }
+        #expect(loaded.brand.hourlyRate == Money(dollars: 95))
+    }
+
     @Test func aDepositOutsideZeroToAHundredIsAProblem() throws {
         var (library, _, deposit) = try withDeposit()
         let index = library.invoices.firstIndex { $0.id == deposit.id }!

@@ -108,6 +108,9 @@ struct LookTab: View {
                     }
                 }
             }
+            GroupBox("Hourly rate") {
+                HourlyRateField(rate: $brand.hourlyRate, currencyCode: brand.currencyCode)
+            }
             GroupBox("Heading font") {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(model.headingFontName ?? "The system font (no heading font chosen).")
@@ -128,6 +131,37 @@ struct LookTab: View {
             }
         }
         .foregroundStyle(Win95.text)
+    }
+}
+
+/// The one hourly rate Quote Pilot remembers, as a single money field. Blank (or $0) means no rate; a
+/// rate is from $0 up to the same limit as a line's. Text that isn't an amount is refused with a beep.
+struct HourlyRateField: View {
+    @Binding var rate: Money?
+    let currencyCode: String
+
+    /// What the field shows for a rate: nothing while there is none.
+    static func text(_ rate: Money, currencyCode: String) -> String {
+        rate == .zero ? "" : rate.formatted(currencyCode: currencyCode)
+    }
+
+    /// What the brand keeps for an amount typed in the field: $0 is no rate at all.
+    static func stored(_ typed: Money) -> Money? {
+        typed == .zero ? nil : typed
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Win95FieldRow("Rate:") {
+                CommitField(label: "Hourly rate", value: rate ?? .zero,
+                            format: { Self.text($0, currencyCode: currencyCode) }, parse: FieldParser.hourlyRate,
+                            alignment: .leading, prompt: "e.g. $90.00") { rate = Self.stored($0) }
+                    .frame(width: 100)
+            }
+            Text("New lines in hours start at this rate. You can still change any line.")
+                .font(Win95.small)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 

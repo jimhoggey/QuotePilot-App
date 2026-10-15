@@ -37,14 +37,14 @@ struct DashboardView: View {
                 .frame(minWidth: Self.boxWidth(quoteColumns, scroller: DetailsLayout.legacyScrollerWidth))
                 GroupBox(Self.listTitles[1]) {
                     DetailsList(dashboard.toInvoice, id: \.quoteID, columns: jobColumns, selection: $selectedJob,
-                                emptyText: "Every accepted job is fully invoiced.", onOpen: { model.openQuote($0) })
+                                emptyText: Self.toInvoiceEmptyText(model.library), onOpen: { model.openQuote($0) })
                 }
                 .frame(minWidth: Self.boxWidth(jobColumns, scroller: DetailsLayout.legacyScrollerWidth))
             }
             .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
             GroupBox(Self.listTitles[2]) {
                 DetailsList(dashboard.waiting, id: \.invoiceID, columns: owingColumns, selection: $selectedInvoice,
-                            emptyText: "Nothing waiting. Every sent invoice is paid.",
+                            emptyText: Self.waitingEmptyText(model.library),
                             onOpen: { model.openInvoice($0) })
             }
             .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
@@ -58,6 +58,20 @@ struct DashboardView: View {
 
     /// The screen's padding, and the gap between the two lists side by side.
     static let gap: CGFloat = 8
+
+    /// What "Still to invoice" says when it is empty: that nothing is accepted yet while no quote has
+    /// been accepted, and that the accepted jobs are done once some have.
+    static func toInvoiceEmptyText(_ library: Library) -> String {
+        library.quotes.contains { $0.stage == .accepted }
+            ? "Every accepted job is fully invoiced." : "Nothing to invoice yet."
+    }
+
+    /// What "Waiting to be paid" says when it is empty: that nothing is out while no invoice has been
+    /// sent, and that they are all paid once some have.
+    static func waitingEmptyText(_ library: Library) -> String {
+        library.invoices.contains { $0.stage == .sent }
+            ? "Nothing waiting. Every sent invoice is paid." : "Nothing waiting to be paid."
+    }
 
     /// The three lists, numbered in the order the work happens.
     static let listTitles = ["1 · Quotes waiting on a reply", "2 · Still to invoice", "3 · Waiting to be paid"]

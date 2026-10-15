@@ -19,6 +19,14 @@ enum FieldParser {
         return amount
     }
 
+    /// The Brand's hourly rate: "90", "$90.50", from $0 to $10,000,000. Blank is $0, which means no rate;
+    /// a minus sign (a discount, fine on a line) is refused.
+    static func hourlyRate(_ text: String) -> Money? {
+        if text.trimmingCharacters(in: .whitespaces).isEmpty { return .zero }
+        guard let rate = money(text), rate >= .zero else { return nil }
+        return rate
+    }
+
     /// "1", "1.5", "0.25": zero or more, with at most two decimal places (what documents print).
     static func quantity(_ text: String) -> Decimal? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)

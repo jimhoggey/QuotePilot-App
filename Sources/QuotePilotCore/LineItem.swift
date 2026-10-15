@@ -46,6 +46,28 @@ public struct LineItem: Codable, Hashable, Identifiable, Sendable {
     public var amount: Money { rate.times(quantity) }
 }
 
+extension LineItem {
+    /// The unit a line added with Add Line starts in. Only a line in hours takes the hourly rate.
+    public static let newLineUnit: Unit = .units
+
+    /// The blank line Add Line adds: no wording, `newLineUnit`, and the hourly rate if that unit is hours.
+    public static func blank(unit: Unit = newLineUnit, hourlyRate: Money?) -> LineItem {
+        LineItem(title: "", unit: unit, rate: .zero).withHourlyRate(hourlyRate, after: nil)
+    }
+
+    /// The one rule for the remembered hourly rate (`Brand.hourlyRate`): this line, with its rate set to `hourlyRate` when it
+    /// is in hours, has no rate yet ($0), and has only just got there, either because it is new
+    /// (`previous` is nil) or because its unit just changed to hours from `previous`'s. A rate that was
+    /// typed is never overwritten, nothing changes with no hourly rate, and a line that can't be
+    /// edited (`editable` false: a sent invoice, a quote its invoices lock) is returned as it is.
+    public func withHourlyRate(_ hourlyRate: Money?, after previous: LineItem?, editable: Bool = true) -> LineItem {
+        guard editable, let hourlyRate, unit == .hours, rate == .zero, previous?.unit != .hours else { return self }
+        var line = self
+        line.rate = hourlyRate
+        return line
+    }
+}
+
 extension Array where Element == LineItem {
     public var subtotal: Money { reduce(.zero) { $0 + $1.amount } }
 }

@@ -155,7 +155,7 @@ struct InvoiceEditorView: View {
                 LinesEditor(model: model, lines: invoice.lines, showCodes: false, editable: rules.canEditAmounts,
                             onAdd: {
                                 var edited = invoice.wrappedValue
-                                edited.lines.append(LineItem(title: "", rate: .zero))
+                                edited.lines.append(.blank(hourlyRate: model.library.brand.hourlyRate))
                                 invoice.wrappedValue = edited
                             }) {
                     DocumentTotals(totals: model.invoiceContent(invoiceID)?.totals ?? [])

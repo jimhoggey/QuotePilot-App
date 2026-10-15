@@ -87,14 +87,15 @@ struct LinesEditor<Footer: View>: View {
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
     }
 
-    /// A line found by its identity, so a removed or moved line can never index past the end.
+    /// A line found by its identity, so a removed or moved line can never index past the end. An edit
+    /// that puts a line in hours at $0 fills in the Brand's hourly rate (`LineItem.withHourlyRate`).
     private func lineBinding(_ id: UUID) -> Binding<LineItem> {
         Binding(
             get: { lines.first { $0.id == id } ?? LineItem(id: id, title: "", rate: .zero) },
             set: { line in
-                var edited = lines
-                guard let index = edited.firstIndex(where: { $0.id == id }) else { return }
-                edited[index] = line
+                guard let edited = lines.replacing(line, id: id, hourlyRate: model.library.brand.hourlyRate,
+                                                   editable: editable)
+                else { return }
                 lines = edited
             })
     }
@@ -118,6 +119,17 @@ struct LinesEditor<Footer: View>: View {
         var edited = lines
         edited.removeAll { $0.id == line.id }
         lines = edited
+    }
+}
+
+extension Array where Element == LineItem {
+    /// These lines with `line` stored in place of the one with `id`, its hourly rate filled in where the
+    /// rule says (the old line is what its unit changed from). Nil when no line has that ID.
+    func replacing(_ line: LineItem, id: UUID, hourlyRate: Money?, editable: Bool) -> [LineItem]? {
+        guard let index = firstIndex(where: { $0.id == id }) else { return nil }
+        var edited = self
+        edited[index] = line.withHourlyRate(hourlyRate, after: self[index], editable: editable)
+        return edited
     }
 }
 

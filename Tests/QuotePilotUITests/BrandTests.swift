@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import Testing
@@ -33,6 +34,76 @@ import QuotePilotCore
         }
         #expect(saved.brand.paymentDueDays == 365)
         #expect(saved.brand.quoteValidDays == 0)
+    }
+
+    // MARK: The hourly rate
+
+    @Test func theHourlyRateSavesThroughTheModel() throws {
+        let model = try UIFixture.sampleModel()
+        #expect(model.library.brand.hourlyRate == nil)
+        model.brandBinding.wrappedValue.hourlyRate = Money(dollars: 95, cents: 50)
+        #expect(model.message == nil)
+        #expect(model.library.brand.hourlyRate == Money(dollars: 95, cents: 50))
+        guard case .loaded(let saved) = model.store.load() else {
+            Issue.record("Not saved")
+            return
+        }
+        #expect(saved.brand.hourlyRate == Money(dollars: 95, cents: 50))
+
+        // Clearing the field puts it back to none.
+        model.brandBinding.wrappedValue.hourlyRate = nil
+        guard case .loaded(let cleared) = model.store.load() else {
+            Issue.record("Not saved")
+            return
+        }
+        #expect(cleared.brand.hourlyRate == nil)
+    }
+
+    /// The field takes $0 up to $10,000,000, and whatever else reaches the model is kept inside that:
+    /// outside it the library would no longer open.
+    @Test func anHourlyRateIsKeptWithinZeroToTenMillion() throws {
+        let model = try UIFixture.sampleModel()
+        var brand = model.library.brand
+        brand.hourlyRate = Money(dollars: 20_000_000)
+        model.updateBrand(brand)
+        #expect(model.library.brand.hourlyRate == Money(dollars: 10_000_000))
+        brand.hourlyRate = Money(dollars: -5)
+        model.updateBrand(brand)
+        #expect(model.library.brand.hourlyRate == .zero)
+        #expect(model.message == nil)
+        guard case .loaded(let saved) = model.store.load() else {
+            Issue.record("Not saved")
+            return
+        }
+        #expect(saved.brand.hourlyRate == .zero)
+    }
+
+    @Test func theHourlyRateFieldTakesAmountsAndRefusesTheRest() {
+        func leave(_ text: String, stored: Money) -> (beep: Bool, text: String) {
+            CommitField<Money>.onLeave(text: text, stored: stored,
+                                       format: { HourlyRateField.text($0, currencyCode: "AUD") },
+                                       parse: FieldParser.hourlyRate)
+        }
+        // "abc" is refused with a beep, and the stored rate is put back.
+        let refused = leave("abc", stored: Money(dollars: 95))
+        #expect(refused.beep)
+        #expect(refused.text == "$95.00")
+        #expect(leave("-5", stored: Money(dollars: 95)).beep)
+        #expect(leave("12abc", stored: .zero).beep)
+        #expect(leave("abc", stored: .zero).text == "")
+        // An amount is tidied; blank is no rate and no beep.
+        #expect(leave("95", stored: Money(dollars: 95)) == (beep: false, text: "$95.00"))
+        #expect(leave("", stored: .zero) == (beep: false, text: ""))
+        // Typed text is committed as it goes: an amount, or blank for none.
+        #expect(CommitField<Money>.liveCommit(text: "110", stored: Money(dollars: 95), parse: FieldParser.hourlyRate)
+                == Money(dollars: 110))
+        #expect(CommitField<Money>.liveCommit(text: "", stored: Money(dollars: 95), parse: FieldParser.hourlyRate) == .zero)
+        #expect(CommitField<Money>.liveCommit(text: "abc", stored: Money(dollars: 95), parse: FieldParser.hourlyRate) == nil)
+        #expect(CommitField<Money>.liveCommit(text: "$", stored: Money(dollars: 95), parse: FieldParser.hourlyRate) == nil)
+        // No rate shows as an empty field, and a $0 typed there means none.
+        #expect(HourlyRateField.text(.zero, currencyCode: "AUD") == "")
+        #expect(HourlyRateField.stored(.zero) == nil)
+        #expect(HourlyRateField.stored(Money(dollars: 95)) == Money(dollars: 95))
     }
 
     // MARK: One file picker for the whole app
@@ -132,5 +203,31 @@ import QuotePilotCore
         let rep = Snapshot.render(BrandView(model: model, tab: .look).background(Win95.face),
                                   size: CGSize(width: 1000, height: 640), name: "brand-look")
         #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
+    /// The Look tab, drawn at the smallest window (980 x 620), with its Hourly rate group right under
+    /// the Logo (snapshot: brand-look-small).
+    @Test func theLookTabDrawsInTheSmallestWindow() throws {
+        let model = try UIFixture.sampleModel()
+        var brand = model.library.brand
+        brand.hourlyRate = Money(dollars: 95)
+        model.updateBrand(brand)
+        model.section = .brand
+        let rep = Snapshot.render(BrandView(model: model, tab: .look).background(Win95.face),
+                                  size: CGSize(width: 778, height: 492), name: "brand-look-small")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
+    /// The smallest window (980 x 620) gives the section 492 points (see the Dashboard's fit test),
+    /// and the Look tab's groups sit in what is left of that after the Brand screen's padding (16),
+    /// the tab strip (24) and the panel's padding (20): 432. The groups must fit it whole, at the
+    /// narrowest the tab column goes (460 less the panel's padding and the scroller's gap).
+    @Test func theLookTabFitsTheSmallestWindow() throws {
+        let model = try UIFixture.sampleModel()
+        _ = NSApplication.shared
+        let look = LookTab(model: model, brand: model.brandBinding).groupBoxStyle(.win95)
+        let needed = NSHostingView(rootView: look.frame(width: 460 - 20 - 6)).fittingSize
+        let available: CGFloat = 620 - 28 - 66 - 26 - 8 - 16 - 24 - 20
+        #expect(needed.height <= available, "the Look tab needs \(needed.height) of \(available)")
     }
 }

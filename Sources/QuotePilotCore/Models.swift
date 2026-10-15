@@ -80,6 +80,8 @@ public struct Brand: Codable, Hashable, Sendable {
     public var currencyCode = "AUD"
     public var paymentDueDays = 14
     public var quoteValidDays = 30
+    /// The one rate that new lines in hours start at (`LineItem.withHourlyRate`); nil when none is set.
+    public var hourlyRate: Money?
 
     public init() {}
 }
@@ -333,6 +335,7 @@ extension Brand {
     enum CodingKeys: String, CodingKey {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
+        case hourlyRate
     }
 
     public init(from decoder: Decoder) throws {
@@ -352,6 +355,7 @@ extension Brand {
         currencyCode = try c.value(.currencyCode, or: d.currencyCode)
         paymentDueDays = try c.value(.paymentDueDays, or: d.paymentDueDays)
         quoteValidDays = try c.value(.quoteValidDays, or: d.quoteValidDays)
+        hourlyRate = try c.decodeIfPresent(Money.self, forKey: .hourlyRate)
     }
 }
 

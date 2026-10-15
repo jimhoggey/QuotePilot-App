@@ -12,6 +12,26 @@ import Testing
         #expect(brand.gstRegistered == false)
     }
 
+    /// A library saved before the hourly rate existed has no such field; it loads with no rate, and a
+    /// rate that is there round-trips.
+    @Test func aBrandWithoutAnHourlyRateLoadsWithNone() throws {
+        let old = try Library.makeDecoder().decode(Brand.self, from: Data(#"{"businessName":"Sample Studio"}"#.utf8))
+        #expect(old.hourlyRate == nil)
+
+        var brand = Brand()
+        #expect(brand.hourlyRate == nil)
+        brand.hourlyRate = Money(dollars: 95, cents: 50)
+        let saved = try Library.makeEncoder().encode(brand)
+        #expect(try Library.makeDecoder().decode(Brand.self, from: saved).hourlyRate == Money(dollars: 95, cents: 50))
+        // With none set, nothing is written, so the file is as it was before the field existed.
+        #expect(!String(decoding: try Library.makeEncoder().encode(Brand()), as: UTF8.self).contains("hourlyRate"))
+
+        let library = try Library.makeDecoder().decode(
+            Library.self, from: Data(#"{"format":1,"brand":{"businessName":"Sample Studio","quoteValidDays":20}}"#.utf8))
+        #expect(library.brand.hourlyRate == nil)
+        #expect(library.brand.quoteValidDays == 20)
+    }
+
     @Test func aQuoteMissingOptionalFieldsGetsDefaults() throws {
         let json = #"""
         {"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","number":"Q-0009","issued":"2026-10-15","validUntil":"2026-11-14",

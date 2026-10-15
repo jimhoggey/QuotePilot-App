@@ -145,7 +145,7 @@ struct QuoteEditorView: View {
                             editable: !locked,
                             onAdd: {
                                 var edited = quote.wrappedValue
-                                edited.addLine(LineItem(title: "", rate: .zero))
+                                edited.addLine(.blank(hourlyRate: model.library.brand.hourlyRate))
                                 quote.wrappedValue = edited
                             }) {
                     DocumentTotals(totals: model.quoteContent(quoteID)?.totals ?? [])
@@ -181,6 +181,8 @@ struct CommitField<Value: Equatable>: View {
     let format: (Value) -> String
     let parse: (String) -> Value?
     var alignment: TextAlignment = .trailing
+    /// What an empty field says, grey; the label (which VoiceOver reads) when nil.
+    var prompt: String?
     let commit: (Value) -> Void
     @State private var text = ""
     @FocusState private var focused: Bool
@@ -202,8 +204,17 @@ struct CommitField<Value: Equatable>: View {
         return (parse(text) == nil && text != shown, shown)
     }
 
+    /// When the stored value changes: whether the field's text is replaced by it. Not while you type,
+    /// when the text is the value you just typed (committed as it was typed, so it parses to it); but
+    /// yes when it is a different value, because something else changed it, such as the unit picker
+    /// filling in the hourly rate while the cursor was still in the rate field. Left as it was, leaving
+    /// the field would commit that old text and undo the change.
+    static func refreshesText(text: String, focused: Bool, newValue: Value, parse: (String) -> Value?) -> Bool {
+        !focused || parse(text) != newValue
+    }
+
     var body: some View {
-        TextField(label, text: $text)
+        TextField(prompt ?? label, text: $text)
             .textFieldStyle(.plain)
             .labelsHidden()
             .font(Win95.money)
@@ -222,7 +233,9 @@ struct CommitField<Value: Equatable>: View {
             }
             .onChange(of: value) { _, newValue in
                 // While you type, the text stays as typed; Return or leaving tidies it.
-                if !focused { text = format(newValue) }
+                if Self.refreshesText(text: text, focused: focused, newValue: newValue, parse: parse) {
+                    text = format(newValue)
+                }
             }
             .onChange(of: isEnabled) { _, enabled in
                 // A message box disables the window behind it. If it came from a refused edit, the

@@ -28,6 +28,19 @@ import QuotePilotCore
         }
     }
 
+    /// The hourly rate is a line's rate with no discounts: $0 up to $10,000,000, or blank for none.
+    @Test func anHourlyRateIsZeroUpToTenMillionOrBlank() {
+        #expect(FieldParser.hourlyRate("95") == Money(dollars: 95))
+        #expect(FieldParser.hourlyRate("$1,250.50") == Money(dollars: 1250, cents: 50))
+        #expect(FieldParser.hourlyRate("0") == .zero)
+        #expect(FieldParser.hourlyRate("") == .zero)
+        #expect(FieldParser.hourlyRate("  ") == .zero)
+        #expect(FieldParser.hourlyRate("10000000") == Money(dollars: 10_000_000))
+        for text in ["abc", "-20", "-0.01", "$", "1.2.3", "10000000.01", "50000000000000000"] {
+            #expect(FieldParser.hourlyRate(text) == nil, "\(text)")
+        }
+    }
+
     @Test func quantityTakesUpToTwoDecimalPlaces() {
         #expect(FieldParser.quantity("1") == 1)
         #expect(FieldParser.quantity("1.5") == Decimal(string: "1.5"))
