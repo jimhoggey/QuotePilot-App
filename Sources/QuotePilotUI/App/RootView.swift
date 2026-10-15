@@ -68,9 +68,9 @@ public struct RootView: View {
         switch model.section {
         case .dashboard: DashboardView(model: model)
         case .quotes: QuotesView(model: model)
-        case .invoices: SectionPlaceholder(section: .invoices)
+        case .invoices: InvoicesView(model: model)
         case .clients: ClientsView(model: model)
-        case .activity: SectionPlaceholder(section: .activity)
+        case .activity: ActivityView(model: model)
         case .brand: BrandView(model: model)
         }
     }
@@ -260,20 +260,6 @@ struct StatusBar: View {
         }
         .padding(2)
         .background(Win95.face)
-    }
-}
-
-/// Stands in for a section until its screen is built.
-struct SectionPlaceholder: View {
-    let section: AppSection
-
-    var body: some View {
-        Text("\(section.title) is on its way.")
-            .font(Win95.label)
-            .foregroundStyle(Win95.highlight)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Win95.desktop)
-            .overlay(Bevel(.sunken))
     }
 }
 

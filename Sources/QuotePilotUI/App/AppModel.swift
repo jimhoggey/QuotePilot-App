@@ -169,6 +169,15 @@ public final class AppModel {
         selectedInvoiceID = id
     }
 
+    /// Opens the quote or invoice with this number, as Activity's double-click does.
+    public func openDocument(number: String) {
+        if let quote = library.quote(number: number) {
+            openQuote(quote.id)
+        } else if let invoice = library.invoices.first(where: { $0.number.caseInsensitiveCompare(number) == .orderedSame }) {
+            openInvoice(invoice.id)
+        }
+    }
+
     // MARK: Quotes
 
     public func newQuote(for clientID: UUID? = nil) {
