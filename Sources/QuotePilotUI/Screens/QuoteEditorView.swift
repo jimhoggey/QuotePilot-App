@@ -206,9 +206,16 @@ struct LinesEditor: View {
         quote = edited
     }
 
+    /// How the Remove Line question names a line: "line 02, Design", with a long title cut at 60
+    /// characters so the message box stays a message box.
+    static func lineName(_ line: LineItem) -> String {
+        guard !line.title.isEmpty else { return "line \(line.code)" }
+        let title = line.title.count > 60 ? String(line.title.prefix(60)) + "…" : line.title
+        return "line \(line.code), \(title)"
+    }
+
     private func remove(_ line: LineItem) {
-        let name = line.title.isEmpty ? "line \(line.code)" : "line \(line.code), \(line.title)"
-        model.confirm(title: "Remove Line", text: "Remove \(name)?", confirm: "Remove") {
+        model.confirm(title: "Remove Line", text: "Remove \(Self.lineName(line))?", confirm: "Remove") {
             var edited = quote
             edited.lines.removeAll { $0.id == line.id }
             quote = edited
@@ -270,8 +277,12 @@ struct LineRow: View {
     }
 }
 
-/// A number field that only takes text `parse` accepts, when you press Return or leave the field.
-/// Anything else beeps and puts the stored value back, so half-typed text never reaches the library.
+/// A number field that saves as you type, but only text `parse` accepts. Each time the text becomes
+/// a different valid value it is committed at once, so clicking Save PDF… or another button while
+/// the cursor is still in the field uses what is showing. Half-typed text ("1.", "$") is left alone
+/// and the text itself is never rewritten while you type. When you press Return or leave the field,
+/// text that doesn't parse beeps and the stored value is put back, so it never reaches the library;
+/// valid text is tidied to the field's own format ("1500" becomes "$1,500.00").
 struct CommitField<Value: Equatable>: View {
     let label: String
     let value: Value
@@ -281,6 +292,23 @@ struct CommitField<Value: Equatable>: View {
     let commit: (Value) -> Void
     @State private var text = ""
     @FocusState private var focused: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    /// While typing: the value to commit now, or nil when the text is half-typed, nonsense, or no
+    /// change from what's stored.
+    static func liveCommit(text: String, stored: Value, parse: (String) -> Value?) -> Value? {
+        guard let parsed = parse(text), parsed != stored else { return nil }
+        return parsed
+    }
+
+    /// On Return or leaving: whether to beep, and the text to show from now on (the stored value in
+    /// the field's format). Only text that doesn't parse beeps, and not when it is just the stored
+    /// value as the field shows it, such as an imported 1.234 that the parser wouldn't take.
+    static func onLeave(text: String, stored: Value, format: (Value) -> String,
+                        parse: (String) -> Value?) -> (beep: Bool, text: String) {
+        let shown = format(stored)
+        return (parse(text) == nil && text != shown, shown)
+    }
 
     var body: some View {
         TextField(label, text: $text)
@@ -291,11 +319,23 @@ struct CommitField<Value: Equatable>: View {
             .multilineTextAlignment(alignment)
             .focused($focused)
             .onSubmit(apply)
+            .onChange(of: text) { _, newText in
+                // Only what's typed here: not the text the field is given when it appears or when
+                // the stored value changes elsewhere.
+                guard focused, let parsed = Self.liveCommit(text: newText, stored: value, parse: parse) else { return }
+                commit(parsed)
+            }
             .onChange(of: focused) { _, isFocused in
                 if !isFocused { apply() }
             }
             .onChange(of: value) { _, newValue in
-                text = format(newValue)
+                // While you type, the text stays as typed; Return or leaving tidies it.
+                if !focused { text = format(newValue) }
+            }
+            .onChange(of: isEnabled) { _, enabled in
+                // A message box disables the window behind it. If it came from a refused edit, the
+                // typed text must not stay showing in place of the stored value.
+                if !enabled { text = format(value) }
             }
             .onAppear { text = format(value) }
             .padding(.horizontal, 5)
@@ -307,13 +347,12 @@ struct CommitField<Value: Equatable>: View {
     }
 
     private func apply() {
-        if let parsed = parse(text) {
-            if parsed != value { commit(parsed) }
-        } else if text != format(value) {
-            NSSound.beep()
-        }
-        // The stored value: the new one once the commit lands (onChange), or the old one if refused.
-        text = format(value)
+        // Valid text was committed as it was typed. This only catches an edit that wasn't taken then.
+        if let parsed = Self.liveCommit(text: text, stored: value, parse: parse) { commit(parsed) }
+        let leaving = Self.onLeave(text: text, stored: value, format: format, parse: parse)
+        if leaving.beep { NSSound.beep() }
+        // The stored value: what was committed while typing, or the old one if an edit was refused.
+        text = leaving.text
     }
 }
 

@@ -4,9 +4,18 @@ import QuotePilotCore
 /// Reads what someone typed into a number field. Anything that isn't a whole, sensible value gives
 /// nil, so half-typed or mistyped text never replaces what's stored.
 enum FieldParser {
-    /// "$1,500.50", "1500", "-20" (a discount line). Rounds to the cent.
+    /// The most a field takes, in either direction: $10,000,000. `Money(parsing:)` goes up to Int.max
+    /// cents, and a few lines that large add past Int.max, which traps. A quote saved like that would
+    /// trap again each time the app opened it.
+    static let moneyLimitCents = 1_000_000_000
+
+    /// "$1,500.50", "1500", "-20" (a discount line). Rounds to the cent. Nil above $10,000,000.
     static func money(_ text: String) -> Money? {
-        Money(parsing: text.trimmingCharacters(in: .whitespaces))
+        // A range check, not abs(): abs(Int.min) traps.
+        guard let amount = Money(parsing: text.trimmingCharacters(in: .whitespaces)),
+              (-moneyLimitCents...moneyLimitCents).contains(amount.cents)
+        else { return nil }
+        return amount
     }
 
     /// "1", "1.5", "0.25": zero or more, with at most two decimal places (what documents print).
@@ -36,7 +45,8 @@ enum FieldParser {
     static func hex(_ text: String) -> String? {
         var digits = Substring(text.trimmingCharacters(in: .whitespaces))
         if digits.hasPrefix("#") { digits = digits.dropFirst() }
-        guard digits.count == 6, digits.allSatisfy(\.isHexDigit) else { return nil }
+        // ASCII only: Character.isHexDigit also accepts fullwidth digits and letters.
+        guard digits.count == 6, digits.allSatisfy({ $0.isASCII && $0.isHexDigit }) else { return nil }
         return "#" + digits.uppercased()
     }
 

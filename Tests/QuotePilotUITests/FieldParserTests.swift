@@ -17,6 +17,17 @@ import QuotePilotCore
         }
     }
 
+    /// Two lines with a huge rate would add past Int.max cents and trap, on every launch after the
+    /// save. So an amount is held to $10,000,000 either way.
+    @Test func moneyStopsAtTenMillionDollars() {
+        #expect(FieldParser.money("10000000") == Money(dollars: 10_000_000))
+        #expect(FieldParser.money("-10000000") == Money(dollars: -10_000_000))
+        for text in ["10000000.01", "-10000000.01", "50000000000000000", "-50000000000000000",
+                     "92233720368547758.07", "-92233720368547758.08"] {
+            #expect(FieldParser.money(text) == nil, "\(text)")
+        }
+    }
+
     @Test func quantityTakesUpToTwoDecimalPlaces() {
         #expect(FieldParser.quantity("1") == 1)
         #expect(FieldParser.quantity("1.5") == Decimal(string: "1.5"))
@@ -44,6 +55,12 @@ import QuotePilotCore
         for text in ["", "#12345", "zzzzzz", "#1234567", "##0B6B66"] {
             #expect(FieldParser.hex(text) == nil, "\(text)")
         }
+    }
+
+    /// Fullwidth digits and letters count as hex digits to Character, but not in a colour.
+    @Test func coloursRefuseFullwidthDigits() {
+        #expect(FieldParser.hex("\u{FF10}B6B66") == nil)
+        #expect(FieldParser.hex("#\u{FF21}\u{FF22}\u{FF23}\u{FF24}\u{FF25}\u{FF26}") == nil)
     }
 
     @Test func quantitiesShowWithoutTrailingZeros() {

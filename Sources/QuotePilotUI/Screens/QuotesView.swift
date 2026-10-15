@@ -7,7 +7,10 @@ struct QuotesView: View {
 
     var body: some View {
         if let id = model.openQuoteID, model.library.quote(id) != nil {
+            // Keyed by the quote, so Duplicate (which opens the copy) starts the editor afresh: no
+            // old quote's PDF in the preview, no field state carried over.
             QuoteEditorView(model: model, quoteID: id)
+                .id(id)
         } else {
             QuoteListView(model: model)
         }
