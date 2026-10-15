@@ -316,3 +316,18 @@ final class Layout {
         writer.y += 22
     }
 }
+
+extension DocumentRenderer {
+    /// True when quote PDF data carries its fillable form: the catalog's AcroForm and the quote's
+    /// Accept-all box. Checked before a quote goes into a Mail draft, so a form-less quote is never
+    /// sent by accident.
+    public static func hasForm(_ data: Data, quoteNumber: String) -> Bool {
+        guard data.range(of: Data("/AcroForm".utf8)) != nil, let document = PDFDocument(data: data) else { return false }
+        let acceptAll = QuoteFormFields.acceptAll(quoteNumber)
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            if page.annotations.contains(where: { $0.fieldName == acceptAll }) { return true }
+        }
+        return false
+    }
+}
