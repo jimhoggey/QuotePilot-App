@@ -1,0 +1,16 @@
+# This repo is public. Keep anything about real clients or this Mac out of it.
+CLAUDE.md
+HANDOFF.md
+Invoice Generator.html
+*.backup.json
+invoices-backup-*.json
+*.pdf
+
+# Build output
+.build/
+build/
+*.app
+*.zip
+
+# macOS
+.DS_Store
