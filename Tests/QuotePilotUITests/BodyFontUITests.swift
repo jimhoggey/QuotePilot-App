@@ -84,7 +84,9 @@ import QuotePilotPDF
         let font = try #require(VariableFixture.variable)
         let model = try UIFixture.sampleModel()
         model.importBodyFont(from: font.url)
-        #expect(model.library.brand.bodyFontStyle == nil)
+        // A body font starts on its Regular, not on the font's default (which can be heavy).
+        #expect(model.library.brand.bodyFontStyle == FontFile.startingStyle(at: font.url, nearWeight: 400))
+        #expect(model.library.brand.bodyFontStyle != nil)
         let options = FontStylePicker.options(for: model.bodyFontURL)
         #expect(options.count > 1)
 

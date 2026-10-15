@@ -14,6 +14,8 @@ public struct FontStyleOption: Identifiable, Hashable, Sendable {
     /// Whether this is the font's own default style: the one with every axis at its default value,
     /// or a collection's first face. It is what a document uses when no style is chosen.
     public var isDefault: Bool
+    /// Whether the style is slanted (an Italic or Oblique style).
+    public var italic: Bool = false
 
     public var id: String { style.postScriptName }
 
@@ -42,8 +44,34 @@ public enum FontFile {
             var weight: Int?
             if let weightAxis { weight = Int((explicit["wght"] ?? weightAxis.defaultValue).rounded()) }
             return FontStyleOption(style: FontStyle(postScriptName: name(of: descriptor), variations: explicit),
-                                   name: styleName(of: descriptor), weight: weight, isDefault: index == defaultIndex)
+                                   name: styleName(of: descriptor), weight: weight, isDefault: index == defaultIndex,
+                                   italic: isItalic(descriptor))
         }
+    }
+
+    /// The style a font starts on when it is chosen for a document: of `options`, the one whose Weight
+    /// axis value is nearest `weight` (700 is Bold, 400 Regular), among the styles slanted the way the
+    /// font's default style is, so an Italic font stays Italic and an upright one stays upright.
+    ///
+    /// A tie goes to the style with fewer other axes set (Bold rather than "Bold G2", a grade variant),
+    /// then to the heavier one. Nil when the font has no Weight axis: a static face, or a collection,
+    /// has no weight to match and keeps its default.
+    public static func closestStyle(toWeight weight: Int, in options: [FontStyleOption]) -> FontStyleOption? {
+        guard let reference = options.first(where: \.isDefault) ?? options.first else { return nil }
+        /// Smaller is better: how far from `weight`, how many other axes are set, how light.
+        func rank(_ option: FontStyleOption) -> [Int] {
+            let own = option.weight ?? 0
+            return [abs(own - weight), option.style.variations.keys.filter { $0 != "wght" }.count, -own]
+        }
+        return options
+            .filter { $0.weight != nil && $0.italic == reference.italic }
+            .min { rank($0).lexicographicallyPrecedes(rank($1)) }
+    }
+
+    /// The style to keep when the font file at `url` is chosen for a document, as `closestStyle` picks it
+    /// for `weight`. Nil for a font with nothing to choose by weight, which stays on its default.
+    public static func startingStyle(at url: URL, nearWeight weight: Int) -> FontStyle? {
+        closestStyle(toWeight: weight, in: styles(at: url))?.style
     }
 
     /// The font's name as people know it, or nil when the file isn't a font: "Georgia" for a font of

@@ -496,17 +496,28 @@ public final class AppModel {
         return try copyAssetQuietly(url, prefix: "logo")
     }
 
+    /// The Weight a heading font starts on (700, Bold) and a body font starts on (400, Regular).
+    static let headingStartWeight = 700
+    static let bodyStartWeight = 400
+
     /// Copies a TTF or OTF into the Assets folder and makes it the heading font.
     public func importHeadingFont(from url: URL) {
         guard let name = copyFontAsset(url, prefix: "heading-font") else { return }
-        // A style belongs to the font it was chosen from, so a new font starts on its own default.
-        change("Couldn't use that font") { $0.brand.headingFontFile = name; $0.brand.headingFontStyle = nil }
+        // A style belongs to the font it was chosen from, so a new font starts afresh: on the style
+        // nearest Bold when the font has weights to choose from (the Style picker can change it), and
+        // on its only style otherwise.
+        let style = FontFile.startingStyle(at: store.assetsFolder.appendingPathComponent(name),
+                                           nearWeight: Self.headingStartWeight)
+        change("Couldn't use that font") { $0.brand.headingFontFile = name; $0.brand.headingFontStyle = style }
     }
 
     /// Copies a TTF or OTF into the Assets folder and makes it the body font.
     public func importBodyFont(from url: URL) {
         guard let name = copyFontAsset(url, prefix: "body-font") else { return }
-        change("Couldn't use that font") { $0.brand.bodyFontFile = name; $0.brand.bodyFontStyle = nil }
+        // As for the heading font, but starting nearest Regular, so text isn't heavy by default.
+        let style = FontFile.startingStyle(at: store.assetsFolder.appendingPathComponent(name),
+                                           nearWeight: Self.bodyStartWeight)
+        change("Couldn't use that font") { $0.brand.bodyFontFile = name; $0.brand.bodyFontStyle = style }
     }
 
     /// Copies a font file into Assets and returns its new name; with the Not a Font box and nothing
