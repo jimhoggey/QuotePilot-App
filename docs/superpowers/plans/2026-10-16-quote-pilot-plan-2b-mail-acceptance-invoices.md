@@ -1351,6 +1351,25 @@ In `Win95Toolbar`, replace the Send button line with:
                 }
 ```
 
+Dialogs must be modal just as message boxes are (plan 2a Task 6's fix round). Make three changes:
+- In `AppModel.whenFree(_:)`, run the action only when `message == nil && dialog == nil`.
+- In `RootView`, change each `.disabled(model.message != nil)` to
+  `.disabled(model.message != nil || model.dialog != nil)`.
+- Every menu item this plan adds goes through `model.whenFree { … }`, as plan 2a's do. That covers
+  Send by Mail…, Read Returned Quote…, New Invoice, Find… and the File menu items.
+
+Add to `MailTests`:
+
+```swift
+    @Test func anOpenDialogBlocksMenuCommands() throws {
+        let model = try UIFixture.sampleModel()
+        model.dialog = .emailPrompt(clientID: model.library.clients[0].id, document: .quote(model.library.quotes[3].id))
+        var ran = false
+        model.whenFree { ran = true }
+        #expect(!ran)
+    }
+```
+
 - [ ] **Step 9: ⌘S (`Commands.swift`) and the editor's button (`QuoteEditorView.swift`)**
 
 In `QuotePilotCommands.body`, inside `CommandGroup(replacing: .printItem)` before `Save PDF…`, add:
@@ -1377,7 +1396,7 @@ In `QuoteEditorView.header(_:)`, add before the Duplicate button:
 - [ ] **Step 10: Run the tests and look at the prompt**
 
 Run: `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk QP_SNAPSHOTS="$PWD/build/snapshots" swift test --filter MailTests`
-Expected: all seven tests pass. Look at `build/snapshots/email-prompt.png`: a centred dialog with a
+Expected: all eight tests pass. Look at `build/snapshots/email-prompt.png`: a centred dialog with a
 navy title, the sentence, a sunken email field, and Save and Continue (greyed while the field is
 empty) beside Cancel.
 
@@ -2012,8 +2031,9 @@ exactly as its PDF prints them.
 - Modify: `Sources/QuotePilotUI/Screens/QuoteEditorView.swift` (two-row header with the new
   actions; the shared line table)
 - Modify: `Sources/QuotePilotUI/Screens/InvoicesView.swift` (show the editor when one is open)
-- Modify: `Sources/QuotePilotUI/App/RootView.swift` (toolbar New Invoice; the tree's Invoices
-  goes back to the list)
+- Modify: `Sources/QuotePilotUI/App/RootView.swift` (toolbar New Invoice)
+- Modify: `Sources/QuotePilotUI/App/AppModel.swift` (`go(to:)`: choosing Invoices again goes back to the
+  list)
 - Modify: `Sources/QuotePilotUI/App/Commands.swift` (⇧⌘N)
 - Test: `Tests/QuotePilotUITests/InvoiceEditorTests.swift`
 
@@ -2692,10 +2712,11 @@ In `Win95Toolbar`, replace the New Invoice button line with:
                 tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)") { model.newInvoice() }
 ```
 
-In `SectionTree.select(_:)`, add after the Quotes line:
+In `AppModel.go(to:)` (plan 2a Task 6's one rule for switching sections, used by the tree and the Go
+menu), add beside the Quotes line:
 
 ```swift
-        if section == .invoices, model.section == .invoices { model.openInvoiceID = nil }
+        if section == .invoices, self.section == .invoices { openInvoiceID = nil }
 ```
 
 In `QuotePilotCommands`, inside `CommandGroup(replacing: .newItem)` after New Quote, add:
