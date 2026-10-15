@@ -24,7 +24,10 @@ struct ClientsView: View {
             .frame(minWidth: 400, maxWidth: .infinity)
             Group {
                 if let id = model.selectedClientID, model.library.client(id) != nil {
+                    // A fresh form for each client, so a field's undo history or half-typed text can
+                    // never land on the next client chosen.
                     ClientForm(model: model, clientID: id)
+                        .id(id)
                 } else {
                     Text("Select a client to see their details.")
                         .font(Win95.label)

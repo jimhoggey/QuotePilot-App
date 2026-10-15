@@ -57,6 +57,21 @@ import QuotePilotCore
         #expect(usual.previewWidth >= 300)
     }
 
+    /// The list's minimum keeps room for a classic scroller (17 wide), whatever the Mac shows now.
+    @Test func theListReservesAClassicScroller() {
+        for width: CGFloat in [778, 1038] {
+            let layout = InvoicesView.layout(width: width)
+            let columns = InvoicesView.columns(showKind: layout.showKind, currencyCode: "AUD")
+            let columnsWidth = columns.reduce(CGFloat(0)) { total, column in
+                switch column.width {
+                case .fixed(let width): return total + width
+                case .flexible(let minimum): return total + minimum
+                }
+            }
+            #expect(layout.listMinimum == columnsWidth + 4 + DetailsLayout.classicScrollerWidth, "at \(width)")
+        }
+    }
+
     @Test func theActivityScreenDraws() throws {
         let model = try UIFixture.sampleModel()
         model.section = .activity

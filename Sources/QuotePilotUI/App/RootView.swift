@@ -25,8 +25,11 @@ public struct RootView: View {
                     SectionTree(model: model)
                         .frame(width: 190)
                         .disabled(boxIsUp)
+                    // Exactly the room beside the tree, and clipped to it: a section that needs more
+                    // is cut on the right instead of pushing the tree, or the window, aside.
                     sectionContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                         .disabled(boxIsUp)
                 }
                 .padding(4)

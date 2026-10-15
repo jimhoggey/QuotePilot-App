@@ -29,26 +29,31 @@ struct DashboardView: View {
                             onOpen: { model.openInvoice($0) })
             }
             .frame(maxHeight: .infinity)
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .top, spacing: Self.gap) {
+                let quoteColumns = Self.quoteColumns(currencyCode: model.currencyCode)
+                let jobColumns = Self.jobColumns(currencyCode: model.currencyCode)
                 GroupBox("Quotes waiting on a reply") {
                     DetailsList(dashboard.openQuotes, id: \.quoteID, columns: quoteColumns, selection: $selectedQuote,
                                 emptyText: "No quotes out.", onOpen: { model.openQuote($0) })
                 }
-                .frame(minWidth: Self.boxWidth(quoteColumns))
+                .frame(minWidth: Self.boxWidth(quoteColumns, scroller: DetailsLayout.legacyScrollerWidth))
                 GroupBox("Still to invoice") {
                     DetailsList(dashboard.toInvoice, id: \.quoteID, columns: jobColumns, selection: $selectedJob,
                                 emptyText: "Every accepted job is fully invoiced.", onOpen: { model.openQuote($0) })
                 }
-                .frame(minWidth: Self.boxWidth(jobColumns))
+                .frame(minWidth: Self.boxWidth(jobColumns, scroller: DetailsLayout.legacyScrollerWidth))
             }
             .frame(maxHeight: .infinity)
             Text("Invoiced \(dashboard.financialYear.label): \(model.money(dashboard.invoicedThisYear))")
                 .font(Win95.body)
                 .foregroundStyle(Win95.text)
         }
-        .padding(8)
+        .padding(Self.gap)
         .groupBoxStyle(.win95)
     }
+
+    /// The screen's padding, and the gap between the two lists along the bottom.
+    static let gap: CGFloat = 8
 
     private var owingColumns: [DetailsColumn<Dashboard.Owing>] {
         [
@@ -64,42 +69,52 @@ struct DashboardView: View {
 
     // The two lists along the bottom share the window's width, so their columns are narrow: the
     // client column gives way first, and `boxWidth` keeps the rest whole down to the smallest window.
-    private var quoteColumns: [DetailsColumn<Dashboard.OpenQuote>] {
+    // Status (80) just holds the icon and "Expired"; Invoiced (76) its header and sort arrow.
+    static func quoteColumns(currencyCode: String) -> [DetailsColumn<Dashboard.OpenQuote>] {
         [
             .text("Quote", width: .fixed(64)) { $0.number },
             .text("Client", width: .flexible(min: 40)) { $0.client },
             .day("Valid until", width: 92) { $0.validUntil },
-            DetailsColumn("Status", width: .fixed(88), sortValue: { .number($0.expired ? 1 : 0) }) { row, selected in
+            DetailsColumn("Status", width: .fixed(80), sortValue: { .number($0.expired ? 1 : 0) }) { row, selected in
                 StatusLabel.cell(row.expired ? QuoteStatus.expired : .sent, selected: selected)
             },
-            .money("Total", width: 96, currencyCode: model.currencyCode) { $0.total },
+            .money("Total", width: 96, currencyCode: currencyCode) { $0.total },
         ]
     }
 
-    private var jobColumns: [DetailsColumn<Dashboard.ToInvoice>] {
+    static func jobColumns(currencyCode: String) -> [DetailsColumn<Dashboard.ToInvoice>] {
         [
             .text("Quote", width: .fixed(64)) { $0.number },
             .text("Client", width: .flexible(min: 40)) { $0.client },
-            DetailsColumn("Invoiced", width: .fixed(100), sortValue: { .number(Int(Self.share($0) * 1000)) }) { row, _ in
-                AnyView(Win95Progress(fraction: Self.share(row))
+            DetailsColumn("Invoiced", width: .fixed(76), sortValue: { .number(Int(share($0) * 1000)) }) { row, _ in
+                AnyView(Win95Progress(fraction: share(row))
                     .frame(height: 14)
-                    .accessibilityLabel("Invoiced \(Int((Self.share(row) * 100).rounded())) percent"))
+                    .accessibilityLabel("Invoiced \(Int((share(row) * 100).rounded())) percent"))
             },
-            .money("Left to invoice", width: 112, currencyCode: model.currencyCode) { $0.remaining },
+            .money("Left to invoice", width: 112, currencyCode: currencyCode) { $0.remaining },
         ]
     }
 
     /// The narrowest a list's group box can be and still show every column whole: the columns at
-    /// their smallest, the list's border and the group box's padding, and the scroller when the Mac
-    /// shows one beside the rows.
-    static func boxWidth<Row>(_ columns: [DetailsColumn<Row>]) -> CGFloat {
+    /// their smallest, the list's border and padding (4), the group box's padding (20), and the
+    /// scroller (`scroller` wide) when the Mac shows one beside the rows.
+    static func boxWidth<Row>(_ columns: [DetailsColumn<Row>], scroller: CGFloat) -> CGFloat {
         let columnsWidth = columns.reduce(CGFloat(0)) { total, column in
             switch column.width {
             case .fixed(let width): return total + width
             case .flexible(let minimum): return total + minimum
             }
         }
-        return columnsWidth + 24 + DetailsLayout.legacyScrollerWidth
+        return columnsWidth + 24 + scroller
+    }
+
+    /// The least width the screen needs for the two bottom lists to sit side by side with every
+    /// column whole: both group boxes at their narrowest, the gap between them and the padding
+    /// either side. It has to fit in the 778 points the smallest window (980 wide) leaves beside
+    /// the section tree, with a classic scroller in each list.
+    static func bottomRowMinimum(scroller: CGFloat) -> CGFloat {
+        gap + boxWidth(quoteColumns(currencyCode: "AUD"), scroller: scroller)
+            + gap + boxWidth(jobColumns(currencyCode: "AUD"), scroller: scroller) + gap
     }
 
     /// "1 invoice, 5 days late": how many are overdue, and the oldest.

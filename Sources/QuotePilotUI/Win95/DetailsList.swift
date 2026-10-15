@@ -120,11 +120,17 @@ public enum DetailsLayout {
         max(0, total - legacyScroller)
     }
 
+    /// How wide a classic scroller is (17 points), whatever the Mac is set to now: what a layout that
+    /// must fit either way reserves.
+    static var classicScrollerWidth: CGFloat {
+        NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    }
+
     /// How wide the scroller is right now: 0 unless the Mac is set to always show scroll bars
     /// (or a mouse is attached), which makes them classic scrollers beside the rows.
     static var legacyScrollerWidth: CGFloat {
         guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
-        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+        return classicScrollerWidth
     }
 
     /// The selection, but only when it is one of these rows (it may have been deleted or filtered out).
@@ -252,6 +258,8 @@ public struct DetailsList<Row, ID: Hashable>: View {
                 .frame(height: DetailsLayout.headerHeight)
                 .overlay(Bevel(.raised))
         }
+        // Pinned to the left: columns too wide for the list are cut on the right, never centred.
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -340,7 +348,9 @@ struct DetailsRowView<Row>: View {
         .background(selected ? Win95.selection : Color.clear)
         // White dots: this rectangle always sits on the navy of the selected row.
         .overlay(showsFocus ? FocusRect(color: Win95.highlight) : nil)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        // Exactly the room offered, pinned to the left: a row too wide is cut on the right (the list
+        // clips it) instead of growing and being centred, which would cut its first column too.
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }

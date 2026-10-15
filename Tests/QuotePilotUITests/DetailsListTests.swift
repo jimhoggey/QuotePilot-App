@@ -148,6 +148,37 @@ private func isNavy(_ c: (r: CGFloat, g: CGFloat, b: CGFloat)) -> Bool { c.r < 0
         #expect(isLight(colour(onRow, size, x: 3, y: 63)))
     }
 
+    /// A row wider than the room it's given starts at the left edge and is cut on the right, as in
+    /// Windows 95; it never centres and loses its first column.
+    @Test func anOverWideRowIsCutOnTheRight() throws {
+        let columns: [DetailsColumn<SampleRow>] = [.text("Client", width: .fixed(120)) { $0.name },
+                                                    .text("Other", width: .fixed(300)) { $0.name }]
+        let size = CGSize(width: 200, height: 20)
+        let row = DetailsRowView(row: SampleRow(id: 1, name: "x"), columns: columns, widths: [120, 300],
+                                 selected: true, showsFocus: true)
+        let rep = try #require(Snapshot.render(row, size: size, name: "details-row-overwide"))
+        // The focus rectangle's left edge (white dots every other point from y = 2) is at x = 0.
+        #expect(isLight(colour(rep, size, x: 0, y: 2)))
+        #expect(isLight(colour(rep, size, x: 0, y: 4)))
+        #expect(isNavy(colour(rep, size, x: 0, y: 3)))
+    }
+
+    /// The same for a whole list: header and rows start just inside its border and line up.
+    @Test func anOverWideListIsCutOnTheRight() throws {
+        let rows = [SampleRow(id: 1, name: "Sample Client Pty Ltd")]
+        let columns: [DetailsColumn<SampleRow>] = [.text("Client", width: .fixed(200)) { $0.name },
+                                                    .text("Other", width: .fixed(200)) { $0.name }]
+        let size = CGSize(width: 240, height: 80)
+        var list = DetailsList(rows, id: \.id, columns: columns, selection: .constant(1), emptyText: "None")
+        list.forcedFocus = true
+        let rep = try #require(Snapshot.render(list.background(Win95.face), size: size, name: "details-list-overwide"))
+        // The first header button's white left edge, just inside the list's border.
+        #expect(isLight(colour(rep, size, x: 2, y: 10)))
+        // The selected row under it: navy, with the focus rectangle's white dots down its left edge.
+        #expect(isNavy(colour(rep, size, x: 3, y: 25)))
+        #expect(isLight(colour(rep, size, x: 2, y: 24)))
+    }
+
     @Test func anEmptyListSaysSo() {
         let list = DetailsList([SampleRow](), id: \.id, columns: [.text("Client", width: .flexible(min: 120)) { $0.name }],
                                selection: .constant(nil), emptyText: "No quotes yet. Press New Quote to write one.")

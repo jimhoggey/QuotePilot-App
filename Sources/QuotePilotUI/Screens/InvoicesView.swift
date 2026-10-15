@@ -22,7 +22,10 @@ struct InvoicesView: View {
                 .frame(minWidth: layout.listMinimum, maxWidth: .infinity)
                 GroupBox("Preview") {
                     if let id = model.selectedInvoiceID, model.library.invoice(id) != nil {
+                        // A fresh preview for each invoice, so arrowing down the list never shows the
+                        // last one's PDF while the next renders.
                         LivePDFPreview(model: model, content: model.invoiceContent(id))
+                            .id(id)
                     } else {
                         Text("Select an invoice to see it.")
                             .font(Win95.label)
@@ -54,7 +57,7 @@ struct InvoicesView: View {
 
     /// The preview is never under 220 (the quote editor's minimum), and about a third of the width
     /// up to 520. The window is at least 980 wide, which leaves 778 beside the section tree; all
-    /// seven columns need about 595 of that, which would squeeze the preview to nothing, so the
+    /// seven columns need about 590 of that, which would squeeze the preview to nothing, so the
     /// Kind column (the least useful) is dropped until the preview can have 300.
     static func layout(width: CGFloat) -> Layout {
         let available = width - 24 // the padding either side, and the gap between list and preview
@@ -69,7 +72,8 @@ struct InvoicesView: View {
     static func columns(showKind: Bool, currencyCode: String) -> [DetailsColumn<InvoiceRow>] {
         var columns: [DetailsColumn<InvoiceRow>] = [
             .text("Invoice", width: .fixed(72)) { $0.number },
-            .text("Client", width: .flexible(min: 64)) { $0.client },
+            // 60 at the least, so the list and a 220 preview still fit the smallest window.
+            .text("Client", width: .flexible(min: 60)) { $0.client },
         ]
         if showKind {
             columns.append(.text("Kind", width: .fixed(60)) { $0.kind })
@@ -86,9 +90,9 @@ struct InvoicesView: View {
     }
 
     /// The least the list can be without cutting its columns: their widths, the sunken border and
-    /// padding (4) and the strip a classic scroller takes (up to 16).
+    /// padding (4) and the strip a classic scroller takes (17), whatever the Mac shows now.
     private static func listMinimum(_ columns: [DetailsColumn<InvoiceRow>]) -> CGFloat {
-        columns.reduce(20) { total, column in
+        columns.reduce(4 + DetailsLayout.classicScrollerWidth) { total, column in
             switch column.width {
             case .fixed(let width): return total + width
             case .flexible(let minimum): return total + minimum
