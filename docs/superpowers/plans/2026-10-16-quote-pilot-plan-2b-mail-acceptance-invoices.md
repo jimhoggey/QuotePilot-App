@@ -2790,6 +2790,65 @@ receipt. The invoice editor lists its payments; each can be removed, after a que
 Receipt…** appears once a payment exists. The toolbar's Payment button works on the open or selected
 invoice.
 
+> **Amendment (15 Oct 2026): fewer pop-ups. This overrides the steps below wherever they differ.**
+> The user asked: "Don't have too many pop-ups; keep the user flow simple to understand and simple to
+> learn." The rules: at most one pop-up per action, never a chain of them. Pop-ups are only for a
+> question the app can't go on without, a destructive confirm, or an error. Information goes on the
+> screen. A command that can't run is greyed out.
+>
+> - **No payment dialog.** You enter a payment right in the invoice editor's Payments box.
+>   - When the invoice is sent and something is owing, a "New payment" area shows under the payment
+>     list. It has Date (`DayPicker`, today), Amount (`Win95TextField`, filled with what's owing),
+>     Method (`Win95RadioGroup` of `PaymentMethod`), Note (optional), and a **Record Payment** button.
+>     Lay it out in two or three rows so it fits the editor form's 500-pt minimum width.
+>   - Drop `Dialog.payment`, `PaymentDialog.swift` and the `.payment` case in `DialogOverlay`. Put
+>     `PaymentsBox` in a new `Sources/QuotePilotUI/Screens/PaymentsBox.swift`.
+>   - Keep `PaymentEntry` as the area's `@State`. Add `AppModel.newPaymentEntry(for: UUID) -> PaymentEntry?`,
+>     which gives today, `money(owing)`, `.bankTransfer` and an empty note, or nil when nothing can be
+>     paid. Give the area `.id` on the invoice's id plus its payment count, so it starts fresh after
+>     each payment and for each invoice.
+> - **`recordPayment(_:)`** returns `Bool` and is `@discardableResult`.
+>   - A refused amount shows its error box (errors may pop up) and returns false. The area keeps what
+>     was typed.
+>   - On success there's no message box. Call `note("Recorded \(money(amount)) for \(invoice.number)")`
+>     (see below) and return true.
+>   - There's no "Send a receipt?" question. **Send Receipt…** sits in the Payments box once a
+>     payment exists.
+> - **`startPayment(_:)`** is the toolbar's Payment button. It opens that invoice in the editor
+>   (section Invoices, `openInvoiceID`), where the New payment area is, and shows no box.
+>   - Its draft and void refusals stay as error boxes for direct calls. The toolbar button is already
+>     greyed by `payableInvoiceID`.
+> - **The invoice header gets no Record Payment… or Send Receipt… buttons.** The 980-pt header is
+>   full, and the Payments box has both.
+> - **Removing a payment still asks first.** It's destructive.
+> - **Status-bar notes** (new, reused by Task 8):
+>   - Add `public struct StatusNote: Equatable { public let text: String; public let at: Date }` and
+>     `public private(set) var statusNote: StatusNote?` to `AppModel`.
+>   - `public func note(_ text: String)` sets it with `now()`.
+>   - `StatusBarText.items(...)` takes the note too. Its last cell shows the note's text while
+>     `note.at >= lastSaved`, and otherwise the "Saved …" time as before. So the next change that saves
+>     replaces it.
+>   - Keep notes short: the cell is about 300 pt wide at 1240.
+> - **Tests.** These replace Step 1's dialog-shaped tests; keep the `hosting` helper.
+>   - `recordingAPaymentLowersWhatsOwing`: take `newPaymentEntry(for:)`, which must have amount
+>     "$135.00" and today's date. Set card and a note, then record it. Expect: true, owing zero, the
+>     method and note stored, `message == nil`, `dialog == nil`, and
+>     `statusNote?.text == "Recorded $135.00 for INV-0003"`.
+>   - `thePaymentButtonOpensTheInvoice`: from the Dashboard, `startPayment(id)` gives section
+>     `.invoices`, `openInvoiceID == id`, and no message or dialog.
+>   - `aPaymentOverWhatsOwingIsRefused`: amount "500" gives false, and the message text is
+>     `paymentMoreThanOwing($135)`. There's still one payment.
+>   - `aHalfTypedAmountIsRefused`: "12.3.4" gives false and the message title "Amount".
+>   - `onlySentInvoicesWithMoneyOwingTakePayments`: `payableInvoiceID` and `newPaymentEntry` are nil
+>     for INV-0001 (paid in full) and for a new draft. `startPayment` on the draft shows the
+>     `notSent` message.
+>   - `removingAPaymentAsksFirst` and `removingTheLastPaymentClearsTheReceipt` stay unchanged.
+>   - `theStatusBarShowsTheNoteUntilTheNextSave`: a pure test of `StatusBarText.items` with a note at
+>     or after `lastSaved`, then one before it.
+>   - `thePaymentsBoxDraws`: render INV-0003's editor at 1240×800 as "invoice-payments", plus a
+>     temporary 980×620 render. Check that every field and button name is whole, then delete the
+>     temporary render.
+
 **Files:**
 - Create: `Sources/QuotePilotUI/Screens/PaymentDialog.swift`
 - Modify: `Sources/QuotePilotUI/App/AppModel+Invoices.swift` (payment actions)
@@ -3461,6 +3520,32 @@ The File menu gains four items:
   is kept beside it.
 
 All three saves use the one save panel, which now handles PDF, CSV and JSON.
+
+> **Amendment (15 Oct 2026): fewer pop-ups. This overrides the steps below wherever they differ.**
+> The rules are the same as Task 6's amendment: at most one pop-up per action, information goes on
+> the screen, and a command that can't run is greyed out.
+>
+> - **Restore Backup… asks no extra question.**
+>   - The restore dialog's button reads **Restore** (no ellipsis). It restores the selected backup
+>     straight away. The dialog's own text already says the current library is kept beside it.
+>   - Double-clicking a backup only selects it (no `onOpen`).
+>   - Drop `askToRestore`.
+> - **A successful `restore(from:)` shows no "Backup Restored" box.**
+>   - It closes the dialog and calls `note("Restored the \(label) backup")`, where `label` is
+>     `RestoreView.label`'s day. Task 6 adds `note(_:)`, shown in the status bar. The Activity entry
+>     stays.
+>   - A failed restore, or a failed Activity note, still shows its box. Keep plan 2a's guard.
+>   - The Library Missing prompt and the unreadable screen restore through it too, so update plan 2a's
+>     tests that expect the "Backup Restored" message. They should now expect `message == nil` and
+>     the note.
+> - **Greyed out instead of explained.**
+>   - **Back Up To…** is greyed out while there's no saved library file. That replaces the
+>     "Nothing to Back Up" box; keep a `beep()` in `exportBackupCopy` as the fallback.
+>   - While you're in `Commands.swift`, **Send by Mail…** and **Save PDF…** are greyed out when
+>     there's nothing to send or save. Use `sendableDocument` and the same check `exportPDF` uses.
+>     That replaces the two "Open a quote or select an invoice first" boxes. Add a test of the model
+>     properties the menu reads.
+> - **Import and tax time are unchanged.** Each is one pop-up after a command you chose.
 
 **Files:**
 - Create: `Sources/QuotePilotUI/App/AppModel+Files.swift`
