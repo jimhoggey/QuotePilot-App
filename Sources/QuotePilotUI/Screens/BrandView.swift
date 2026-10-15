@@ -125,8 +125,10 @@ struct LookTab: View {
                             .buttonStyle(.win95)
                             .disabled(brand.headingFontFile == nil)
                     }
-                    Text("A TTF or OTF file, used for document titles and headings.")
+                    FontStylePicker(fontURL: model.headingFontURL, label: "Heading font style", style: $brand.headingFontStyle)
+                    Text("A TTF or OTF file, used for document titles and headings. For a variable font, choose its style.")
                         .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             GroupBox("Accent colour") {

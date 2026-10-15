@@ -443,14 +443,15 @@ public final class AppModel {
         library.brand.logoFile.map { store.assetsFolder.appendingPathComponent($0) }
     }
 
-    /// The heading font's name as people know it ("Avenir Next Demi Bold"), or nil.
+    /// The heading font's file in Assets, or nil when there's none.
+    public var headingFontURL: URL? {
+        library.brand.headingFontFile.map { store.assetsFolder.appendingPathComponent($0) }
+    }
+
+    /// The heading font's name as people know it ("Georgia"; a font with several styles by its
+    /// family, "Archivo", since the Style picker names the style), or nil.
     public var headingFontName: String? {
-        guard let name = library.brand.headingFontFile,
-              let descriptors = CTFontManagerCreateFontDescriptorsFromURL(
-                  store.assetsFolder.appendingPathComponent(name) as CFURL) as? [CTFontDescriptor],
-              let first = descriptors.first
-        else { return nil }
-        return CTFontDescriptorCopyAttribute(first, kCTFontDisplayNameAttribute) as? String
+        headingFontURL.flatMap(FontFile.displayName(at:))
     }
 
     /// Puts a PNG, JPG, SVG or PDF into the library's Assets folder and makes it the logo. An SVG is
@@ -495,7 +496,8 @@ public final class AppModel {
             return
         }
         guard let name = copyAsset(url, prefix: "heading-font") else { return }
-        change("Couldn't use that font") { $0.brand.headingFontFile = name }
+        // A style belongs to the font it was chosen from, so a new font starts on its own default.
+        change("Couldn't use that font") { $0.brand.headingFontFile = name; $0.brand.headingFontStyle = nil }
     }
 
     public func removeLogo() {
@@ -503,7 +505,7 @@ public final class AppModel {
     }
 
     public func removeHeadingFont() {
-        change("Couldn't remove the heading font") { $0.brand.headingFontFile = nil }
+        change("Couldn't remove the heading font") { $0.brand.headingFontFile = nil; $0.brand.headingFontStyle = nil }
     }
 
     /// Copies a file into Assets under a fresh name ("logo-1A2B3C4D.png"), so a document already
