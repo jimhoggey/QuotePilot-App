@@ -49,6 +49,10 @@ import Testing
             return
         }
         #expect(reason.contains("newer version"))
+        // Saving must not replace it either (Review Focus item 4).
+        let before = try Data(contentsOf: store.libraryURL)
+        #expect(throws: LibraryStore.StoreError.wouldOverwriteUnreadableLibrary) { try store.save(Library()) }
+        #expect(try Data(contentsOf: store.libraryURL) == before)
     }
 
     /// A library holding a day that doesn't exist: Day's public init refuses to build one, so this uses

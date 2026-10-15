@@ -81,6 +81,16 @@ public enum AcceptanceProblem: Equatable, Sendable {
     case nothingTicked
     case expired(validUntil: Day)
 
+    /// A blocking problem means the PDF doesn't belong to this quote (or names lines it doesn't have),
+    /// so spec §7 says it changes nothing: the review sheet must not offer to confirm it. The others
+    /// are warnings the user can read and still confirm.
+    public var isBlocking: Bool {
+        switch self {
+        case .wrongQuote, .unknownLines: return true
+        case .missingLines, .nothingTicked, .expired: return false
+        }
+    }
+
     public var message: String {
         switch self {
         case .wrongQuote(let found, let expected):
@@ -105,6 +115,9 @@ public struct AcceptanceProposal: Equatable, Sendable {
     public var clientName: String
     public var clientDate: String
     public var problems: [AcceptanceProblem]
+
+    /// False while any problem is blocking: the review sheet shows it and offers no Confirm.
+    public var canBeConfirmed: Bool { !problems.contains(where: \.isBlocking) }
 }
 
 extension Quote {

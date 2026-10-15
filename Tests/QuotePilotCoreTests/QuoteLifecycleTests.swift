@@ -144,6 +144,58 @@ import Testing
                 == "This PDF is for quote Q-0009, not Q-0001.")
     }
 
+    @Test func onlyAWrongQuoteOrUnknownLinesBlockConfirming() {
+        // Spec §7: a number that matches no quote, or line IDs that don't exist, change nothing.
+        #expect(AcceptanceProblem.wrongQuote(found: "Q-0009", expected: "Q-0001").isBlocking)
+        #expect(AcceptanceProblem.unknownLines(["03"]).isBlocking)
+        #expect(!AcceptanceProblem.missingLines(["04"]).isBlocking)
+        #expect(!AcceptanceProblem.nothingTicked.isBlocking)
+        #expect(!AcceptanceProblem.expired(validUntil: today).isBlocking)
+    }
+
+    @Test func aProposalCanBeConfirmedUnlessAProblemBlocksIt() {
+        let (library, id) = Fixture.libraryWithQuote()
+        let quote = library.quote(id)!
+        let codes = quote.lineCodes
+
+        let clean = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: ["01"], unticked: ["02", "03"]),
+                                   today: today)
+        #expect(clean.problems == [])
+        #expect(clean.canBeConfirmed)
+
+        let wrongQuote = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0009", acceptAll: true, ticked: [], unticked: codes),
+                                        today: today)
+        #expect(wrongQuote.problems == [.wrongQuote(found: "Q-0009", expected: "Q-0001")])
+        #expect(!wrongQuote.canBeConfirmed)
+
+        let unknown = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: ["07"], unticked: codes),
+                                     today: today)
+        #expect(unknown.problems == [.unknownLines(["07"])])
+        #expect(!unknown.canBeConfirmed)
+
+        // Warnings the user can read and still confirm.
+        let nothing = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: [], unticked: codes),
+                                     today: today)
+        #expect(nothing.problems == [.nothingTicked])
+        #expect(nothing.canBeConfirmed)
+
+        let missing = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: ["01"], unticked: ["02"]),
+                                     today: today)
+        #expect(missing.problems == [.missingLines(["03"])])
+        #expect(missing.canBeConfirmed)
+
+        let expired = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: true, ticked: [], unticked: codes),
+                                     today: quote.validUntil.adding(days: 3))
+        #expect(expired.problems == [.expired(validUntil: quote.validUntil)])
+        #expect(expired.canBeConfirmed)
+
+        // One blocking problem among warnings still blocks.
+        let both = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0009", acceptAll: true, ticked: [], unticked: codes),
+                                  today: quote.validUntil.adding(days: 3))
+        #expect(both.problems.count == 2)
+        #expect(!both.canBeConfirmed)
+    }
+
     @Test func recordingAcceptanceSetsDecisionsAndLogs() throws {
         var (library, id) = Fixture.libraryWithQuote()
         try library.recordAcceptance(Acceptance(source: .returnedPDF, fileName: "Q-0001 signed.pdf",
