@@ -33,18 +33,34 @@ import Testing
         #expect(rep != nil)
         #expect(rep.map(Snapshot.hasContent) == true)
     }
+
+    /// A dashboard fraction of paid / total is 0 / 0 when nothing is owed yet. That must draw an
+    /// empty bar, not trap on converting NaN to a block count.
+    @Test func progressClampsEveryFraction() {
+        #expect(Win95Progress(fraction: 0.25).fraction == 0.25)
+        #expect(Win95Progress(fraction: -0.5).fraction == 0)
+        #expect(Win95Progress(fraction: 1.5).fraction == 1)
+        #expect(Win95Progress(fraction: .nan).fraction == 0)
+        #expect(Win95Progress(fraction: .infinity).fraction == 0)
+        #expect(Win95Progress(fraction: -.infinity).fraction == 0)
+    }
+
+    @Test(arguments: [Double.nan, .infinity, -.infinity])
+    func progressDrawsWithAFractionThatIsNotANumber(_ fraction: Double) {
+        let bar = Win95Progress(fraction: fraction).padding(4).background(Win95.face)
+        let rep = Snapshot.render(bar, size: CGSize(width: 200, height: 24), name: "progress-odd-fraction")
+        #expect(rep != nil)
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
 }
 
 /// One of everything in the kit, for the screenshot.
 struct KitSampler: View {
-    // The macOS 27 SDK turns `@State` into a macro, and Command Line Tools don't ship the plugin
-    // that expands it ("plugin for module 'SwiftUIMacros' not found"). Holding the `State` values
-    // directly is what the attribute expands to anyway, and needs no macro.
-    private let name = State(initialValue: "Sample Client Pty Ltd")
-    private let notes = State(initialValue: "Prefers email.\nPays on time.")
-    private let gst = State(initialValue: false)
-    private let copy = State(initialValue: true)
-    private let plan = State(initialValue: "5050")
+    @State private var name = "Sample Client Pty Ltd"
+    @State private var notes = "Prefers email.\nPays on time."
+    @State private var gst = false
+    @State private var copy = true
+    @State private var plan = "5050"
 
     private func swatch(_ kind: BevelKind, _ caption: String) -> some View {
         VStack(spacing: 3) {
@@ -53,9 +69,11 @@ struct KitSampler: View {
         }
     }
 
-    private func toolbarLabel(_ symbol: String, _ title: String) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: symbol).font(.system(size: 20))
+    /// The toolbar's icon above a short label. Chrome uses pixel glyphs, never SF Symbols.
+    private func toolbarLabel(_ glyph: [String], _ title: String) -> some View {
+        VStack(spacing: 8) {
+            // 14 x 14 pt is two points per glyph pixel, so every pixel still lands whole.
+            PixelGlyph(glyph).frame(width: 14, height: 14)
             Text(title)
         }
     }
@@ -72,8 +90,8 @@ struct KitSampler: View {
                 }
                 GroupBox("Client") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Win95FieldRow("Name:") { Win95TextField("Name", text: name.projectedValue) }
-                        Win95FieldRow("Notes:") { Win95TextEditor(text: notes.projectedValue).frame(height: 54) }
+                        Win95FieldRow("Name:") { Win95TextField("Name", text: $name) }
+                        Win95FieldRow("Notes:") { Win95TextEditor("Notes", text: $notes).frame(height: 54) }
                     }
                 }
                 GroupBox("Progress") {
@@ -96,10 +114,9 @@ struct KitSampler: View {
             VStack(alignment: .leading, spacing: 10) {
                 GroupBox("Options") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Toggle("Registered for GST", isOn: gst.projectedValue).toggleStyle(.win95)
-                        Toggle("Send me a copy", isOn: copy.projectedValue).toggleStyle(.win95)
-                        Win95RadioGroup(selection: plan.projectedValue,
-                                        options: [("5050", "50/50"), ("full", "Full amount")])
+                        Toggle("Registered for GST", isOn: $gst).toggleStyle(.win95)
+                        Toggle("Send me a copy", isOn: $copy).toggleStyle(.win95)
+                        Win95RadioGroup(selection: $plan, options: [("5050", "50/50"), ("full", "Full amount")])
                     }
                 }
                 GroupBox("Wells") {
@@ -117,9 +134,9 @@ struct KitSampler: View {
                 }
                 GroupBox("Toolbar") {
                     HStack(spacing: 6) {
-                        Button {} label: { toolbarLabel("doc.text", "Quotes") }
+                        Button {} label: { toolbarLabel(PixelGlyph.tick, "Quotes") }
                             .buttonStyle(Win95ToolbarButtonStyle())
-                        Button {} label: { toolbarLabel("tray", "Archive") }
+                        Button {} label: { toolbarLabel(PixelGlyph.cross, "Archive") }
                             .buttonStyle(Win95ToolbarButtonStyle()).disabled(true)
                     }
                 }

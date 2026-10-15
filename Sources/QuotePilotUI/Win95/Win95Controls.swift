@@ -99,26 +99,40 @@ public struct Win95TextField: View {
     }
 }
 
-/// A sunken multi-line editor.
+/// A sunken multi-line editor with the dotted focus rectangle. Give it a label for VoiceOver
+/// when the visible label sits outside it, as in a field row; leave the label empty to add none.
 public struct Win95TextEditor: View {
+    let label: String
     @Binding var text: String
+    @FocusState private var focused: Bool
 
-    public init(text: Binding<String>) {
+    public init(_ label: String = "", text: Binding<String>) {
+        self.label = label
         self._text = text
     }
 
-    public var body: some View {
+    private var editor: some View {
         TextEditor(text: $text)
             .font(Win95.body)
             .foregroundStyle(Win95.text)
             .scrollContentBackground(.hidden)
+            .focused($focused)
             .padding(4)
             .background(Win95.field)
             .overlay(Bevel(.sunken))
+            .overlay(focused ? FocusRect().padding(3) : nil)
             // A text editor reports no baseline of its own, which left a row's label floating
             // above the first line. The first line of 13 pt text sits about 16 pt down: 4 of
             // padding plus the line's ascent.
             .alignmentGuide(.firstTextBaseline) { $0[.top] + 16 }
+    }
+
+    public var body: some View {
+        if label.isEmpty {
+            editor
+        } else {
+            editor.accessibilityLabel(label)
+        }
     }
 }
 
@@ -281,7 +295,9 @@ public struct Win95Progress: View {
     let fraction: Double
 
     public init(fraction: Double) {
-        self.fraction = min(max(fraction, 0), 1)
+        // NaN (0 / 0) and infinity (x / 0) would trap when the bar turns the fraction into a block
+        // count, so they draw an empty bar.
+        self.fraction = fraction.isFinite ? min(max(fraction, 0), 1) : 0
     }
 
     public var body: some View {
