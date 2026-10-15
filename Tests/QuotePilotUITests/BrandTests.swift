@@ -1,8 +1,10 @@
 import AppKit
 import Foundation
+import PDFKit
 import SwiftUI
 import Testing
 import QuotePilotCore
+import QuotePilotPDF
 @testable import QuotePilotUI
 
 @MainActor
@@ -121,6 +123,80 @@ import QuotePilotCore
         #expect(FileChoice.headingFont.contentTypes == [.font])
         #expect(FileChoice.returnedQuote.contentTypes == [.pdf])
         #expect(FileChoice.legacyBackup.contentTypes == [.json])
+    }
+
+    /// An SVG chosen as the logo reaches the logo handler, becomes a PDF in Assets, and is not read as
+    /// a returned quote.
+    @Test func aChosenSVGLogoBecomesAPDFLogo() throws {
+        let model = try UIFixture.sampleModel()
+        let quotes = model.library.quotes.count
+        model.choosingFile = .logo
+        // SwiftUI may close the panel (clearing the choice) before it reports the file.
+        model.choosingFile = nil
+        model.fileChosen(.success(try UIFixture.file("my logo.svg", UIFixture.svgData())))
+        let name = try #require(model.library.brand.logoFile)
+        #expect(name.hasPrefix("logo-") && name.hasSuffix(".pdf"))
+        #expect(model.message == nil)
+        #expect(model.dialog == nil)
+        #expect(model.openQuoteID == nil)
+        #expect(model.library.quotes.count == quotes)
+        let url = try #require(model.logoURL)
+        guard case .vector? = Logo(url: url) else {
+            Issue.record("The SVG should be kept as a PDF (vector) logo")
+            return
+        }
+        #expect(PDFDocument(url: url)?.page(at: 0)?.bounds(for: .mediaBox).size == CGSize(width: 200, height: 80))
+        // Only the PDF is kept: the original SVG stays where the person has it.
+        let kept = try FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)
+        #expect(kept == [name])
+    }
+
+    @Test func aBrokenSVGIsRefusedWithTheOneNotAnImageBox() throws {
+        let model = try UIFixture.sampleModel()
+        model.choosingFile = .logo
+        model.fileChosen(.success(try UIFixture.file("broken.svg", Data(#"<svg xmlns="http://www.w3.org/2000/svg"><rect"#.utf8))))
+        #expect(model.message?.title == "Not an Image")
+        #expect(model.message?.text.contains("broken.svg") == true)
+        #expect(model.library.brand.logoFile == nil)
+        #expect(model.dialog == nil)
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)) ?? []
+        #expect(kept.isEmpty)
+
+        // A logo already there stays when a broken SVG is chosen after it.
+        model.importLogo(from: try UIFixture.file("logo.png", UIFixture.pngData()))
+        let before = try #require(model.library.brand.logoFile)
+        model.message = nil
+        model.importLogo(from: try UIFixture.file("worse.svg", Data("not a picture".utf8)))
+        #expect(model.message?.title == "Not an Image")
+        #expect(model.library.brand.logoFile == before)
+    }
+
+    /// With the SVG logo set, the Look tab shows it in the logo well (snapshot: brand-look-svg-logo).
+    @Test func theLookTabDrawsAnSVGLogo() throws {
+        let model = try UIFixture.sampleModel()
+        model.importLogo(from: try UIFixture.file("logo.svg", UIFixture.svgData()))
+        #expect(model.library.brand.logoFile != nil)
+        let rep = try #require(Snapshot.render(BrandView(model: model, tab: .look).background(Win95.face),
+                                               size: CGSize(width: 1000, height: 640), name: "brand-look-svg-logo"))
+        #expect(Snapshot.hasContent(rep))
+        #expect(Snapshot.logoPixels(rep) > 200, "the SVG logo isn't in the logo well")
+    }
+
+    /// The same logo on a rendered quote page (snapshot: quote-page-svg-logo), through the real chain:
+    /// the Assets file, the brand's look, the renderer.
+    @Test func aQuotePageDrawsTheSVGLogoAtTheTop() throws {
+        let model = try UIFixture.sampleModel()
+        let plain = try #require(Snapshot.renderPage(model.pdf(model.sampleContent()), name: "quote-page-no-logo"))
+        #expect(Snapshot.logoPixels(plain) == 0)
+
+        model.importLogo(from: try UIFixture.file("logo.svg", UIFixture.svgData()))
+        let data = model.pdf(model.sampleContent())
+        let page = try #require(Snapshot.renderPage(data, name: "quote-page-svg-logo"))
+        #expect(Snapshot.hasContent(page))
+        // At 2 pixels to the point, the logo is in the top 300 pixels, and about 66 x 40 points big.
+        #expect(Snapshot.logoPixels(page, rows: 300) > 6_000)
+        #expect(Snapshot.logoPixels(page, rows: 300) == Snapshot.logoPixels(page))
+        #expect(!String(decoding: data, as: UTF8.self).contains("/Subtype /Image"))
     }
 
     /// The logo choice reaches the logo handler, and never the returned-quote reader: a PDF logo

@@ -3,6 +3,7 @@ import SwiftUI
 import Testing
 import UniformTypeIdentifiers
 import QuotePilotCore
+import QuotePilotPDF
 @testable import QuotePilotUI
 
 @MainActor
@@ -85,6 +86,46 @@ import QuotePilotCore
             return
         }
         #expect(!report.notes.contains { $0.contains("logo") })
+    }
+
+    /// Invoice Generator keeps an SVG logo as it is (a base64 data URL). It goes through the same
+    /// conversion to a one-page PDF as an SVG chosen on the Brand page.
+    @Test func anOldSVGLogoBecomesAPDFBrandLogo() throws {
+        let model = try UIFixture.sampleModel()
+        let dataURL = "data:image/svg+xml;base64," + UIFixture.svgData().base64EncodedString()
+        model.importLegacyBackup(at: try UIFixture.file("b.json", Self.backup(logo: dataURL)))
+        let name = try #require(model.library.brand.logoFile)
+        #expect(name.hasPrefix("logo-") && name.hasSuffix(".pdf"))
+        #expect(model.message == nil)
+        #expect(FileManager.default.fileExists(atPath: model.store.assetsFolder.appendingPathComponent(name).path))
+        let url = try #require(model.logoURL)
+        guard case .vector? = Logo(url: url) else {
+            Issue.record("The old SVG logo should be kept as a PDF (vector) logo")
+            return
+        }
+        guard case .importReport(let report) = model.dialog else {
+            Issue.record("Expected the import report")
+            return
+        }
+        #expect(!report.notes.contains { $0.contains("logo") })
+        // Nothing but the PDF was kept.
+        let kept = try FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)
+        #expect(kept == [name])
+    }
+
+    @Test func anOldSVGLogoThatIsBrokenIsSaidSoInTheReport() throws {
+        let model = try UIFixture.sampleModel()
+        let broken = "data:image/svg+xml;base64," + Data(#"<svg xmlns="http://www.w3.org/2000/svg"><rect"#.utf8).base64EncodedString()
+        model.importLegacyBackup(at: try UIFixture.file("b.json", Self.backup(logo: broken)))
+        #expect(model.library.brand.logoFile == nil)
+        #expect(model.message == nil)
+        guard case .importReport(let report) = model.dialog else {
+            Issue.record("Expected the import report")
+            return
+        }
+        #expect(report.notes.contains("The old tool's logo couldn't be read. Add your logo on the Brand page."))
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)) ?? []
+        #expect(kept.isEmpty)
     }
 
     @Test func aLogoAlreadyThereIsKept() throws {

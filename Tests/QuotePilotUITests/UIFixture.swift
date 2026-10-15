@@ -79,6 +79,16 @@ enum UIFixture {
         return rep.representation(using: .png, properties: [:])!
     }
 
+    /// A tiny made-up SVG logo, 200 x 80: a magenta rectangle and a blue circle.
+    static func svgData() -> Data {
+        Data("""
+        <svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80">
+          <rect x="4" y="4" width="120" height="72" fill="#C2185B"/>
+          <circle cx="160" cy="40" r="30" fill="#1F6FEB"/>
+        </svg>
+        """.utf8)
+    }
+
     /// Writes `data` to a file called `name` in a new temporary folder.
     static func file(_ name: String, _ data: Data) throws -> URL {
         let folder = makeFolder()

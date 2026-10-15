@@ -42,7 +42,8 @@ extension AppModel {
     /// went wrong, to finish "The old tool's logo …": "couldn't be read" when it isn't a usable image,
     /// "couldn't be saved" when the image is fine but can't be stored. It shows no message box of its
     /// own either way: the import report is already up for it, and it carries a note saying the logo
-    /// didn't come in.
+    /// didn't come in. The old tool keeps a PNG, a JPG, or an SVG (which it doesn't shrink); an SVG
+    /// goes through the same conversion to a PDF as one chosen on the Brand page.
     private func useImportedLogo(_ data: Data) -> String? {
         let unreadable = "couldn't be read"
         let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
@@ -52,16 +53,23 @@ extension AppModel {
             ext = "png"
         } else if data.starts(with: jpeg) {
             ext = "jpg"
+        } else if SVGLogo.looksLikeSVG(data) {
+            ext = "svg"
         } else {
             return unreadable
         }
         let temporary = FileManager.default.temporaryDirectory
             .appendingPathComponent("imported-logo-\(UUID().uuidString).\(ext)")
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard (try? data.write(to: temporary)) != nil, Logo(url: temporary) != nil else { return unreadable }
-        guard let name = try? copyAssetQuietly(temporary, prefix: "logo"),
-              tryChange({ $0.brand.logoFile = name }) == nil
-        else { return "couldn't be saved" }
+        guard (try? data.write(to: temporary)) != nil else { return unreadable }
+        let stored: String?
+        do {
+            stored = try storeLogoQuietly(temporary)
+        } catch {
+            return "couldn't be saved"
+        }
+        guard let name = stored else { return unreadable }
+        guard tryChange({ $0.brand.logoFile = name }) == nil else { return "couldn't be saved" }
         return nil
     }
 

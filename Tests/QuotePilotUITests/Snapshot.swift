@@ -1,4 +1,5 @@
 import AppKit
+import PDFKit
 import SwiftUI
 
 /// Renders a SwiftUI view through AppKit in an off-screen window, so text fields and pickers draw
@@ -21,12 +22,38 @@ enum Snapshot {
         host.layoutSubtreeIfNeeded()
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return nil }
         host.cacheDisplay(in: host.bounds, to: rep)
+        save(rep, name: name)
+        return rep
+    }
+
+    /// Page 1 of a PDF drawn on white, `scale` pixels to the point. Like `render`, it also saves a PNG
+    /// when QP_SNAPSHOTS names a folder.
+    static func renderPage(_ pdf: Data, scale: CGFloat = 2, name: String) -> NSBitmapImageRep? {
+        // The document stays in a variable: a page can't be drawn once its document is gone.
+        guard let document = PDFDocument(data: pdf), let page = document.page(at: 0) else { return nil }
+        defer { withExtendedLifetime(document) {} }
+        let box = page.bounds(for: .mediaBox)
+        guard let context = CGContext(data: nil, width: Int(box.width * scale), height: Int(box.height * scale),
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: context.width, height: context.height))
+        context.scaleBy(x: scale, y: scale)
+        page.draw(with: .mediaBox, to: context)
+        guard let image = context.makeImage() else { return nil }
+        let rep = NSBitmapImageRep(cgImage: image)
+        save(rep, name: name)
+        return rep
+    }
+
+    private static func save(_ rep: NSBitmapImageRep, name: String) {
         if let folder = ProcessInfo.processInfo.environment["QP_SNAPSHOTS"],
            let png = rep.representation(using: .png, properties: [:]) {
             try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
             try? png.write(to: URL(fileURLWithPath: folder).appendingPathComponent(name + ".png"))
         }
-        return rep
     }
 
     /// True when the picture has at least three distinct colours: something was drawn.
@@ -42,5 +69,29 @@ enum Snapshot {
             }
         }
         return false
+    }
+
+    /// How many pixels in the picture are the made-up SVG logo's magenta (`UIFixture.svgData`),
+    /// within the top `rows` rows: nothing else in Quote Pilot is that colour.
+    static func logoPixels(_ rep: NSBitmapImageRep, rows: Int? = nil) -> Int {
+        guard let image = rep.cgImage else { return 0 }
+        let width = image.width, height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        bytes.withUnsafeMutableBytes { buffer in
+            let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                                    bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            context?.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        var count = 0
+        // The first row in memory is the top of the picture.
+        for y in 0..<min(rows ?? height, height) {
+            for x in 0..<width {
+                let i = (y * width + x) * 4
+                let r = Int(bytes[i]), g = Int(bytes[i + 1]), b = Int(bytes[i + 2])
+                if r > g + 100, r > b + 50, b > g + 30 { count += 1 }
+            }
+        }
+        return count
     }
 }

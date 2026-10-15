@@ -51,7 +51,8 @@ public struct PDFStyle {
     }
 }
 
-/// A logo from a PNG or JPG (bitmap) or a PDF (stays sharp at any size).
+/// A logo from a PNG or JPG (bitmap) or a PDF (stays sharp at any size). An SVG logo is a PDF by the
+/// time it gets here: `SVGLogo` converts it when it is imported.
 public enum Logo {
     case bitmap(CGImage)
     case vector(CGPDFPage)

@@ -1,6 +1,8 @@
 import Foundation
+import PDFKit
 import Testing
 import QuotePilotCore
+import QuotePilotPDF
 @testable import QuotePilotUI
 
 @MainActor
@@ -213,6 +215,48 @@ import QuotePilotCore
         #expect(name.hasPrefix("logo-") && name.hasSuffix(".png"))
         #expect(FileManager.default.fileExists(atPath: model.store.assetsFolder.appendingPathComponent(name).path))
         #expect(model.logoURL?.lastPathComponent == name)
+    }
+
+    /// An SVG is turned into a PDF as it goes into Assets, and the PDF is the logo. The original isn't
+    /// kept there: nothing reads it, and the library never cleans Assets up.
+    @Test func anSVGLogoIsKeptInAssetsAsAPDF() throws {
+        let model = try UIFixture.model(Library())
+        model.importLogo(from: try UIFixture.file("Logo.SVG", UIFixture.svgData()))
+        let name = try #require(model.library.brand.logoFile)
+        #expect(name.hasPrefix("logo-") && name.hasSuffix(".pdf"))
+        #expect(model.logoURL?.lastPathComponent == name)
+        #expect(model.message == nil)
+        let kept = try FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)
+        #expect(kept == [name])
+        // It is a real one-page PDF.
+        let url = try #require(model.logoURL)
+        let document = try #require(PDFDocument(url: url))
+        #expect(document.pageCount == 1)
+        // And the brand's look finds it, so documents draw it.
+        let style = PDFStyle(brand: model.library.brand, assetsFolder: model.store.assetsFolder)
+        guard case .vector? = style.logo else {
+            Issue.record("The brand's logo should load as a PDF (vector) logo")
+            return
+        }
+    }
+
+    @Test func aBrokenSVGLogoIsRefused() throws {
+        let model = try UIFixture.model(Library())
+        model.importLogo(from: try UIFixture.file("logo.svg", Data("this is not a picture".utf8)))
+        #expect(model.library.brand.logoFile == nil)
+        #expect(model.message?.title == "Not an Image")
+        let copied = (try? FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)) ?? []
+        #expect(copied.isEmpty)
+    }
+
+    /// The SVG is fine but can't be saved (a file sits where the Assets folder should be): the usual
+    /// "Couldn't copy" box, and no logo.
+    @Test func anSVGLogoThatCantBeSavedSaysSo() throws {
+        let model = try UIFixture.model(Library())
+        #expect(FileManager.default.createFile(atPath: model.store.assetsFolder.path, contents: Data()))
+        model.importLogo(from: try UIFixture.file("logo.svg", UIFixture.svgData()))
+        #expect(model.library.brand.logoFile == nil)
+        #expect(model.message?.title == "Couldn't copy logo.svg")
     }
 
     @Test func aNonFontIsRefused() throws {

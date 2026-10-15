@@ -453,16 +453,36 @@ public final class AppModel {
         return CTFontDescriptorCopyAttribute(first, kCTFontDisplayNameAttribute) as? String
     }
 
-    /// Copies a PNG, JPG or PDF into the library's Assets folder and makes it the logo.
+    /// Puts a PNG, JPG, SVG or PDF into the library's Assets folder and makes it the logo. An SVG is
+    /// turned into a one-page PDF on the way in (only the PDF is kept), so it stays sharp at any size.
     public func importLogo(from url: URL) {
-        guard Logo(url: url) != nil else {
+        let name: String?
+        do {
+            name = try storeLogoQuietly(url)
+        } catch {
+            show(error, title: "Couldn't copy \(url.lastPathComponent)")
+            return
+        }
+        guard let name else {
             show(title: "Not an Image",
                  text: "\(url.lastPathComponent) isn't an image Quote Pilot can use. Choose a PNG, JPG or PDF.",
                  kind: .warning)
             return
         }
-        guard let name = copyAsset(url, prefix: "logo") else { return }
         change("Couldn't use that logo") { $0.brand.logoFile = name }
+    }
+
+    /// Saves a logo file into Assets and returns its new name. Nil, with nothing saved, when the file
+    /// isn't an image Quote Pilot can use. A PNG, JPG or PDF is copied as it is; an SVG is converted
+    /// to a one-page PDF (`SVGLogo`) and saved as that, since the PDF logo path draws it as vectors.
+    /// Throws when the image is fine but can't be saved.
+    func storeLogoQuietly(_ url: URL) throws -> String? {
+        if SVGLogo.isSVG(url) {
+            guard let pdf = SVGLogo.pdfData(from: url) else { return nil }
+            return try writeAssetQuietly(pdf, prefix: "logo", pathExtension: "pdf")
+        }
+        guard Logo(url: url) != nil else { return nil }
+        return try copyAssetQuietly(url, prefix: "logo")
     }
 
     /// Copies a TTF or OTF into the Assets folder and makes it the heading font.
@@ -502,6 +522,15 @@ public final class AppModel {
         let name = "\(prefix)-\(UUID().uuidString.prefix(8)).\(url.pathExtension.lowercased())"
         try FileManager.default.createDirectory(at: store.assetsFolder, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: url, to: store.assetsFolder.appendingPathComponent(name))
+        return name
+    }
+
+    /// Saves data into Assets under a fresh name ("logo-1A2B3C4D.pdf"), the way `copyAssetQuietly`
+    /// does a file. Returns the new name.
+    func writeAssetQuietly(_ data: Data, prefix: String, pathExtension: String) throws -> String {
+        let name = "\(prefix)-\(UUID().uuidString.prefix(8)).\(pathExtension)"
+        try FileManager.default.createDirectory(at: store.assetsFolder, withIntermediateDirectories: true)
+        try data.write(to: store.assetsFolder.appendingPathComponent(name), options: .atomic)
         return name
     }
 
