@@ -27,6 +27,11 @@ public enum LibraryError: Error, Equatable, Sendable {
     case paymentMoreThanOwing(Money)
     /// A client (its name) that a quote or invoice, of any stage, still names.
     case clientInUse(String)
+    /// Deleting a deposit invoice while the live final invoice (its number) still subtracts it: the
+    /// final goes first.
+    case depositStillDeducted(String)
+    /// A quote (its number) with invoices (their numbers), deleted without saying they go with it.
+    case quoteHasInvoices(quote: String, invoices: [String])
 }
 
 /// Everything Quote Pilot knows, saved as one file.
