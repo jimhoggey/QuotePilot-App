@@ -72,6 +72,8 @@ import Testing
         #expect(LibraryError.unknownLineCodes(["09"]).message.contains("09"))
         #expect(LibraryError.paymentMoreThanOwing(Money(dollars: 300)).message.contains("$300.00"))
         #expect(LibraryStore.StoreError.wouldOverwriteUnreadableLibrary.localizedDescription.contains("library"))
+        #expect(LibraryStore.StoreError.backupHasProblems(["Q-0001 line 02 has a rate of $20,000,000.00, over the $10,000,000.00 limit."])
+            .localizedDescription.contains("Q-0001 line 02"))
         #expect(LegacyImportError.notABackup.localizedDescription.contains("backup"))
     }
 

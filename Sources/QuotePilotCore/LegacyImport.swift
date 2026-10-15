@@ -78,6 +78,11 @@ public enum LegacyImport {
                 report.skipped.append(number)
                 continue
             }
+            // Checked before anything is added, so a refused document leaves no client or number behind.
+            if let reason = refusal(doc) {
+                report.notes.append("\(number) wasn't imported: \(reason). Correct it in Invoice Generator and import again.")
+                continue
+            }
             let clientID = client(for: doc.to, in: &library, report: &report)
             let issued = doc.issued.flatMap(Day.init(iso:)) ?? today
             let due = doc.due.flatMap(Day.init(iso:)) ?? issued.adding(days: library.brand.paymentDueDays)
@@ -118,6 +123,31 @@ public enum LegacyImport {
         }
         library.log(report.summary)
         return report
+    }
+
+    /// Why a document can't come in, or nil: a rate or amount paid over the library's limit, or a
+    /// quantity outside 0 to 100,000 (`Library.problems()`). A library holding one wouldn't open.
+    static func refusal(_ doc: Backup.Doc) -> String? {
+        let limit = Library.amountLimit.formatted()
+        for (index, item) in (doc.items ?? []).enumerated() {
+            let line = String(format: "%02d", index + 1)
+            if let rate = item.rate, !allows(dollars: rate) {
+                return "line \(line)'s rate is over \(limit)"
+            }
+            if let qty = item.qty, !(abs(qty) <= 1e9 && Library.allows(quantity: decimal(qty))) {
+                return "line \(line)'s quantity is outside 0 to 100,000"
+            }
+        }
+        if let paid = doc.paid, !allows(dollars: paid) {
+            return "the amount paid is over \(limit)"
+        }
+        return nil
+    }
+
+    /// Whether an amount in dollars is within the library's limit. A number far past it is refused
+    /// before it's converted: converting one that size to cents gives nonsense, not an error.
+    static func allows(dollars value: Double) -> Bool {
+        abs(value) <= 1e9 && Library.allows(dollars(value))
     }
 
     static func client(for party: Backup.Party?, in library: inout Library, report: inout ImportReport) -> UUID? {

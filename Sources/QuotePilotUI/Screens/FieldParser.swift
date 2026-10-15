@@ -6,8 +6,9 @@ import QuotePilotCore
 enum FieldParser {
     /// The most a field takes, in either direction: $10,000,000. `Money(parsing:)` goes up to Int.max
     /// cents, and a few lines that large add past Int.max, which traps. A quote saved like that would
-    /// trap again each time the app opened it.
-    static let moneyLimitCents = 1_000_000_000
+    /// trap again each time the app opened it. The same limit as `Library.problems()`, so nothing
+    /// typed can make the library unreadable.
+    static let moneyLimitCents = Library.amountLimit.cents
 
     /// "$1,500.50", "1500", "-20" (a discount line). Rounds to the cent. Nil above $10,000,000.
     static func money(_ text: String) -> Money? {
@@ -27,7 +28,7 @@ enum FieldParser {
               parts.allSatisfy({ part in part.allSatisfy { $0.isASCII && $0.isNumber } }),
               parts.count == 1 || (1...2).contains(parts[1].count),
               let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")),
-              value <= 100_000
+              value <= Library.quantityLimit
         else { return nil }
         return value
     }
@@ -36,7 +37,7 @@ enum FieldParser {
     static func days(_ text: String) -> Int? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, trimmed.allSatisfy({ $0.isASCII && $0.isNumber }),
-              let value = Int(trimmed), (0...365).contains(value)
+              let value = Int(trimmed), Library.dayCountLimit.contains(value)
         else { return nil }
         return value
     }

@@ -196,7 +196,8 @@ public struct Library: Codable, Sendable {
 extension Quote {
     /// True when `old`'s invoices would no longer add up under this version: a different plan or tax
     /// setting, a line added or removed, or any line with another quantity, unit, rate, decision or ID.
-    /// Titles, details, order, summary, terms and dates don't count.
+    /// A different client counts too: an invoice keeps its quote's client, so one job would be split
+    /// across two clients. Titles, details, order, summary, terms and dates don't count.
     func billsDifferently(from old: Quote) -> Bool {
         struct Billed: Hashable {
             var id: UUID
@@ -215,9 +216,77 @@ extension Quote {
                 decision = line.decision
             }
         }
-        return plan != old.plan || taxed != old.taxed
+        return plan != old.plan || taxed != old.taxed || clientID != old.clientID
             || lines.count != old.lines.count
             || Set(lines.map(Billed.init)) != Set(old.lines.map(Billed.init))
+    }
+}
+
+// MARK: - Limits
+
+extension Library {
+    /// The most a rate, payment or deduction may be, either way: $10,000,000. The editors never take
+    /// more, and a file holding more is a slip or damage: adding amounts that large can overflow,
+    /// which would stop the app every time it opened.
+    public static let amountLimit = Money(cents: 1_000_000_000)
+    /// The most a line's quantity may be. It's never below 0.
+    public static let quantityLimit: Decimal = 100_000
+    /// The brand's day counts (payment due after, quotes valid for). Beyond this, working out a due
+    /// date could land past the year 9999 that a `Day` can hold.
+    public static let dayCountLimit = 0...365
+
+    public static func allows(_ amount: Money) -> Bool {
+        // A range check, not abs(): abs(Int.min) traps.
+        (-amountLimit.cents...amountLimit.cents).contains(amount.cents)
+    }
+
+    public static func allows(quantity: Decimal) -> Bool {
+        !quantity.isNaN && quantity >= 0 && quantity <= quantityLimit
+    }
+
+    /// A plain sentence for each number past those limits; empty when the library is fine. A
+    /// library with problems loads as unreadable, so the app never works with numbers it can't add up.
+    public func problems() -> [String] {
+        let currency = brand.currencyCode
+        var found: [String] = []
+        if !Library.dayCountLimit.contains(brand.paymentDueDays) {
+            found.append("Brand: payment is due after \(brand.paymentDueDays) days, outside 0 to 365.")
+        }
+        if !Library.dayCountLimit.contains(brand.quoteValidDays) {
+            found.append("Brand: quotes are valid for \(brand.quoteValidDays) days, outside 0 to 365.")
+        }
+        let over = "over the \(Library.amountLimit.formatted(currencyCode: currency)) limit"
+        func check(_ lines: [LineItem], of number: String) {
+            for (index, line) in lines.enumerated() {
+                let name = "\(number) line \(line.code.isEmpty ? String(index + 1) : line.code)"
+                if !Library.allows(line.rate) {
+                    found.append("\(name) has a rate of \(line.rate.formatted(currencyCode: currency)), \(over).")
+                }
+                if !Library.allows(quantity: line.quantity) {
+                    found.append("\(name) has a quantity of \(line.quantity), outside 0 to 100,000.")
+                }
+            }
+        }
+        for quote in quotes {
+            check(quote.lines, of: quote.number)
+        }
+        for invoice in invoices {
+            check(invoice.lines, of: invoice.number)
+            for payment in invoice.payments where !Library.allows(payment.amount) {
+                found.append("\(invoice.number) has a payment of \(payment.amount.formatted(currencyCode: currency)), \(over).")
+            }
+            for deduction in invoice.deductions where !Library.allows(deduction.amount) {
+                found.append("\(invoice.number) takes off \(deduction.amount.formatted(currencyCode: currency)) for \(deduction.invoiceNumber), \(over).")
+            }
+        }
+        return found
+    }
+
+    /// `opening`, then the first three problems, then how many more there are.
+    static func describe(_ problems: [String], opening: String) -> String {
+        var text = ([opening] + problems.prefix(3)).joined(separator: " ")
+        if problems.count > 3 { text += " And \(problems.count - 3) more." }
+        return text
     }
 }
 

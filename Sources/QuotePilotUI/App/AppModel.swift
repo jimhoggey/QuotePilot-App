@@ -256,7 +256,13 @@ public final class AppModel {
 
     // MARK: Brand
 
+    /// Saves the brand, with its day counts kept within 0 to 365: beyond that a due date could land
+    /// where a `Day` can't go, and the library would no longer open.
     public func updateBrand(_ brand: Brand) {
+        var brand = brand
+        let days = Library.dayCountLimit
+        brand.paymentDueDays = min(max(brand.paymentDueDays, days.lowerBound), days.upperBound)
+        brand.quoteValidDays = min(max(brand.quoteValidDays, days.lowerBound), days.upperBound)
         change("Couldn't save the brand") { $0.brand = brand }
     }
 

@@ -57,6 +57,24 @@ import Testing
         expectQuoteRefused(library, id) { $0.lines[1].code = "09" }
     }
 
+    /// An invoice keeps its quote's client, so moving the quote to another client would split one job
+    /// across two.
+    @Test func changingTheClientAfterInvoicingIsRefused() throws {
+        let (library, id, _) = try withDeposit()
+        expectQuoteRefused(library, id) { $0.clientID = UUID() }
+        expectQuoteRefused(library, id) { $0.clientID = nil }
+    }
+
+    @Test func theClientCanChangeBeforeAnyInvoice() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        let other = Client(name: "Example Bakery")
+        library.addClient(other)
+        var quote = library.quote(id)!
+        quote.clientID = other.id
+        try library.update(quote)
+        #expect(library.quote(id)?.clientID == other.id)
+    }
+
     @Test func addingOrRemovingALineAfterInvoicingIsRefused() throws {
         let (library, id, _) = try withDeposit()
         expectQuoteRefused(library, id) { $0.addLine(LineItem(title: "Training", rate: Money(dollars: 200))) }
@@ -208,5 +226,67 @@ import Testing
         try library.markSent(invoice: deposit.id)
         #expect(throws: LibraryError.deductedByFinal(full.number)) { try library.voidInvoice(deposit.id) }
         expectInvoiceRefused(library, deposit.id, final: full.number) { $0.lines[0].rate = Money(dollars: 100) }
+    }
+
+    // MARK: Limits: numbers no real job has, which could overflow when added up
+
+    @Test func anOrdinaryLibraryHasNoProblems() throws {
+        let (library, _, _) = try withDeposit()
+        #expect(library.problems().isEmpty)
+        #expect(try SampleLibrary.make(today: today).problems().isEmpty)
+    }
+
+    @Test func amountsAtTheLimitAreFine() {
+        var (library, _) = Fixture.libraryWithQuote()
+        library.quotes[0].lines[0].rate = Money(dollars: 10_000_000)
+        library.quotes[0].lines[1].rate = Money(dollars: -10_000_000)
+        library.quotes[0].lines[2].quantity = 100_000
+        library.brand.paymentDueDays = 0
+        library.brand.quoteValidDays = 365
+        #expect(library.problems().isEmpty)
+    }
+
+    @Test func aRateOverTenMillionIsAProblem() {
+        var (library, _) = Fixture.libraryWithQuote()
+        library.quotes[0].lines[1].rate = Money(dollars: 20_000_000)
+        library.quotes[0].lines[2].rate = Money(cents: -1_000_000_001)
+        #expect(library.problems() == [
+            "Q-0001 line 02 has a rate of $20,000,000.00, over the $10,000,000.00 limit.",
+            "Q-0001 line 03 has a rate of -$10,000,000.01, over the $10,000,000.00 limit.",
+        ])
+    }
+
+    @Test func aQuantityOutsideZeroToOneHundredThousandIsAProblem() {
+        var (library, _) = Fixture.libraryWithQuote()
+        library.quotes[0].lines[0].quantity = 100_001
+        library.quotes[0].lines[1].quantity = -1
+        #expect(library.problems() == [
+            "Q-0001 line 01 has a quantity of 100001, outside 0 to 100,000.",
+            "Q-0001 line 02 has a quantity of -1, outside 0 to 100,000.",
+        ])
+    }
+
+    @Test func invoiceLinesPaymentsAndDeductionsAreChecked() throws {
+        var (library, _, deposit) = try withDeposit()
+        let index = library.invoices.firstIndex { $0.id == deposit.id }!
+        library.invoices[index].lines[0].rate = Money(dollars: 50_000_000)
+        library.invoices[index].payments = [Payment(date: today, amount: Money(dollars: 30_000_000))]
+        library.invoices[index].deductions = [Deduction(label: "Less deposit", invoiceNumber: "INV-0009",
+                                                        amount: Money(dollars: 40_000_000))]
+        #expect(library.problems() == [
+            "INV-0001 line 01 has a rate of $50,000,000.00, over the $10,000,000.00 limit.",
+            "INV-0001 has a payment of $30,000,000.00, over the $10,000,000.00 limit.",
+            "INV-0001 takes off $40,000,000.00 for INV-0009, over the $10,000,000.00 limit.",
+        ])
+    }
+
+    @Test func brandDayCountsOutsideAYearAreAProblem() {
+        var library = Library()
+        library.brand.paymentDueDays = 366
+        library.brand.quoteValidDays = -1
+        #expect(library.problems() == [
+            "Brand: payment is due after 366 days, outside 0 to 365.",
+            "Brand: quotes are valid for -1 days, outside 0 to 365.",
+        ])
     }
 }

@@ -52,6 +52,8 @@ extension LibraryStore.StoreError: LocalizedError {
             return "That change would have made the library unreadable, so it wasn't saved."
         case .backupFromNewerVersion(let format):
             return "That backup was made by a newer version of Quote Pilot (library format \(format)). Update Quote Pilot to restore it."
+        case .backupHasProblems(let problems):
+            return Library.describe(problems, opening: "That backup holds numbers Quote Pilot can't work with, so it wasn't restored.")
         }
     }
 }
