@@ -426,3 +426,88 @@ extension Invoice {
         receiptSentAt = try c.decodeIfPresent(Date.self, forKey: .receiptSentAt)
     }
 }
+
+extension EmailTemplate {
+    enum CodingKeys: String, CodingKey {
+        case subject, body
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        subject = try c.value(.subject, or: "")
+        body = try c.value(.body, or: "")
+    }
+}
+
+extension EmailTemplates {
+    enum CodingKeys: String, CodingKey {
+        case quote, invoice, receipt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let standard = EmailTemplates.standard
+        quote = try c.value(.quote, or: standard.quote)
+        invoice = try c.value(.invoice, or: standard.invoice)
+        receipt = try c.value(.receipt, or: standard.receipt)
+    }
+}
+
+extension Acceptance {
+    enum CodingKeys: String, CodingKey {
+        case recordedAt, source, fileName, clientName, clientDate, accepted, declined
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        recordedAt = try c.decode(Date.self, forKey: .recordedAt)
+        source = try c.decode(AcceptanceSource.self, forKey: .source)
+        fileName = try c.decodeIfPresent(String.self, forKey: .fileName)
+        clientName = try c.value(.clientName, or: "")
+        clientDate = try c.value(.clientDate, or: "")
+        accepted = try c.value(.accepted, or: [])
+        declined = try c.value(.declined, or: [])
+    }
+}
+
+extension Payment {
+    enum CodingKeys: String, CodingKey {
+        case id, date, amount, method, note
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        date = try c.decode(Day.self, forKey: .date)
+        amount = try c.decode(Money.self, forKey: .amount)
+        method = try c.value(.method, or: .bankTransfer)
+        note = try c.value(.note, or: "")
+    }
+}
+
+extension Deduction {
+    enum CodingKeys: String, CodingKey {
+        case label, invoiceNumber, amount
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        label = try c.value(.label, or: "Less deposit")
+        invoiceNumber = try c.decode(String.self, forKey: .invoiceNumber)
+        amount = try c.decode(Money.self, forKey: .amount)
+    }
+}
+
+extension ActivityEntry {
+    enum CodingKeys: String, CodingKey {
+        case id, at, number, message
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        at = try c.decode(Date.self, forKey: .at)
+        number = try c.decodeIfPresent(String.self, forKey: .number)
+        message = try c.value(.message, or: "")
+    }
+}

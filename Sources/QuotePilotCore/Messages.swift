@@ -10,9 +10,9 @@ extension LibraryError: LocalizedError {
         case .notFound:
             return "That item no longer exists."
         case .notDraft:
-            return "Only drafts can be deleted. A sent invoice can be voided instead."
+            return "Only drafts can be deleted. A sent invoice can be voided instead, and a sent quote stays on record."
         case .notSent:
-            return "Mark it as sent first."
+            return "This is still a draft, so it hasn't gone to the client. Send it first, or delete the draft instead."
         case .notAccepted:
             return "This quote hasn't been accepted yet."
         case .nothingAccepted:
@@ -20,7 +20,7 @@ extension LibraryError: LocalizedError {
         case .nothingLeftToInvoice:
             return "Everything on this quote has already been invoiced."
         case .alreadyInvoiced:
-            return "This quote already has invoices, so its prices, lines and payment plan are locked. Void its invoices first to change them."
+            return "This quote already has invoices, so what the client accepted and what's billed are locked. Void its invoices first to change them."
         case .isVoid:
             return "This invoice is void."
         case .hasPayments:
@@ -29,6 +29,14 @@ extension LibraryError: LocalizedError {
             return "The final invoice \(final) subtracts this deposit. Void or delete \(final) first."
         case .unknownLineCodes(let codes):
             return "This quote has no \(lineList(codes))."
+        case .notEditable:
+            return "This invoice has been sent, so it can't be changed. Void it and draft a new one instead."
+        case .noPayments:
+            return "There are no payments on this invoice yet, so there's nothing to give a receipt for."
+        case .paymentNotPositive:
+            return "A payment has to be more than $0.00."
+        case .paymentMoreThanOwing(let owing):
+            return "That's more than the \(owing.formatted()) still owing on this invoice."
         }
     }
 }

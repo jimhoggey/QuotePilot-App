@@ -19,6 +19,12 @@ public enum LibraryError: Error, Equatable, Sendable {
     /// A deposit invoice a live final invoice (its number) still subtracts.
     case deductedByFinal(String)
     case unknownLineCodes([String])
+    /// Sent and void invoices are records; only drafts change.
+    case notEditable
+    case noPayments
+    case paymentNotPositive
+    /// More than the amount still owing (given).
+    case paymentMoreThanOwing(Money)
 }
 
 /// Everything Quote Pilot knows, saved as one file.
@@ -130,17 +136,30 @@ public struct Library: Codable, Sendable {
         quotes[index] = quote
     }
 
-    /// Stores an edited invoice. A deposit that a live final invoice subtracts keeps what it bills, or
-    /// the final would deduct a different amount than the deposit asks for.
+    /// Stores the editable parts of a draft invoice: title, dates, terms, lines and tax, and the client
+    /// for a standalone invoice (one from a quote keeps the quote's client). Stage, payments, Sent
+    /// dates, kind, quote, deposit share and deductions only change through their own actions, so an
+    /// editor can never rewrite them. A deposit that a live final invoice subtracts keeps what it
+    /// bills, or the final would deduct a different amount than the deposit asks for.
     public mutating func update(_ invoice: Invoice) throws {
         let index = try invoiceIndex(invoice.id)
         let old = invoices[index]
         if let final = liveFinalDeducting(old),
            invoice.lines != old.lines || invoice.taxed != old.taxed || invoice.depositPercent != old.depositPercent
-            || invoice.number != old.number || invoice.stage != old.stage {
+            || invoice.number != old.number || invoice.stage != old.stage || invoice.kind != old.kind
+            || invoice.quoteID != old.quoteID || invoice.deductions != old.deductions {
             throw LibraryError.deductedByFinal(final.number)
         }
-        invoices[index] = invoice
+        guard old.stage == .draft else { throw LibraryError.notEditable }
+        var updated = old
+        updated.title = invoice.title
+        updated.issued = invoice.issued
+        updated.due = invoice.due
+        updated.terms = invoice.terms
+        updated.lines = invoice.lines
+        updated.taxed = invoice.taxed
+        if old.quoteID == nil { updated.clientID = invoice.clientID }
+        invoices[index] = updated
     }
 
     public mutating func deleteDraft(quote id: UUID) throws {

@@ -89,8 +89,10 @@ extension Library {
     public mutating func completeJob(quote id: UUID, on day: Day) throws -> Invoice? {
         let found = try acceptedQuote(id)
         let index = try quoteIndex(id)
-        quotes[index].completedOn = day
-        log("Marked the job for \(found.number) complete", number: found.number)
+        if quotes[index].completedOn == nil {
+            quotes[index].completedOn = day
+            log("Marked the job for \(found.number) complete", number: found.number)
+        }
         let closing: InvoiceKind = found.plan == .fiftyFifty ? .final : .full
         guard !invoices(forQuote: id).contains(where: { $0.kind.isClosing }) else { return nil }
         return draftInvoice(closing, for: found, on: day)
@@ -150,6 +152,9 @@ extension Library {
         case .draft: throw LibraryError.notSent
         case .sent: break
         }
+        guard payment.amount > .zero else { throw LibraryError.paymentNotPositive }
+        let owing = invoices[index].owing
+        guard payment.amount <= owing else { throw LibraryError.paymentMoreThanOwing(owing) }
         invoices[index].payments.append(payment)
         let number = invoices[index].number
         log("Recorded \(payment.amount.formatted()) paid on \(payment.date.long) by \(payment.method.label.lowercased()) for \(number)",
@@ -183,6 +188,7 @@ extension Library {
 
     public mutating func markReceiptSent(invoice id: UUID, at time: Date = Date()) throws {
         let index = try invoiceIndex(id)
+        guard !invoices[index].payments.isEmpty else { throw LibraryError.noPayments }
         invoices[index].receiptSentAt = time
         log("Marked the receipt for \(invoices[index].number) as sent", number: invoices[index].number, at: time)
     }
