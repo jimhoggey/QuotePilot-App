@@ -19,7 +19,13 @@ public struct TitleBar: View {
 
     public var body: some View {
         HStack(spacing: 6) {
-            if let icon { PixelIconView(icon) }
+            if let icon {
+                // Most icons have black or navy pixels that vanish on the bar, so each sits on a
+                // small grey square.
+                PixelIconView(icon)
+                    .padding(1)
+                    .background(Win95.face)
+            }
             Text(title)
                 .font(Win95.windowTitle)
                 .foregroundStyle(Win95.highlight)
@@ -162,6 +168,7 @@ struct MessageBoxView: View {
         .overlay(Bevel(.raised))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(box.title)
+        .accessibilityAddTraits(.isModal)
     }
 
     private func shortcut(for choice: MessageBox.Choice) -> KeyboardShortcut? {

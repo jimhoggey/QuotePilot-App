@@ -1,3 +1,4 @@
+import AppKit
 import CoreText
 import Foundation
 import Observation
@@ -37,6 +38,8 @@ public final class AppModel {
     public var pendingExport: PDFExport?
 
     private let now: () -> Date
+    /// What `whenFree` does when a message box is up. Tests swap it for a counter.
+    @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
     @ObservationIgnored private var lastBackupDay: Day?
 
     public init(store: LibraryStore, now: @escaping () -> Date = Date.init) {
@@ -127,7 +130,33 @@ public final class AppModel {
         choice.action()
     }
 
+    /// Runs `action` only when no message box is up, and beeps otherwise. A message box is modal to
+    /// the keyboard and the menus as well as the mouse, as in Windows 95: every menu command goes
+    /// through here, so a second command can't replace an error that hasn't been read.
+    public func whenFree(_ action: () -> Void) {
+        guard message == nil else {
+            beep()
+            return
+        }
+        action()
+    }
+
+    /// Called when the save panel closes. Cancelling it is not an error.
+    public func finishExport(_ result: Result<URL, Error>) {
+        if case .failure(let error) = result, (error as? CocoaError)?.code != .userCancelled {
+            show(error, title: "Couldn't save the PDF")
+        }
+        pendingExport = nil
+    }
+
     // MARK: Going places
+
+    /// Shows a section. Choosing Quotes while already on Quotes goes back to the list from the
+    /// editor; the tree, its arrow keys and the Go menu all come through here.
+    public func go(to section: AppSection) {
+        if section == .quotes, self.section == .quotes { openQuoteID = nil }
+        self.section = section
+    }
 
     public func openQuote(_ id: UUID) {
         section = .quotes

@@ -18,17 +18,22 @@ public struct RootView: View {
                 .overlay(WindowDragArea())
             switch model.loadState {
             case .ready:
+                // While a message box is up, nothing behind it takes a click, a Tab or a key.
                 Win95Toolbar(model: model)
+                    .disabled(boxIsUp)
                 HStack(spacing: 4) {
                     SectionTree(model: model)
                         .frame(width: 190)
+                        .disabled(boxIsUp)
                     sectionContent
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .disabled(boxIsUp)
                 }
                 .padding(4)
                 StatusBar(model: model)
             case .unreadable(let reason):
                 UnreadableLibraryView(model: model, reason: reason)
+                    .disabled(boxIsUp)
             }
         }
         .ignoresSafeArea(.container, edges: .top)
@@ -38,12 +43,11 @@ public struct RootView: View {
         .overlay { messageOverlay }
         .fileExporter(isPresented: exporting, document: model.pendingExport.map { PDFFile(data: $0.data) },
                       contentType: .pdf, defaultFilename: model.pendingExport?.fileName) { result in
-            if case .failure(let error) = result {
-                model.show(error, title: "Couldn't save the PDF")
-            }
-            model.pendingExport = nil
+            model.finishExport(result)
         }
     }
+
+    private var boxIsUp: Bool { model.message != nil }
 
     private var windowTitle: String {
         if case .unreadable = model.loadState { return "Quote Pilot" }
@@ -191,24 +195,20 @@ struct SectionTree: View {
         .frame(height: 22)
         .contentShape(Rectangle())
         .onTapGesture {
-            select(section)
+            model.go(to: section)
             focused = true
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction { select(section) }
-    }
-
-    private func select(_ section: AppSection) {
-        // Choosing Quotes again from the editor goes back to the list.
-        if section == .quotes, model.section == .quotes { model.openQuoteID = nil }
-        model.section = section
+        .accessibilityAction { model.go(to: section) }
     }
 
     private func step(_ delta: Int) -> KeyPress.Result {
+        // A message box owns the keyboard; the tree is disabled behind it, this is a second guard.
+        guard model.message == nil else { return .ignored }
         let all = AppSection.allCases
         let index = all.firstIndex(of: model.section) ?? 0
-        model.section = all[min(max(index + delta, 0), all.count - 1)]
+        model.go(to: all[min(max(index + delta, 0), all.count - 1)])
         return .handled
     }
 }
@@ -314,6 +314,7 @@ struct UnreadableLibraryView: View {
                         Spacer()
                         Button("Restore Latest Backup") { model.restoreLatestBackup() }
                             .buttonStyle(.win95Default)
+                            .keyboardShortcut(.defaultAction)
                             .disabled(model.latestBackup == nil)
                         Button("Show in Finder") {
                             NSWorkspace.shared.activateFileViewerSelecting([model.store.libraryURL])

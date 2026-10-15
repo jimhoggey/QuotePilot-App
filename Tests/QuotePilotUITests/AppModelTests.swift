@@ -174,6 +174,66 @@ import QuotePilotCore
         #expect(model.pdf(content).starts(with: Data("%PDF".utf8)))
     }
 
+    @Test func commandsWaitWhileAMessageIsShowing() throws {
+        let model = try UIFixture.model()
+        var beeps = 0
+        model.beep = { beeps += 1 }
+        var ran = 0
+
+        model.whenFree { ran += 1 }
+        #expect(ran == 1)
+        #expect(beeps == 0)
+
+        model.show(title: "Careful", text: "Read this first.")
+        model.whenFree { ran += 1 }
+        #expect(ran == 1)
+        #expect(beeps == 1)
+        #expect(model.message?.title == "Careful")
+
+        model.respond(try #require(model.message?.choices.first))
+        model.whenFree { ran += 1 }
+        #expect(ran == 2)
+        #expect(beeps == 1)
+    }
+
+    @Test func choosingQuotesAgainGoesBackToTheList() throws {
+        let model = try UIFixture.model()
+        model.newQuote()
+        #expect(model.section == .quotes)
+        #expect(model.openQuoteID != nil)
+
+        // Coming back from another section shows the quote that was open.
+        model.go(to: .invoices)
+        model.go(to: .quotes)
+        #expect(model.openQuoteID != nil)
+
+        // Choosing Quotes while already there goes back to the list.
+        model.go(to: .quotes)
+        #expect(model.section == .quotes)
+        #expect(model.openQuoteID == nil)
+    }
+
+    @Test func cancellingTheSavePanelIsNotAnError() throws {
+        let model = try UIFixture.model()
+        let export = PDFExport(data: Data("%PDF".utf8), fileName: "Q-0001.pdf")
+
+        model.pendingExport = export
+        model.finishExport(.failure(CocoaError(.userCancelled)))
+        #expect(model.message == nil)
+        #expect(model.pendingExport == nil)
+
+        model.pendingExport = export
+        model.finishExport(.failure(CocoaError(.fileWriteOutOfSpace)))
+        #expect(model.message?.title == "Couldn't save the PDF")
+        #expect(model.pendingExport == nil)
+
+        model.message = nil
+        model.pendingExport = export
+        model.finishExport(.success(URL(fileURLWithPath: "/tmp/Q-0001.pdf")))
+        #expect(model.message == nil)
+        #expect(model.pendingExport == nil)
+    }
+
     @Test func sectionsAreInSidebarOrderWithShortcutsOneToSix() {
         #expect(AppSection.allCases.map(\.title) == ["Dashboard", "Quotes", "Invoices", "Clients", "Activity", "Brand"])
         #expect(AppSection.allCases.map(\.shortcut) == ["1", "2", "3", "4", "5", "6"])
