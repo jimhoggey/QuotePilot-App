@@ -201,3 +201,27 @@ extension Quote {
             || Set(lines.map(Billed.init)) != Set(old.lines.map(Billed.init))
     }
 }
+
+extension KeyedDecodingContainer {
+    /// The value for `key`, or `fallback` when the file was saved before that field existed.
+    func value<T: Decodable>(_ key: Key, or fallback: @autoclosure () -> T) throws -> T {
+        try decodeIfPresent(T.self, forKey: key) ?? fallback()
+    }
+}
+
+extension Library {
+    enum CodingKeys: String, CodingKey {
+        case format, brand, clients, quotes, invoices, activity, usedNumbers
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        format = try c.value(.format, or: Library.currentFormat)
+        brand = try c.value(.brand, or: Brand())
+        clients = try c.value(.clients, or: [])
+        quotes = try c.value(.quotes, or: [])
+        invoices = try c.value(.invoices, or: [])
+        activity = try c.value(.activity, or: [])
+        usedNumbers = try c.value(.usedNumbers, or: [])
+    }
+}

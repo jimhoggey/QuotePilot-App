@@ -64,3 +64,21 @@ public struct Totals: Equatable, Sendable {
         total = subtotal + gst
     }
 }
+
+extension LineItem {
+    enum CodingKeys: String, CodingKey {
+        case id, code, title, detail, quantity, unit, rate, decision
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        code = try c.value(.code, or: "")
+        title = try c.value(.title, or: "")
+        detail = try c.value(.detail, or: "")
+        quantity = try c.value(.quantity, or: 1)
+        unit = try c.value(.unit, or: .units)
+        rate = try c.value(.rate, or: .zero)
+        decision = try c.decodeIfPresent(LineDecision.self, forKey: .decision)
+    }
+}
