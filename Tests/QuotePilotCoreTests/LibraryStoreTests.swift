@@ -83,6 +83,67 @@ import Testing
         #expect(restored.brand.businessName == "Sample Studio")
         let names = try FileManager.default.contentsOfDirectory(atPath: store.folder.path)
         #expect(names.contains { $0.hasPrefix("library-replaced-") })
+        let replacedName = try #require(names.first { $0.hasPrefix("library-replaced-") })
+        let replaced = try Library.makeDecoder().decode(Library.self,
+                                                        from: Data(contentsOf: store.folder.appendingPathComponent(replacedName)))
+        #expect(replaced.brand.businessName == "Renamed Studio")
+        guard case .loaded(let current) = store.load() else {
+            Issue.record("expected the restored library")
+            return
+        }
+        #expect(current.brand.businessName == "Sample Studio")
+    }
+
+    @Test func noBackupOfAnUnreadableLibrary() throws {
+        let store = tempStore()
+        try FileManager.default.createDirectory(at: store.folder, withIntermediateDirectories: true)
+        try Data("{ not json".utf8).write(to: store.libraryURL)
+        #expect(try store.backUpIfDue(today: Day(year: 2026, month: 10, day: 15)) == nil)
+        #expect(store.backups().isEmpty)
+    }
+
+    @Test func restoreRefusesABackupFromANewerVersion() throws {
+        let store = tempStore()
+        var current = Library()
+        current.brand.businessName = "Sample Studio"
+        try store.save(current)
+        let before = try Data(contentsOf: store.libraryURL)
+        var newer = Library()
+        newer.format = 99
+        newer.brand.businessName = "Future Studio"
+        try FileManager.default.createDirectory(at: store.backupsFolder, withIntermediateDirectories: true)
+        let backup = store.backupsFolder.appendingPathComponent("library-2026-10-14.json")
+        try Library.makeEncoder().encode(newer).write(to: backup)
+        #expect(throws: LibraryStore.StoreError.backupFromNewerVersion(99)) { try store.restore(from: backup) }
+        #expect(try Data(contentsOf: store.libraryURL) == before)
+    }
+
+    @Test func restoringAGarbageBackupChangesNothing() throws {
+        let store = tempStore()
+        try store.save(Library())
+        let before = try Data(contentsOf: store.libraryURL)
+        try FileManager.default.createDirectory(at: store.backupsFolder, withIntermediateDirectories: true)
+        let backup = store.backupsFolder.appendingPathComponent("library-2026-10-14.json")
+        try Data("{ not json".utf8).write(to: backup)
+        #expect(throws: DecodingError.self) { try store.restore(from: backup) }
+        #expect(try Data(contentsOf: store.libraryURL) == before)
+        let names = try FileManager.default.contentsOfDirectory(atPath: store.folder.path)
+        #expect(!names.contains { $0.hasPrefix("library-replaced-") })
+    }
+
+    @Test func anUnreadableLibraryCanBeRestored() throws {
+        let store = tempStore()
+        var good = Library()
+        good.brand.businessName = "Sample Studio"
+        try store.save(good)
+        try store.backUpIfDue(today: Day(year: 2026, month: 10, day: 14))
+        try Data("{ not json".utf8).write(to: store.libraryURL)
+        try store.restore(from: store.backups()[0])
+        guard case .loaded(let restored) = store.load() else {
+            Issue.record("expected the restored library")
+            return
+        }
+        #expect(restored.brand.businessName == "Sample Studio")
     }
 
     @Test func exportsACopyAnywhere() throws {
