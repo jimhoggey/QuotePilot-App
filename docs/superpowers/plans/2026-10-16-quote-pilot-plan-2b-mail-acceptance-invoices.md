@@ -2201,10 +2201,10 @@ extension AppModel {
     /// ⇧⌘N: a one-off invoice, for extra work or a monthly fee.
     public func newInvoice(for clientID: UUID? = nil) {
         var created: UUID?
-        change("Couldn't start a new invoice") { library in
+        guard change("Couldn't start a new invoice", { library in
             created = library.newInvoice(on: today, clientID: clientID).id
-        }
-        if let created { openInvoice(created) }
+        }), let created else { return }
+        openInvoice(created)
     }
 
     public func updateInvoice(_ invoice: Invoice) {
@@ -2225,10 +2225,10 @@ extension AppModel {
     /// "Draft Invoice Now": the next invoice the quote's plan calls for.
     public func draftInvoiceNow(forQuote id: UUID) {
         var created: UUID?
-        change("Couldn't draft the invoice") { library in
+        guard change("Couldn't draft the invoice", { library in
             created = try library.draftNextInvoice(forQuote: id, on: today).id
-        }
-        if let created { openInvoice(created) }
+        }), let created else { return }
+        openInvoice(created)
     }
 
     /// "Job Complete": records the date and drafts the closing invoice, unless it exists already.
@@ -2276,10 +2276,10 @@ extension AppModel {
                         kind: .warning)
         }
         var created: UUID?
-        change("Couldn't duplicate \(invoice.number)") { library in
+        guard change("Couldn't duplicate \(invoice.number)", { library in
             created = try library.duplicateInvoice(id, on: today).id
-        }
-        if let created { openInvoice(created) }
+        }), let created else { return }
+        openInvoice(created)
     }
 }
 ```
