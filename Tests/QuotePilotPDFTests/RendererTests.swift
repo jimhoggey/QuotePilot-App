@@ -87,6 +87,18 @@ import QuotePilotCore
         #expect(names.allSatisfy { QuoteFormFields.parse($0)?.quote == "Q-0001" })
     }
 
+    @Test func fieldNamesInTheFileUseUnderscoresNotDots() {
+        // PDF reserves "." for field hierarchy, so a dotted name could be split up when a client saves.
+        let document = Sample.pdf(DocumentContent.quote(Sample.quote(), client: Sample.client, brand: Sample.brand))
+        let names = Set(widgets(document).compactMap(\.fieldName))
+        #expect(names == [
+            "quotepilot_Q-0001_all",
+            "quotepilot_Q-0001_line_01", "quotepilot_Q-0001_line_02", "quotepilot_Q-0001_line_03",
+            "quotepilot_Q-0001_name", "quotepilot_Q-0001_date",
+        ])
+        #expect(names.allSatisfy { !$0.contains(".") })
+    }
+
     @Test func everyTickBoxStartsOff() {
         let document = Sample.pdf(DocumentContent.quote(Sample.quote(), client: Sample.client, brand: Sample.brand))
         let boxes = widgets(document).filter { $0.widgetFieldType == .button }

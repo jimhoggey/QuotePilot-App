@@ -29,8 +29,9 @@ Core Graphics, PDFKit, AppKit (fonts and colours only). No third-party packages.
   even after a draft is deleted.
 - Line IDs (`code`) are `"01"`, `"02"`, … They follow line order while a quote is a draft and are frozen
   once it's sent.
-- Form field names: `quotepilot.<quote number>.all`, `quotepilot.<quote number>.line.<code>`,
-  `quotepilot.<quote number>.name`, `quotepilot.<quote number>.date`. Every tick box starts **off**.
+- Form field names: `quotepilot_<quote number>_all`, `quotepilot_<quote number>_line_<code>`,
+  `quotepilot_<quote number>_name`, `quotepilot_<quote number>_date` (underscores, because PDF reserves
+  '.' for field hierarchy). Every tick box starts **off**.
 - PDFs: A4 (595.28 × 841.89 pt), 46 pt margins, ink `#1F2A44`, default accent `#0B6B66`, heading font
   from the brand's font file (system semibold if none), body in the system font.
 - GST is off by default (`Brand.gstRegistered = false`). When a document is taxed: 10% on top, invoice
