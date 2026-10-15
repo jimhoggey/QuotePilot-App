@@ -7,7 +7,9 @@ paid and what's still owed.
 **Status:** in progress. The business rules and the PDFs are built and tested. The Mac app's screens
 come next.
 
-## What works today
+## Built and tested so far
+
+The engine the app will run on is written and covered by automated tests. Today you can try the quote, invoice and receipt PDFs with the `qp` tool; everything else runs once the app's screens arrive.
 
 - **Quote PDFs the client can tick.** Every line has an ID and a tick box, with an "Accept all" box at
   the top and fields for the client's name and the date. The form is a standard PDF form (an AcroForm),
@@ -21,7 +23,7 @@ come next.
   financial year (1 July to 30 June), and a spreadsheet of payments for tax time.
 - **Safe storage.** One library file, saved atomically, never overwritten if it can't be read, with
   dated backups and restore.
-- **Import** from the earlier single-page Invoice Generator.
+- **Import** of documents from the earlier single-page Invoice Generator.
 - **`qp`,** a small command-line tool for trying the PDFs before the app exists.
 
 ## Coming next: the Mac app
@@ -34,6 +36,8 @@ will stay on your Mac.
 ## Building
 
 Needs macOS 14 or later and Apple's Command Line Tools (Xcode isn't required).
+
+`swift build` builds the two libraries (`QuotePilotCore` for the rules, `QuotePilotPDF` for the PDFs) and the `qp` tool; `swift test` runs the tests.
 
 ```bash
 swift build
