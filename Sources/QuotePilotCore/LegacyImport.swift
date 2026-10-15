@@ -90,7 +90,7 @@ public enum LegacyImport {
             }
             let lines = (doc.items ?? []).enumerated().map { index, item in
                 LineItem(code: String(format: "%02d", index + 1), title: item.title ?? "", detail: item.detail ?? "",
-                         quantity: Decimal(item.qty ?? 1), unit: unit(item.unit), rate: dollars(item.rate ?? 0))
+                         quantity: decimal(item.qty ?? 1), unit: unit(item.unit), rate: dollars(item.rate ?? 0))
             }
 
             if doc.type == "quote" {
@@ -100,15 +100,14 @@ public enum LegacyImport {
                                             stage: .sent))
                 report.addedQuotes.append(number)
             } else {
-                var invoice = Invoice(number: number, clientID: clientID, kind: .standalone,
-                                      title: doc.reference ?? "", issued: issued, due: due, taxed: taxed,
-                                      lines: lines, terms: doc.notes ?? "", stage: .sent)
-                if let paid = doc.paid, paid > 0 {
-                    invoice.payments = [Payment(date: issued, amount: dollars(paid), method: .other,
-                                                note: "Imported: already paid")]
-                }
-                library.invoices.append(invoice)
+                library.invoices.append(Invoice(number: number, clientID: clientID, kind: .standalone,
+                                                title: doc.reference ?? "", issued: issued, due: due, taxed: taxed,
+                                                lines: lines, terms: doc.notes ?? "", stage: .sent))
                 report.addedInvoices.append(number)
+                // Payments arrive blank: the old tool never recorded when the money came in.
+                if let paid = doc.paid, paid > 0 {
+                    report.notes.append("\(number): the old tool showed \(dollars(paid).formatted()) already paid. Record it as a payment with the date it arrived.")
+                }
             }
             library.usedNumbers.append(number)
             adoptBrandDetails(from: doc, into: &library.brand)
@@ -152,7 +151,13 @@ public enum LegacyImport {
     }
 
     static func dollars(_ value: Double) -> Money {
-        Money(cents: 100).times(Decimal(value))
+        Money(cents: 100).times(decimal(value))
+    }
+
+    /// The number as the old tool showed it: 0.47 stays 0.47 instead of the nearest binary value,
+    /// so a true half-cent product still rounds up.
+    static func decimal(_ value: Double) -> Decimal {
+        Decimal(string: "\(value)", locale: Locale(identifier: "en_US_POSIX")) ?? Decimal(value)
     }
 
     /// The bytes inside `data:image/png;base64,....`

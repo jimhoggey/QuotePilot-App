@@ -37,7 +37,10 @@ import Testing
         #expect(report.addedQuotes == ["Q-0001"])
         #expect(report.addedInvoices == ["INV-0001"])
         #expect(report.addedClients == ["Sample Client Pty Ltd"])
-        #expect(report.notes == ["INV-0001: its discount wasn't imported; add it as a line if needed."])
+        #expect(report.notes == [
+            "INV-0001: its discount wasn't imported; add it as a line if needed.",
+            "INV-0001: the old tool showed $10.00 already paid. Record it as a payment with the date it arrived."
+        ])
 
         let quote = try #require(library.quote(number: "Q-0001"))
         #expect(quote.stage == .sent)
@@ -52,8 +55,7 @@ import Testing
         let invoice = try #require(library.invoices.first)
         #expect(invoice.clientID == quote.clientID)
         #expect(invoice.kind == .standalone)
-        #expect(invoice.payments.map(\.amount) == [Money(dollars: 10)])
-        #expect(invoice.payments.first?.note == "Imported: already paid")
+        #expect(invoice.payments.isEmpty)
 
         #expect(library.brand.businessName == "Sample Studio")
         #expect(library.brand.paymentDetails == "PayID: hello@example.com")
@@ -79,6 +81,28 @@ import Testing
         library.brand.logoFile = "logo.png"
         let report = try LegacyImport.importBackup(backup, into: &library, today: today)
         #expect(report.logoData == nil)
+    }
+
+    /// 0.47 hr x $87.50 is exactly $41.125, which rounds half up to $41.13. Reading 0.47 as a
+    /// binary Double (0.46999...) would tip it to $41.12.
+    @Test func fractionalHoursRoundHalfUpLikeTheOldTool() throws {
+        let small = Data(#"""
+        {
+          "docs": {
+            "c3": { "id": "c3", "type": "invoice", "number": "INV-0003", "issued": "2026-10-08", "due": "2026-10-22",
+                    "reference": "", "from": { "name": "Sample Studio", "details": "" },
+                    "to": { "name": "Sample Client Pty Ltd", "details": "" },
+                    "items": [ { "title": "Support", "detail": "", "qty": 0.47, "unit": "hr", "rate": 87.5 } ],
+                    "tax": { "mode": "none" }, "discount": { "value": 0 },
+                    "paid": 0, "summary": "", "payment": "", "notes": "" }
+          }
+        }
+        """#.utf8)
+        var library = Library()
+        _ = try LegacyImport.importBackup(small, into: &library, today: today)
+        let invoice = try #require(library.invoices.first)
+        #expect(invoice.number == "INV-0003")
+        #expect(invoice.lines.map(\.amount) == [Money(cents: 4113)])
     }
 
     @Test func otherFilesAreRejected() {
