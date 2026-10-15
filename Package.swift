@@ -15,11 +15,14 @@ let package = Package(
     products: [
         .library(name: "QuotePilotCore", targets: ["QuotePilotCore"]),
         .library(name: "QuotePilotPDF", targets: ["QuotePilotPDF"]),
+        .executable(name: "qp", targets: ["qp"]),
     ],
     targets: [
         .target(name: "QuotePilotCore"),
         .target(name: "QuotePilotPDF", dependencies: ["QuotePilotCore"],
                 swiftSettings: [.swiftLanguageMode(.v5)]),
+        .executableTarget(name: "qp", dependencies: ["QuotePilotCore", "QuotePilotPDF"],
+                          swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "QuotePilotCoreTests", dependencies: ["QuotePilotCore"],
                     swiftSettings: testSettings),
         .testTarget(name: "QuotePilotPDFTests", dependencies: ["QuotePilotCore", "QuotePilotPDF"],
