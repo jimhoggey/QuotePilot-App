@@ -6,6 +6,25 @@ import QuotePilotCore
 import QuotePilotPDF
 import SwiftUI
 
+/// Where the app keeps the library and the copies of mailed PDFs.
+public struct AppFolders: Equatable {
+    public var library: URL
+    public var sent: URL
+
+    /// The real folders, or, when `QP_LIBRARY_FOLDER` points at another library (such as the one
+    /// `qp demo` writes), that folder with a Sent folder inside it, so a demo never writes to
+    /// ~/Documents.
+    public init(environment: [String: String]) {
+        if let path = environment["QP_LIBRARY_FOLDER"] {
+            library = URL(fileURLWithPath: path, isDirectory: true)
+            sent = library.appendingPathComponent("Sent", isDirectory: true)
+        } else {
+            library = LibraryStore.defaultFolder
+            sent = SentArchive.defaultFolder
+        }
+    }
+}
+
 /// A PDF waiting for the save panel.
 public struct PDFExport {
     public var data: Data
@@ -21,6 +40,13 @@ public final class AppModel {
         case ready
         /// The library file can't be read. Nothing is saved until a backup is restored.
         case unreadable(reason: String)
+
+        /// The file was saved by a newer Quote Pilot. Restoring a backup would roll it back, so the
+        /// unreadable screen makes Quit the default instead.
+        public var isFromNewerVersion: Bool {
+            guard case .unreadable(let reason) = self else { return false }
+            return reason.hasPrefix(LibraryStore.newerVersionReason)
+        }
     }
 
     public let store: LibraryStore
@@ -55,6 +81,7 @@ public final class AppModel {
         self.mail = mail
         self.sentFolder = sentFolder
         var loadedExisting = false
+        var startedFresh = false
         switch store.load() {
         case .loaded(let library):
             self.library = library
@@ -63,11 +90,27 @@ public final class AppModel {
         case .fresh(let library):
             self.library = library
             loadState = .ready
+            startedFresh = true
         case .unreadable(let reason):
             library = Library()
             loadState = .unreadable(reason: reason)
         }
         if loadedExisting { backUpIfDue() }
+        if startedFresh { askToRestoreMissingLibrary() }
+    }
+
+    /// No library file, but backups: the file was moved or deleted. Starting empty without a word
+    /// would save an empty library at the first change and, a month of daily backups later, prune
+    /// the good ones, so ask first.
+    private func askToRestoreMissingLibrary() {
+        guard let backup = latestBackup else { return }
+        message = MessageBox(
+            kind: .question, title: "Library Missing",
+            text: "Quote Pilot can't find your library file, but there's a backup from \(Self.backupLabel(backup)). Restore it?",
+            choices: [
+                MessageBox.Choice("Restore", isDefault: true) { [weak self] in self?.restoreLatestBackup() },
+                MessageBox.Choice("Start Empty", isCancel: true),
+            ])
     }
 
     // MARK: Figures
@@ -139,11 +182,12 @@ public final class AppModel {
         choice.action()
     }
 
-    /// Runs `action` only when no message box or dialog is up, and beeps otherwise. A message box or
+    /// Runs `action` only when no message box, dialog or save panel is up, and beeps otherwise. A message box or
     /// dialog is modal to the keyboard and the menus as well as the mouse, as in Windows 95: every
     /// menu command goes through here, so a second command can't replace an error that hasn't been read.
     public func whenFree(_ action: () -> Void) {
-        guard message == nil, dialog == nil else {
+        // The save panel is modal as well: a command behind it could change what it's saving.
+        guard message == nil, dialog == nil, pendingExport == nil else {
             beep()
             return
         }
@@ -384,12 +428,21 @@ public final class AppModel {
 
     public var latestBackup: URL? { store.backups().first }
 
+    /// "library-2026-10-15.json" → "15 Oct 2026", as the restore list shows it; any other name as it is.
+    static func backupLabel(_ url: URL) -> String {
+        let name = url.deletingPathExtension().lastPathComponent
+        guard name.hasPrefix("library-"), let day = Day(iso: String(name.dropFirst("library-".count))) else { return name }
+        return day.short
+    }
+
     /// Puts the newest backup back. The file it replaces is kept beside it by `LibraryStore`.
     public func restoreLatestBackup() {
         guard let backup = latestBackup else {
             show(title: "No Backup", text: "There's no backup to restore yet.", kind: .warning)
             return
         }
+        // When the library file is missing there's nothing to keep, and the message says no more.
+        let replacing = FileManager.default.fileExists(atPath: store.libraryURL.path)
         do {
             library = try store.restore(from: backup, now: now())
         } catch {
@@ -404,7 +457,10 @@ public final class AppModel {
             message?.text += " The backup itself was restored."
             return
         }
-        show(title: "Backup Restored",
-             text: "Quote Pilot restored \(backup.lastPathComponent). The file it couldn't read is kept in the same folder, named library-replaced-….json.")
+        var text = "Quote Pilot restored \(backup.lastPathComponent)."
+        if replacing {
+            text += " The file it couldn't read is kept in the same folder, named library-replaced-….json."
+        }
+        show(title: "Backup Restored", text: text)
     }
 }

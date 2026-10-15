@@ -11,6 +11,88 @@ import QuotePilotCore
         #expect(model.library.quotes.isEmpty)
         #expect(model.lastSaved == nil)
         #expect(!FileManager.default.fileExists(atPath: model.store.libraryURL.path))
+        // No backups either, so there's nothing to ask about.
+        #expect(model.message == nil)
+    }
+
+    // MARK: A missing library with backups
+
+    /// A folder whose library.json has gone (moved or deleted) but whose Backups/ still holds one.
+    func folderWithOnlyABackup() throws -> (folder: URL, quoteID: UUID) {
+        let (library, quoteID) = try UIFixture.invoicedLibrary()
+        let folder = UIFixture.makeFolder()
+        let store = LibraryStore(folder: folder)
+        try store.save(library)
+        try store.backUpIfDue(today: UIFixture.today)
+        try FileManager.default.removeItem(at: store.libraryURL)
+        return (folder, quoteID)
+    }
+
+    @Test func aMissingLibraryWithABackupAsksToRestoreIt() throws {
+        let (folder, quoteID) = try folderWithOnlyABackup()
+        let model = try UIFixture.model(folder: folder)
+        let box = try #require(model.message)
+        #expect(box.kind == .question)
+        #expect(box.title == "Library Missing")
+        #expect(box.text == "Quote Pilot can't find your library file, but there's a backup from 15 Oct 2026. Restore it?")
+        #expect(box.choices.map(\.title) == ["Restore", "Start Empty"])
+        #expect(box.choices.first(where: \.isDefault)?.title == "Restore")
+        #expect(box.choices.first(where: \.isCancel)?.title == "Start Empty")
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 800), name: "library-missing")
+        #expect(rep.map(Snapshot.hasContent) == true)
+
+        model.respond(box.choices[0])
+        #expect(model.loadState == .ready)
+        #expect(model.library.quote(quoteID) != nil)
+        #expect(FileManager.default.fileExists(atPath: model.store.libraryURL.path))
+        #expect(model.message?.title == "Backup Restored")
+        // There was no file to keep, so the message doesn't mention one.
+        #expect(model.message?.text == "Quote Pilot restored library-2026-10-15.json.")
+    }
+
+    @Test func startingEmptyLeavesTheBackupAlone() throws {
+        let (folder, _) = try folderWithOnlyABackup()
+        let model = try UIFixture.model(folder: folder)
+        let box = try #require(model.message)
+        model.respond(try #require(box.choices.first { $0.title == "Start Empty" }))
+        #expect(model.message == nil)
+        #expect(model.loadState == .ready)
+        #expect(model.library.quotes.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: model.store.libraryURL.path))
+        #expect(model.store.backups().map(\.lastPathComponent) == ["library-2026-10-15.json"])
+    }
+
+    @Test func aBackupIsNamedByItsDay() {
+        #expect(AppModel.backupLabel(URL(fileURLWithPath: "/backups/library-2026-10-15.json")) == "15 Oct 2026")
+        #expect(AppModel.backupLabel(URL(fileURLWithPath: "/backups/library-old.json")) == "library-old")
+    }
+
+    // MARK: Unreadable libraries
+
+    @Test func aLibraryWithAnAbsurdAmountOpensTheUnreadableScreen() throws {
+        var (library, _) = try UIFixture.invoicedLibrary()
+        library.quotes[0].lines[0].rate = Money(dollars: 20_000_000)
+        let folder = UIFixture.makeFolder()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Library.makeEncoder().encode(library).write(to: folder.appendingPathComponent("library.json"))
+        let model = try UIFixture.model(folder: folder)
+        guard case .unreadable(let reason) = model.loadState else {
+            Issue.record("An absurd amount should load as unreadable")
+            return
+        }
+        #expect(reason.contains("Q-0001 line 01 has a rate of $20,000,000.00"))
+        #expect(!model.loadState.isFromNewerVersion)
+        #expect(model.store.backups().isEmpty)
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 800), name: "unreadable-absurd")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
+    @Test func aLibraryFromANewerVersionSaysSo() throws {
+        let newer = try UIFixture.file("library.json", Data(#"{"format": 99}"#.utf8)).deletingLastPathComponent()
+        #expect(try UIFixture.model(folder: newer).loadState.isFromNewerVersion)
+        let damaged = try UIFixture.file("library.json", Data("not a library".utf8)).deletingLastPathComponent()
+        #expect(try !UIFixture.model(folder: damaged).loadState.isFromNewerVersion)
+        #expect(!AppModel.LoadState.ready.isFromNewerVersion)
     }
 
     @Test func aChangeIsSavedBeforeTheAppKeepsIt() throws {
@@ -194,6 +276,35 @@ import QuotePilotCore
         model.whenFree { ran += 1 }
         #expect(ran == 2)
         #expect(beeps == 1)
+    }
+
+    /// The save panel is modal too: a menu command behind it would change what it's saving.
+    @Test func commandsWaitWhileTheSavePanelIsOpen() throws {
+        let model = try UIFixture.model()
+        var beeps = 0
+        model.beep = { beeps += 1 }
+        var ran = 0
+
+        model.pendingExport = PDFExport(data: Data("%PDF".utf8), fileName: "Q-0001.pdf")
+        model.whenFree { ran += 1 }
+        #expect(ran == 0)
+        #expect(beeps == 1)
+
+        model.finishExport(.failure(CocoaError(.userCancelled)))
+        model.whenFree { ran += 1 }
+        #expect(ran == 1)
+        #expect(beeps == 1)
+    }
+
+    /// `QP_LIBRARY_FOLDER` points the app at a demo library; its mailed copies go beside it, never
+    /// into ~/Documents. (Only URLs are worked out here; no folder is touched.)
+    @Test func aDemoLibraryKeepsItsSentCopiesBesideIt() {
+        let demo = AppFolders(environment: ["QP_LIBRARY_FOLDER": "/tmp/qp-demo"])
+        #expect(demo.library == URL(fileURLWithPath: "/tmp/qp-demo", isDirectory: true))
+        #expect(demo.sent == URL(fileURLWithPath: "/tmp/qp-demo", isDirectory: true).appendingPathComponent("Sent", isDirectory: true))
+        let real = AppFolders(environment: [:])
+        #expect(real.library == LibraryStore.defaultFolder)
+        #expect(real.sent == SentArchive.defaultFolder)
     }
 
     @Test func choosingQuotesAgainGoesBackToTheList() throws {

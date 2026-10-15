@@ -8,10 +8,10 @@ struct QuotePilotApp: App {
     @State private var model: AppModel
 
     init() {
-        // QP_LIBRARY_FOLDER points the app at another library, such as the one `qp demo` writes.
-        let folder = ProcessInfo.processInfo.environment["QP_LIBRARY_FOLDER"]
-            .map { URL(fileURLWithPath: $0, isDirectory: true) } ?? LibraryStore.defaultFolder
-        _model = State(initialValue: AppModel(store: LibraryStore(folder: folder)))
+        // QP_LIBRARY_FOLDER points the app at another library, such as the one `qp demo` writes; its
+        // mailed copies then go in a Sent folder beside it rather than ~/Documents.
+        let folders = AppFolders(environment: ProcessInfo.processInfo.environment)
+        _model = State(initialValue: AppModel(store: LibraryStore(folder: folders.library), sentFolder: folders.sent))
         // Started with `swift run`, the binary isn't inside an app bundle; make it a normal app anyway.
         NSApplication.shared.setActivationPolicy(.regular)
     }

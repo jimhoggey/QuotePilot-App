@@ -291,6 +291,10 @@ struct UnreadableLibraryView: View {
                             Text("Quote Pilot can't open your library.")
                                 .font(Win95.label)
                             Text(reason)
+                            if newer {
+                                // A backup would be older than the file: restoring it rolls the library back.
+                                Text("Update Quote Pilot to open it.")
+                            }
                             Text("The file has been left exactly as it is, and Quote Pilot won't save over it.")
                             Text(model.store.libraryURL.path)
                                 .font(Win95.small.monospaced())
@@ -307,16 +311,14 @@ struct UnreadableLibraryView: View {
                     }
                     HStack(spacing: 8) {
                         Spacer()
-                        Button("Restore Latest Backup") { model.restoreLatestBackup() }
-                            .buttonStyle(.win95Default)
-                            .keyboardShortcut(.defaultAction)
+                        // Return restores, unless the file is from a newer Quote Pilot: then Return quits.
+                        defaultButton("Restore Latest Backup", isDefault: !newer) { model.restoreLatestBackup() }
                             .disabled(model.latestBackup == nil)
                         Button("Show in Finder") {
                             NSWorkspace.shared.activateFileViewerSelecting([model.store.libraryURL])
                         }
                         .buttonStyle(.win95)
-                        Button("Quit") { NSApp.terminate(nil) }
-                            .buttonStyle(.win95)
+                        defaultButton("Quit", isDefault: newer) { NSApp.terminate(nil) }
                     }
                 }
                 .padding(16)
@@ -324,6 +326,21 @@ struct UnreadableLibraryView: View {
             .frame(width: 560)
             .background(Win95.face)
             .overlay(Bevel(.raised))
+        }
+    }
+
+    private var newer: Bool { model.loadState.isFromNewerVersion }
+
+    /// A button that is the default one (heavy outline, Return) or a plain one.
+    @ViewBuilder
+    private func defaultButton(_ title: String, isDefault: Bool, action: @escaping () -> Void) -> some View {
+        if isDefault {
+            Button(title, action: action)
+                .buttonStyle(.win95Default)
+                .keyboardShortcut(.defaultAction)
+        } else {
+            Button(title, action: action)
+                .buttonStyle(.win95)
         }
     }
 }

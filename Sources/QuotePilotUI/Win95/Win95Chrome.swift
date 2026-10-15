@@ -43,14 +43,31 @@ public struct TitleBar: View {
 
 /// Lets the drawn title bar move the window, and a double-click zoom it, like a real title bar.
 struct WindowDragArea: NSViewRepresentable {
+    enum DoubleClickAction { case zoom, minimize, nothing }
+
+    /// What a double-click on the title bar does, from the Mac's own setting (Desktop & Dock,
+    /// "Double-click a window's title bar to"): "Minimize" minimises, "None" does nothing, and
+    /// anything else, including no setting at all, zooms.
+    static func doubleClickAction(_ setting: String?) -> DoubleClickAction {
+        switch setting {
+        case "Minimize": return .minimize
+        case "None": return .nothing
+        default: return .zoom
+        }
+    }
+
     final class DragView: NSView {
         override var mouseDownCanMoveWindow: Bool { true }
 
         override func mouseDown(with event: NSEvent) {
-            if event.clickCount == 2 {
-                window?.performZoom(nil)
-            } else {
+            guard event.clickCount == 2 else {
                 window?.performDrag(with: event)
+                return
+            }
+            switch WindowDragArea.doubleClickAction(UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick")) {
+            case .zoom: window?.performZoom(nil)
+            case .minimize: window?.performMiniaturize(nil)
+            case .nothing: break
             }
         }
     }

@@ -41,4 +41,21 @@ import QuotePilotCore
         let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 800), name: "unreadable")
         #expect(rep.map(Snapshot.hasContent) == true)
     }
+
+    /// From a newer Quote Pilot, Quit is the default button: restoring would roll the library back.
+    @Test func theNewerVersionScreenDraws() throws {
+        let folder = try UIFixture.file("library.json", Data(#"{"format": 99}"#.utf8)).deletingLastPathComponent()
+        let model = try UIFixture.model(folder: folder)
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 800), name: "unreadable-newer")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
+    /// The Mac's own setting (Desktop & Dock → "Double-click a window's title bar to").
+    @Test func doubleClickingTheTitleBarFollowsTheMacsSetting() {
+        #expect(WindowDragArea.doubleClickAction(nil) == .zoom)
+        #expect(WindowDragArea.doubleClickAction("Maximize") == .zoom)
+        #expect(WindowDragArea.doubleClickAction("Fill") == .zoom)
+        #expect(WindowDragArea.doubleClickAction("Minimize") == .minimize)
+        #expect(WindowDragArea.doubleClickAction("None") == .nothing)
+    }
 }
