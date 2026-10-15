@@ -422,7 +422,7 @@ public final class AppModel {
     public var exportableContent: DocumentContent? {
         switch section {
         case .quotes: return (openQuoteID ?? selectedQuoteID).flatMap(quoteContent)
-        case .invoices: return (openInvoiceID ?? selectedInvoiceID).flatMap(invoiceContent)
+        case .invoices: return (editingInvoiceID ?? selectedInvoiceID).flatMap(invoiceContent)
         default: return nil
         }
     }

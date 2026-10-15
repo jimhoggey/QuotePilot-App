@@ -27,6 +27,18 @@ extension AppModel {
             set: { self.updateInvoice($0) })
     }
 
+    /// The invoice the editor shows: the open one, as long as it is still in the library. An id that
+    /// no longer matches an invoice (a restored backup) shows the list instead, and saving and sending
+    /// go on using the list's selection.
+    var editingInvoiceID: UUID? {
+        openInvoiceID.flatMap { library.invoice($0) }?.id
+    }
+
+    /// What the invoice editor offers for one invoice, and what it says about the rest.
+    func invoiceRules(_ id: UUID) -> InvoiceRules? {
+        library.invoice(id).map { InvoiceRules(invoice: $0, finalDeducting: library.finalDeducting(id)) }
+    }
+
     /// "Draft Invoice Now": the next invoice the quote's plan calls for.
     public func draftInvoiceNow(forQuote id: UUID) {
         var created: UUID?
@@ -36,6 +48,14 @@ extension AppModel {
         openInvoice(created)
     }
 
+    /// Whether "Job Complete" is on offer for a quote: it is accepted and the job isn't marked complete
+    /// yet. It doesn't depend on whether an invoice is left to draft, because the job is finished
+    /// whether or not the closing invoice already exists (Draft Invoice Now may have drafted it).
+    public func canCompleteJob(_ quoteID: UUID) -> Bool {
+        guard let quote = library.quote(quoteID) else { return false }
+        return quote.stage == .accepted && !quote.acceptedLines.isEmpty && quote.completedOn == nil
+    }
+
     /// "Job Complete": records the date and drafts the closing invoice, unless it exists already. Either
     /// way the closing invoice opens, with no message box in between.
     public func completeJob(_ quoteID: UUID) {
@@ -43,14 +63,23 @@ extension AppModel {
         guard change("Couldn't complete the job", { library in
             created = try library.completeJob(quote: quoteID, on: today)?.id
         }) else { return }
-        // The one just drafted, or the one the quote already had (the final one for 50/50, else the full one).
-        let closing = created ?? library.invoices(forQuote: quoteID)
-            .first { $0.kind == .final || $0.kind == .full }?.id
-        if let closing { openInvoice(closing) }
+        // The one just drafted, or the one the quote already had.
+        if let closing = created ?? library.closingInvoice(forQuote: quoteID)?.id { openInvoice(closing) }
     }
 
+    /// Asks before voiding, once. An invoice that can't be voided says why instead, in that one box:
+    /// the question is never asked only to be refused.
     public func voidInvoice(_ id: UUID) {
         guard let invoice = library.invoice(id) else { return }
+        switch invoice.stage {
+        case .draft: return show(LibraryError.notSent, title: "Can't Void")
+        case .void: return show(LibraryError.isVoid, title: "Can't Void")
+        case .sent: break
+        }
+        if !invoice.payments.isEmpty { return show(LibraryError.hasPayments, title: "Can't Void") }
+        if let final = library.finalDeducting(id) {
+            return show(LibraryError.deductedByFinal(final.number), title: "Can't Void")
+        }
         confirm(title: "Void Invoice",
                 text: "Void \(invoice.number)? It stops counting as owed, and its number stays used.",
                 confirm: "Void") {
@@ -61,6 +90,9 @@ extension AppModel {
     public func deleteDraftInvoice(_ id: UUID) {
         guard let invoice = library.invoice(id) else { return }
         guard invoice.stage == .draft else { return show(LibraryError.notDraft, title: "Can't Delete") }
+        if let final = library.finalDeducting(id) {
+            return show(LibraryError.deductedByFinal(final.number), title: "Can't Delete")
+        }
         confirm(title: "Delete Draft",
                 text: "Delete draft invoice \(invoice.number)? Its number won't be used again.",
                 confirm: "Delete") {
@@ -84,5 +116,57 @@ extension AppModel {
             created = try library.duplicateInvoice(id, on: today).id
         }), let created else { return }
         openInvoice(created)
+    }
+}
+
+/// What the invoice editor lets you do with one invoice, and the sentence it puts on screen to say why
+/// the rest is off. These follow core's own rules (`Library.update(_ invoice:)`, `voidInvoice`,
+/// `deleteDraft(invoice:)`), so the editor never offers what core would refuse.
+struct InvoiceRules: Equatable {
+    struct Note: Equatable {
+        var text: String
+        /// Bright yellow rather than pale: for an invoice that no longer counts.
+        var warning: Bool
+    }
+
+    let invoice: Invoice
+    /// The live final invoice that still deducts this one, when this is a deposit.
+    let finalDeducting: Invoice?
+
+    var isDeducted: Bool { finalDeducting != nil }
+
+    /// Title, dates and client: a draft's, whatever it deducts.
+    var canEditDetails: Bool { invoice.stage == .draft }
+
+    /// Lines, GST and terms. A deposit the final invoice deducts keeps what it bills, or the final
+    /// would deduct a different amount than the deposit asks for.
+    var canEditAmounts: Bool { invoice.stage == .draft && !isDeducted }
+
+    var canVoid: Bool { invoice.stage == .sent && invoice.payments.isEmpty && !isDeducted }
+
+    var canDelete: Bool { invoice.stage == .draft && !isDeducted }
+
+    /// The one sentence about this invoice's state, or none for an ordinary draft.
+    var note: Note? {
+        switch invoice.stage {
+        case .void:
+            return Note(text: "This invoice is void. It no longer counts as owed, and its number stays used.", warning: true)
+        case .draft:
+            guard let final = finalDeducting else { return nil }
+            return Note(text: "Final invoice \(final.number) deducts this deposit, so its lines, GST and terms can't be changed. Void or delete \(final.number) first.",
+                        warning: false)
+        case .sent:
+            // Payments come first: they are what stops it being voided, and a deduction only matters after.
+            if !invoice.payments.isEmpty {
+                return Note(text: "This invoice has been sent and has payments recorded, so it can't be changed or voided. Remove the payments first if you need to void it.",
+                            warning: false)
+            }
+            if let final = finalDeducting {
+                return Note(text: "This invoice has been sent, so it can't be changed. Final invoice \(final.number) deducts it, so void or delete \(final.number) before voiding this one.",
+                            warning: false)
+            }
+            return Note(text: "This invoice has been sent, so it can't be changed. If something's wrong, void it and draft a new one.",
+                        warning: false)
+        }
     }
 }

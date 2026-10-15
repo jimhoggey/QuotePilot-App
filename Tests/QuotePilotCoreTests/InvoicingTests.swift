@@ -105,6 +105,41 @@ import Testing
         #expect(library.invoice(deposit.id) != nil)
     }
 
+    @Test func aDepositKnowsWhichFinalInvoiceDeductsIt() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        let deposit = try library.draftNextInvoice(forQuote: id, on: today)
+        #expect(library.finalDeducting(deposit.id) == nil)
+        let final = try library.draftNextInvoice(forQuote: id, on: today)
+        #expect(library.finalDeducting(deposit.id)?.id == final.id)
+        #expect(library.finalDeducting(deposit.id)?.number == "INV-0002")
+        // Only a deposit is deducted; an unknown invoice is nobody's.
+        #expect(library.finalDeducting(final.id) == nil)
+        #expect(library.finalDeducting(UUID()) == nil)
+        // A final that is void deducts nothing.
+        try library.markSent(invoice: final.id)
+        try library.voidInvoice(final.id)
+        #expect(library.finalDeducting(deposit.id) == nil)
+    }
+
+    @Test func aQuoteKnowsItsClosingInvoice() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        #expect(library.closingInvoice(forQuote: id) == nil)
+        let deposit = try library.draftNextInvoice(forQuote: id, on: today)
+        #expect(library.closingInvoice(forQuote: id) == nil, "a deposit doesn't close the quote")
+        let final = try library.draftNextInvoice(forQuote: id, on: today)
+        #expect(library.closingInvoice(forQuote: id)?.id == final.id)
+        #expect(library.closingInvoice(forQuote: UUID()) == nil)
+        try library.markSent(invoice: final.id)
+        try library.voidInvoice(final.id)
+        #expect(library.closingInvoice(forQuote: id) == nil, "a void closing invoice no longer counts")
+        #expect(library.invoice(deposit.id) != nil)
+
+        var (fullLibrary, fullID) = Fixture.acceptedLibrary(plan: .fullAmount)
+        let full = try fullLibrary.draftNextInvoice(forQuote: fullID, on: today)
+        #expect(fullLibrary.closingInvoice(forQuote: fullID)?.id == full.id)
+        #expect(full.kind == .full)
+    }
+
     @Test func onceTheFinalIsGoneTheDepositCanBeVoided() throws {
         var (library, id) = Fixture.acceptedLibrary()
         let deposit = try library.draftNextInvoice(forQuote: id, on: today)

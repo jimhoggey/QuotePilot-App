@@ -55,7 +55,7 @@ struct LinesEditor<Footer: View>: View {
                 if editable { Spacer().frame(width: LineColumns.buttons) }
             }
             ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
-                LineRow(line: lineBinding(line.id), currency: currency, showCode: showCodes,
+                LineRow(line: lineBinding(line.id), position: index + 1, currency: currency, showCode: showCodes,
                         showDecision: showDecision, editable: editable,
                         canMoveUp: index > 0, canMoveDown: index < lines.count - 1,
                         move: { move(line.id, by: $0) }, remove: { remove(line) })
@@ -106,33 +106,10 @@ struct LinesEditor<Footer: View>: View {
         lines = edited
     }
 
-    /// How the Remove Line question names a line: "line 02, Design", with a long title cut at 60
-    /// characters so the message box stays a message box. A document that shows no IDs (an invoice)
-    /// names the line by its wording alone, as that is all the person sees.
-    static func lineName(_ line: LineItem, showCode: Bool = true) -> String {
-        let title = line.title.count > 60 ? String(line.title.prefix(60)) + "…" : line.title
-        let code = showCode ? line.code : ""
-        switch (code.isEmpty, title.isEmpty) {
-        case (false, false): return "line \(code), \(title)"
-        case (false, true): return "line \(code)"
-        case (true, false): return "\"\(title)\""
-        case (true, true): return "this line"
-        }
-    }
-
-    /// Whether a line has anything in it worth a question before it goes: some wording, a detail or a
-    /// price. A line still blank from Add Line just goes.
-    static func hasContent(_ line: LineItem) -> Bool {
-        let blank = CharacterSet.whitespacesAndNewlines
-        return !line.title.trimmingCharacters(in: blank).isEmpty
-            || !line.detail.trimmingCharacters(in: blank).isEmpty
-            || line.rate != .zero
-    }
-
     /// Removes the line at once when it is empty, and asks first when it isn't.
     func remove(_ line: LineItem) {
-        guard Self.hasContent(line) else { return removeNow(line) }
-        model.confirm(title: "Remove Line", text: "Remove \(Self.lineName(line, showCode: showCodes))?", confirm: "Remove") {
+        guard line.hasContent else { return removeNow(line) }
+        model.confirm(title: "Remove Line", text: "Remove \(line.removalName(showCode: showCodes))?", confirm: "Remove") {
             removeNow(line)
         }
     }
@@ -141,6 +118,37 @@ struct LinesEditor<Footer: View>: View {
         var edited = lines
         edited.removeAll { $0.id == line.id }
         lines = edited
+    }
+}
+
+extension LineItem {
+    /// How the Remove Line question names a line: "line 02, Design", with a long title cut at 60
+    /// characters so the message box stays a message box. A document that shows no IDs (an invoice)
+    /// names the line by its wording alone, as that is all the person sees.
+    func removalName(showCode: Bool = true) -> String {
+        let shownTitle = title.count > 60 ? String(title.prefix(60)) + "…" : title
+        let shownCode = showCode ? code : ""
+        switch (shownCode.isEmpty, shownTitle.isEmpty) {
+        case (false, false): return "line \(shownCode), \(shownTitle)"
+        case (false, true): return "line \(shownCode)"
+        case (true, false): return "\"\(shownTitle)\""
+        case (true, true): return "this line"
+        }
+    }
+
+    /// Whether the line has anything in it worth a question before it goes: some wording, a detail or
+    /// a price. A line still blank from Add Line just goes.
+    var hasContent: Bool {
+        let blank = CharacterSet.whitespacesAndNewlines
+        return !title.trimmingCharacters(in: blank).isEmpty
+            || !detail.trimmingCharacters(in: blank).isEmpty
+            || rate != .zero
+    }
+
+    /// What VoiceOver calls the line in "Line 02 item": its ID where the table shows one, otherwise
+    /// the place it has in the table (1 for the first), so a line with no ID is never "Line  item".
+    func accessibilityName(position: Int, showCode: Bool) -> String {
+        showCode && !code.isEmpty ? code : String(position)
     }
 }
 
@@ -165,6 +173,8 @@ struct DocumentTotals: View {
 
 struct LineRow: View {
     @Binding var line: LineItem
+    /// The line's place in the table, 1 for the first: how VoiceOver names a line that has no ID.
+    let position: Int
     let currency: String
     /// Quotes show the line's ID in the first column; invoices don't.
     let showCode: Bool
@@ -177,6 +187,7 @@ struct LineRow: View {
     let remove: () -> Void
 
     var body: some View {
+        let name = line.accessibilityName(position: position, showCode: showCode)
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 if showCode {
@@ -185,18 +196,18 @@ struct LineRow: View {
                         .foregroundStyle(Win95.text)
                         .frame(width: LineColumns.id, alignment: .leading)
                 }
-                Win95TextField("Line \(line.code) item", text: $line.title, prompt: "What the work is")
-                CommitField(label: "Line \(line.code) quantity", value: line.quantity,
+                Win95TextField("Line \(name) item", text: $line.title, prompt: "What the work is")
+                CommitField(label: "Line \(name) quantity", value: line.quantity,
                             format: FieldParser.quantityText, parse: FieldParser.quantity) { line.quantity = $0 }
                     .frame(width: LineColumns.quantity)
-                Picker("Line \(line.code) unit", selection: $line.unit) {
+                Picker("Line \(name) unit", selection: $line.unit) {
                     ForEach(QuotePilotCore.Unit.allCases, id: \.self) { unit in
                         Text(unit.label).tag(unit)
                     }
                 }
                 .labelsHidden()
                 .frame(width: LineColumns.unit)
-                CommitField(label: "Line \(line.code) rate", value: line.rate,
+                CommitField(label: "Line \(name) rate", value: line.rate,
                             format: { $0.formatted(currencyCode: currency) }, parse: FieldParser.money) { line.rate = $0 }
                     .frame(width: LineColumns.rate)
                 Text(line.amount.formatted(currencyCode: currency))
@@ -205,16 +216,16 @@ struct LineRow: View {
                     .lineLimit(1)
                     .frame(width: LineColumns.amount, alignment: .trailing)
                 if editable {
-                    SquareButton(PixelGlyph.up, label: "Move line \(line.code) up") { move(-1) }
+                    SquareButton(PixelGlyph.up, label: "Move line \(name) up") { move(-1) }
                         .disabled(!canMoveUp)
-                    SquareButton(PixelGlyph.down, label: "Move line \(line.code) down") { move(1) }
+                    SquareButton(PixelGlyph.down, label: "Move line \(name) down") { move(1) }
                         .disabled(!canMoveDown)
-                    SquareButton(PixelGlyph.cross, label: "Remove line \(line.code)", action: remove)
+                    SquareButton(PixelGlyph.cross, label: "Remove line \(name)", action: remove)
                 }
             }
             HStack(spacing: 4) {
                 Spacer().frame(width: showCode ? LineColumns.detailIndent : 0)
-                Win95TextField("Line \(line.code) detail", text: $line.detail, prompt: "Detail (optional)")
+                Win95TextField("Line \(name) detail", text: $line.detail, prompt: "Detail (optional)")
                 if showDecision, let decision = line.decision {
                     StatusLabel(decision == .accepted ? .tick : .cross, decision == .accepted ? "Accepted" : "Declined")
                         .frame(width: 110, alignment: .leading)

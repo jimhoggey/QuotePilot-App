@@ -7,7 +7,7 @@ extension AppModel {
     public var sendableDocument: MailDocument? {
         switch section {
         case .quotes: return (openQuoteID ?? selectedQuoteID).map(MailDocument.quote)
-        case .invoices: return (openInvoiceID ?? selectedInvoiceID).map(MailDocument.invoice)
+        case .invoices: return (editingInvoiceID ?? selectedInvoiceID).map(MailDocument.invoice)
         default: return nil
         }
     }

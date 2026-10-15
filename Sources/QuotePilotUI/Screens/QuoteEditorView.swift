@@ -34,8 +34,8 @@ struct QuoteEditorView: View {
     }
 
     /// Two rows: the quote's name, status and total above; the actions below, where a long set of
-    /// buttons has the whole width to itself.
-    private func header(_ quote: Quote) -> some View {
+    /// buttons has the whole width to itself. (Not private: a test measures it at the smallest window.)
+    func header(_ quote: Quote) -> some View {
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 10) {
                 Button("All Quotes") { model.openQuoteID = nil }
@@ -78,8 +78,12 @@ struct QuoteEditorView: View {
                 if model.library.nextInvoiceKind(forQuote: quoteID) != nil {
                     Button("Draft Invoice Now") { model.draftInvoiceNow(forQuote: quoteID) }
                         .help("Draft the next invoice the payment plan calls for")
+                }
+                // Not tied to Draft Invoice Now: once that has drafted the final there's nothing left to
+                // draft, but the job still isn't marked complete.
+                if model.canCompleteJob(quoteID) {
                     Button("Job Complete") { model.completeJob(quoteID) }
-                        .help("Record the job as done and draft its final invoice")
+                        .help("Record the job as done, and open its final invoice (drafting it first if it isn't there yet)")
                 }
                 Button("Duplicate") { model.duplicateQuote(quoteID) }
                 if quote.stage == .draft {

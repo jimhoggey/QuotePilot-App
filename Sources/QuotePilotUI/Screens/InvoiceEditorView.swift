@@ -30,9 +30,18 @@ struct InvoiceEditorView: View {
         .groupBoxStyle(.win95)
     }
 
-    private func header(_ invoice: Invoice) -> some View {
+    /// What this invoice allows. The model works it out from the library; an invoice that has just gone
+    /// from the library is a draft with nothing deducting it, which shows nothing to act on.
+    private func rulesFor(_ invoice: Invoice) -> InvoiceRules {
+        model.invoiceRules(invoice.id) ?? InvoiceRules(invoice: invoice, finalDeducting: nil)
+    }
+
+    /// (Not private: a test measures it at the smallest window.)
+    func header(_ invoice: Invoice) -> some View {
         let status = invoice.status(on: model.today)
         let showOwing = invoice.stage == .sent
+        let rules = rulesFor(invoice)
+        let figure = model.money(showOwing ? invoice.owing : invoice.amount)
         return VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 10) {
                 Button("All Invoices") { model.openInvoiceID = nil }
@@ -54,7 +63,8 @@ struct InvoiceEditorView: View {
                 Text(showOwing ? "Owing" : "Amount")
                     .font(Win95.label)
                     .foregroundStyle(Win95.text)
-                Text(model.money(showOwing ? invoice.owing : invoice.amount))
+                    .accessibilityHidden(true)
+                Text(figure)
                     .font(Win95.readout)
                     .foregroundStyle(status.isAlert ? Win95.overdue : Win95.text)
                     .lineLimit(1)
@@ -62,6 +72,7 @@ struct InvoiceEditorView: View {
                     .padding(.vertical, 2)
                     .frame(minWidth: 190, alignment: .trailing)
                     .win95Sunken()
+                    .accessibilityLabel("\(showOwing ? "Owing" : "Amount") \(figure)")
             }
             .padding(8)
             HStack(spacing: 6) {
@@ -70,12 +81,18 @@ struct InvoiceEditorView: View {
                         .buttonStyle(.win95Default)
                         .help("Open a Mail draft with this invoice attached (⌘S)")
                 }
+                // Greyed, not hidden, for a deposit the final invoice deducts: the note on the form says why.
                 if invoice.stage == .sent, invoice.payments.isEmpty {
                     Button("Void…") { model.voidInvoice(invoiceID) }
-                        .help("Cancel this invoice; its number stays used")
+                        .disabled(!rules.canVoid)
+                        .help(rules.canVoid ? "Cancel this invoice; its number stays used"
+                              : "Final invoice \(rules.finalDeducting?.number ?? "") deducts this deposit. Void or delete it first.")
                 }
                 if invoice.stage == .draft {
                     Button("Delete Draft") { model.deleteDraftInvoice(invoiceID) }
+                        .disabled(!rules.canDelete)
+                        .help(rules.canDelete ? "Delete this draft; its number won't be used again"
+                              : "Final invoice \(rules.finalDeducting?.number ?? "") deducts this deposit. Void or delete it first.")
                 }
                 if invoice.kind == .standalone {
                     Button("Duplicate") { model.duplicateInvoice(invoiceID) }
@@ -94,16 +111,12 @@ struct InvoiceEditorView: View {
 
     private func form(_ invoice: Binding<Invoice>) -> some View {
         let current = invoice.wrappedValue
-        let editable = current.stage == .draft
+        let rules = rulesFor(current)
         let quote = current.quoteID.flatMap { model.library.quote($0) }
         return VStack(alignment: .leading, spacing: 10) {
-            switch current.stage {
-            case .sent:
-                NoteBanner("This invoice has been sent, so it can't be changed. If something's wrong, void it and draft a new one.")
-            case .void:
-                NoteBanner("This invoice is void. It no longer counts as owed, and its number stays used.", warning: true)
-            case .draft:
-                EmptyView()
+            // Why the rest of the screen is locked, in a sentence that fits this invoice's state.
+            if let note = rules.note {
+                NoteBanner(note.text, warning: note.warning)
             }
             if let quote {
                 HStack(spacing: 8) {
@@ -124,13 +137,17 @@ struct InvoiceEditorView: View {
                     Win95FieldRow("Issued:") { DayPicker(label: "Issued", day: invoice.issued) }
                     Win95FieldRow("Due:") { DayPicker(label: "Due", day: invoice.due) }
                     if model.library.brand.gstRegistered || current.taxed {
-                        Win95FieldRow("GST:") { Toggle("Add GST (10%)", isOn: invoice.taxed).toggleStyle(.win95) }
+                        Win95FieldRow("GST:") {
+                            Toggle("Add GST (10%)", isOn: invoice.taxed)
+                                .toggleStyle(.win95)
+                                .disabled(!rules.canEditAmounts)
+                        }
                     }
                 }
             }
-            .disabled(!editable)
+            .disabled(!rules.canEditDetails)
             GroupBox("Lines") {
-                LinesEditor(model: model, lines: invoice.lines, showCodes: false, editable: editable,
+                LinesEditor(model: model, lines: invoice.lines, showCodes: false, editable: rules.canEditAmounts,
                             onAdd: {
                                 var edited = invoice.wrappedValue
                                 edited.lines.append(LineItem(title: "", rate: .zero))
@@ -143,7 +160,7 @@ struct InvoiceEditorView: View {
                 Win95TextEditor("Terms", text: invoice.terms)
                     .frame(height: 60)
             }
-            .disabled(!editable)
+            .disabled(!rules.canEditAmounts)
         }
     }
 }

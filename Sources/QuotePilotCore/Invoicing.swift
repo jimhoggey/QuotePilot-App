@@ -98,6 +98,20 @@ extension Library {
         return draftInvoice(closing, for: found, on: day)
     }
 
+    /// The quote's live closing invoice (the final one for 50/50, the full one otherwise), or nil when
+    /// it has none yet or its closing invoice was voided.
+    public func closingInvoice(forQuote id: UUID) -> Invoice? {
+        invoices(forQuote: id).first { $0.kind.isClosing }
+    }
+
+    /// The live closing invoice that still subtracts this deposit, or nil: the invoice isn't a deposit,
+    /// no closing invoice has been drafted, or it is void. While one exists the deposit can't be
+    /// voided, deleted or have its lines or tax changed, which is what a screen asks before offering
+    /// to.
+    public func finalDeducting(_ invoiceID: UUID) -> Invoice? {
+        invoice(invoiceID).flatMap(liveFinalDeducting)
+    }
+
     /// The live closing (final or full) invoice that still subtracts this deposit, if any. Voiding,
     /// deleting or editing the deposit while one exists would leave that invoice deducting an amount
     /// the deposit no longer has.

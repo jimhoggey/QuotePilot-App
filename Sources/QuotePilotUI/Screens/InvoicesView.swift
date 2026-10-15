@@ -6,7 +6,7 @@ struct InvoicesView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        if let id = model.openInvoiceID, model.library.invoice(id) != nil {
+        if let id = model.editingInvoiceID {
             // A fresh editor per invoice, so Duplicate never shows the previous invoice's state.
             InvoiceEditorView(model: model, invoiceID: id)
                 .id(id)
