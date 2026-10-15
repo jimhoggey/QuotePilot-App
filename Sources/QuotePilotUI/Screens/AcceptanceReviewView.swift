@@ -12,6 +12,12 @@ struct AcceptanceReviewView: View {
         _review = State(initialValue: review)
     }
 
+    /// The warnings and the lines share one scroll area of at most this height, so however many
+    /// warnings there are the dialog still fits the smallest window (620 high). Tall enough that two
+    /// warnings and eight lines need no scrolling, and that even with four warnings the first lines
+    /// show.
+    static let scrollHeight: CGFloat = 280
+
     var body: some View {
         let quote = model.library.quote(review.quoteID)
         let accepted = Totals(subtotal: review.lines.filter(\.accepted).reduce(.zero) { $0 + $1.amount },
@@ -23,16 +29,24 @@ struct AcceptanceReviewView: View {
                      : "Tick the lines the client accepted, then confirm.")
                     .font(Win95.body)
                     .fixedSize(horizontal: false, vertical: true)
-                ForEach(Array(review.problems.enumerated()), id: \.offset) { _, problem in
-                    NoteBanner(problem.isBlocking ? problem.message + " Nothing will change." : problem.message, warning: true)
+                if let note = review.replacementNote {
+                    Text(note)
+                        .font(Win95.label)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                GroupBox("Lines") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle("Accept all", isOn: acceptAll)
-                            .toggleStyle(.win95)
-                        EtchedLine()
-                        ScrollView {
+                // As tall as its contents, up to `scrollHeight`, then it scrolls. The warnings come
+                // first, so a blocking one is the first thing seen.
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(review.problems.enumerated()), id: \.offset) { _, problem in
+                            NoteBanner(problem.isBlocking ? problem.message + " Nothing will change." : problem.message,
+                                       warning: true)
+                        }
+                        GroupBox("Lines") {
                             VStack(alignment: .leading, spacing: 4) {
+                                Toggle("Accept all", isOn: acceptAll)
+                                    .toggleStyle(.win95)
+                                EtchedLine()
                                 ForEach($review.lines) { $line in
                                     HStack {
                                         Toggle("\(line.code)  \(line.title.isEmpty ? "(untitled)" : line.title)", isOn: $line.accepted)
@@ -44,12 +58,11 @@ struct AcceptanceReviewView: View {
                                 }
                             }
                         }
-                        // As tall as its lines, up to 180, then it scrolls: with warnings above it the
-                        // whole dialog still fits the smallest window.
-                        .frame(maxHeight: 180)
-                        .fixedSize(horizontal: false, vertical: true)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(maxHeight: Self.scrollHeight)
+                .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
                     Text("Accepted:").font(Win95.label)
                     Text(model.money(accepted)).font(Win95.money)
@@ -61,12 +74,13 @@ struct AcceptanceReviewView: View {
                 Win95FieldRow("Date:", labelWidth: 110) {
                     Win95TextField("Date the client signed", text: $review.clientDate)
                 }
-                Text(planNote(quote, accepted: accepted))
+                Text(Self.planNote(plan: quote?.plan, accepted: accepted, currencyCode: model.currencyCode))
                     .font(Win95.small)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     Spacer()
-                    Button("Confirm") { model.confirmAcceptance(review) }
+                    // With nothing ticked this records a decline, and the button says so.
+                    Button(review.confirmTitle) { model.confirmAcceptance(review) }
                         .buttonStyle(.win95Default)
                         .keyboardShortcut(.defaultAction)
                         .disabled(!review.canBeConfirmed)
@@ -87,15 +101,17 @@ struct AcceptanceReviewView: View {
                 })
     }
 
-    private func planNote(_ quote: Quote?, accepted: Money) -> String {
-        guard accepted > .zero else { return "Nothing is ticked: confirming records that the client declined." }
-        switch quote?.plan {
-        case .fiftyFifty?:
-            return "50/50: confirming also drafts the deposit invoice for \(model.money(accepted.percent(50))) and opens it."
-        case .fullAmount?:
-            return "Full amount: the invoice is drafted when you click Job Complete."
-        case nil:
-            return ""
+    /// What confirming will do beyond recording the ticks. The deposit is the plan's own percentage,
+    /// the one `draftNextInvoice` uses.
+    static func planNote(plan: PaymentPlan?, accepted: Money, currencyCode: String) -> String {
+        guard accepted > .zero else {
+            return "Nothing is ticked: this records that the client declined every line."
         }
+        guard let plan else { return "" }
+        if let percent = plan.depositPercent {
+            return "\(percent)% deposit: confirming also drafts the deposit invoice for "
+                + "\(accepted.percent(percent).formatted(currencyCode: currencyCode)) and opens it."
+        }
+        return "Full amount: the invoice is drafted when you click Job Complete."
     }
 }

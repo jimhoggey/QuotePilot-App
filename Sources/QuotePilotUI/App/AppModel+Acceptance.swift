@@ -19,11 +19,34 @@ public struct AcceptanceReview: Equatable {
     public var lines: [Line]
     public var clientName: String
     public var clientDate: String
-    public var problems: [AcceptanceProblem]
+    /// "This replaces the decision recorded on …", when the quote already has one (and no invoice
+    /// yet, which is the only time it can be recorded again). Nil the first time.
+    public var replacementNote: String?
 
-    public var canBeConfirmed: Bool { !problems.contains(where: \.isBlocking) }
+    /// What can't change as ticks do: the PDF is for another quote, or names lines this one lacks.
+    private var blocking: [AcceptanceProblem]
+    /// Lines the client's PDF didn't have.
+    private var missingCodes: [String]
+    private var expiredOn: Day?
+
+    /// The warnings for the ticks as they are now. A line the PDF didn't have is only "marked
+    /// declined" while it's unticked, and "nothing is ticked" is only news for a returned PDF: hand-
+    /// ticking starts with nothing ticked.
+    public var problems: [AcceptanceProblem] {
+        var result = blocking
+        let stillDeclined = missingCodes.filter { code in lines.contains { $0.code == code && !$0.accepted } }
+        if !stillDeclined.isEmpty { result.append(.missingLines(stillDeclined)) }
+        if source == .returnedPDF, accepted.isEmpty { result.append(.nothingTicked) }
+        if let expiredOn { result.append(.expired(validUntil: expiredOn)) }
+        return result
+    }
+
+    public var canBeConfirmed: Bool { !blocking.contains(where: \.isBlocking) }
     public var accepted: [String] { lines.filter(\.accepted).map(\.code) }
     public var declined: [String] { lines.filter { !$0.accepted }.map(\.code) }
+
+    /// With nothing ticked the default button records a decline, and says so: one step, no box.
+    public var confirmTitle: String { accepted.isEmpty ? "Record as Declined" : "Confirm" }
 
     init(quote: Quote, proposal: AcceptanceProposal, source: AcceptanceSource, fileName: String?) {
         quoteID = quote.id
@@ -34,7 +57,23 @@ public struct AcceptanceReview: Equatable {
         }
         clientName = proposal.clientName
         clientDate = proposal.clientDate
-        problems = proposal.problems
+        blocking = []
+        missingCodes = []
+        for problem in proposal.problems {
+            switch problem {
+            case .wrongQuote, .unknownLines: blocking.append(problem)
+            case .missingLines(let codes): missingCodes = codes
+            case .nothingTicked: break  // worked out from the ticks as they are
+            case .expired(let validUntil): expiredOn = validUntil
+            }
+        }
+        switch quote.stage {
+        case .accepted, .declined:
+            replacementNote = quote.acceptance.map { "This replaces the decision recorded on \(Day($0.recordedAt).long)." }
+                ?? "This replaces the decision already recorded."
+        case .draft, .sent:
+            replacementNote = nil
+        }
     }
 }
 
@@ -80,24 +119,19 @@ extension AppModel {
     /// "Record Acceptance…": every line starts unticked.
     public func startHandTicking(_ quoteID: UUID, fileName: String? = nil) {
         guard let quote = library.quote(quoteID), canRecordAcceptance(quote) else { return }
-        // A form with nothing ticked on every line. The proposal's own "nothing ticked" warning is
-        // dropped: unticked is where hand-ticking starts, so only the expiry warning is left.
-        var proposal = quote.proposal(from: ReturnedForm(quoteNumber: quote.number, acceptAll: false, ticked: [],
+        // A form with nothing ticked on every line. The review shows no "nothing ticked" warning for
+        // a hand-ticked quote (that's where it starts), so only the expiry warning is left.
+        let proposal = quote.proposal(from: ReturnedForm(quoteNumber: quote.number, acceptAll: false, ticked: [],
                                                          unticked: quote.lineCodes),
                                       today: today)
-        proposal.problems.removeAll { $0 == .nothingTicked }
         dialog = .acceptance(AcceptanceReview(quote: quote, proposal: proposal, source: .byHand, fileName: fileName))
     }
 
-    /// Records the review. Nothing ticked asks first; a 50/50 quote then gets its deposit drafted and
-    /// opened, in the same save.
+    /// Records the review as it stands, with no question. Nothing ticked records a decline: the
+    /// review's own button says so (`confirmTitle`). A 50/50 quote that has something accepted also
+    /// gets its deposit drafted and opened, in the same save.
     public func confirmAcceptance(_ review: AcceptanceReview) {
-        guard review.canBeConfirmed, let quote = library.quote(review.quoteID) else { return }
-        guard !review.accepted.isEmpty else {
-            return confirm(title: "Declined?",
-                           text: "No lines are ticked. Record that the client declined every line of \(quote.number)?",
-                           confirm: "Record as Declined") { self.record(review) }
-        }
+        guard review.canBeConfirmed, library.quote(review.quoteID) != nil else { return }
         record(review)
     }
 
@@ -144,10 +178,14 @@ extension AppModel {
         }
     }
 
-    /// Files dropped on the window: the first PDF is read as a returned quote. A message box, dialog
-    /// or panel that's already up is modal, so a drop behind it beeps and does nothing.
+    /// Files dropped on the window: the first PDF file is read as a returned quote. A web link isn't
+    /// a file (reading it would download it on the main thread), and with the library unusable there's
+    /// nothing a drop could do; both return false. A message box, dialog or panel that's already up is
+    /// modal, so a drop behind it beeps and does nothing.
     public func dropped(_ urls: [URL]) -> Bool {
-        guard let pdf = urls.first(where: { $0.pathExtension.lowercased() == "pdf" }) else { return false }
+        guard loadState == .ready,
+              let pdf = urls.first(where: { $0.isFileURL && $0.pathExtension.lowercased() == "pdf" })
+        else { return false }
         var handled = false
         whenFree {
             readReturnedQuote(at: pdf)
