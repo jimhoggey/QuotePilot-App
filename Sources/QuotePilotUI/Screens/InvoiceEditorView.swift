@@ -125,6 +125,11 @@ struct InvoiceEditorView: View {
                         .buttonStyle(.win95)
                 }
             }
+            // Payments are what you do with a sent invoice, so the box sits first, where it shows
+            // without scrolling; the invoice's own boxes are the record below it.
+            if current.stage != .draft {
+                PaymentsBox(model: model, invoice: current)
+            }
             GroupBox("Invoice") {
                 VStack(alignment: .leading, spacing: 6) {
                     Win95FieldRow("Client:") {

@@ -31,6 +31,18 @@ public struct PDFExport {
     public var fileName: String
 }
 
+/// A short line for the status bar's last cell, such as "Recorded $135.00 for INV-0003": what the
+/// last action did, where no message box is wanted. It shows until the next change saves.
+public struct StatusNote: Equatable {
+    public let text: String
+    public let at: Date
+
+    public init(text: String, at: Date) {
+        self.text = text
+        self.at = at
+    }
+}
+
 /// The app's state, and the only way the screens change the library. Every change is made to a
 /// copy and saved; the app keeps it only once the save has worked.
 @MainActor
@@ -63,6 +75,8 @@ public final class AppModel {
     public var openInvoiceID: UUID?
     public var selectedClientID: UUID?
     public var message: MessageBox?
+    /// What the last action did, for the status bar (see `note(_:)`).
+    public private(set) var statusNote: StatusNote?
     public var pendingExport: PDFExport?
     /// The dialog panel showing over the window, if any (the email prompt, the acceptance review…).
     public var dialog: Dialog?
@@ -176,6 +190,13 @@ public final class AppModel {
 
     public func show(title: String, text: String, kind: MessageBox.Kind = .info) {
         message = MessageBox(kind: kind, title: title, text: text)
+    }
+
+    /// Says what just happened in the status bar's last cell, in a few words (the cell is about 300 pt
+    /// wide). The next change that saves replaces it with the time of that save, so call it after
+    /// the change that it describes.
+    public func note(_ text: String) {
+        statusNote = StatusNote(text: text, at: now())
     }
 
     /// Asks before something that can't be undone. Cancel is the default button.

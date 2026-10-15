@@ -107,11 +107,10 @@ public struct RootView: View {
     }
 }
 
-/// The toolbar: square buttons with a pixel icon over a short label. Buttons for plan 2b's work
-/// are there but off, so the toolbar's shape doesn't change later.
+/// The toolbar: square buttons with a pixel icon over a short label. A button that can't run on the
+/// current screen is greyed out, not hidden, so the toolbar's shape never changes.
 struct Win95Toolbar: View {
     let model: AppModel
-    private let later = "Arrives in the next build"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -126,7 +125,10 @@ struct Win95Toolbar: View {
                 tool("Read Reply", .folder, help: "Read a returned quote PDF, or drop one on the window (⌘O)") {
                     model.choosingFile = .returnedQuote
                 }
-                tool("Payment", .payment, help: later, enabled: false) {}
+                tool("Payment", .payment, help: "Record a payment on the open or selected invoice",
+                     enabled: model.payableInvoiceID != nil) {
+                    if let id = model.payableInvoiceID { model.startPayment(id) }
+                }
                 ToolbarSeparator()
                 tool("Save PDF", .pdf, help: "Save the open quote or invoice as a PDF (⌘P)",
                      enabled: model.canExportPDF) { model.exportPDF() }
@@ -259,16 +261,25 @@ struct TreeConnector: View {
 
 /// What the status bar says, on every screen.
 enum StatusBarText {
-    static func items(_ dashboard: Dashboard, lastSaved: Date?, currencyCode: String) -> [String] {
+    /// The last cell shows the note while it is as new as the last save (or nothing has been saved),
+    /// and otherwise the time of the last save: so the next change that saves replaces the note.
+    static func items(_ dashboard: Dashboard, lastSaved: Date?, note: StatusNote? = nil,
+                      currencyCode: String) -> [String] {
         let overdue = dashboard.waiting.filter { $0.daysLate > 0 }.count
         let saved = lastSaved.map {
             "Saved " + $0.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale(identifier: "en_AU")))
+        }
+        let lastCell: String
+        if let note, lastSaved.map({ note.at >= $0 }) ?? true {
+            lastCell = note.text
+        } else {
+            lastCell = saved ?? "No changes yet"
         }
         return [
             "Waiting: \(dashboard.waitingTotal.formatted(currencyCode: currencyCode))",
             overdue == 1 ? "1 invoice overdue" : "\(overdue) invoices overdue",
             "Received \(dashboard.financialYear.label): \(dashboard.receivedThisYear.formatted(currencyCode: currencyCode))",
-            saved ?? "No changes yet",
+            lastCell,
         ]
     }
 }
@@ -278,7 +289,8 @@ struct StatusBar: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(StatusBarText.items(model.dashboard, lastSaved: model.lastSaved, currencyCode: model.currencyCode),
+            ForEach(StatusBarText.items(model.dashboard, lastSaved: model.lastSaved, note: model.statusNote,
+                                        currencyCode: model.currencyCode),
                     id: \.self) { item in
                 StatusPanel(item)
             }

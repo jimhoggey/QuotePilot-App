@@ -2,6 +2,16 @@ import Foundation
 import QuotePilotCore
 import SwiftUI
 
+/// What the invoice editor's New payment area holds while you type.
+public struct PaymentEntry: Equatable {
+    public var invoiceID: UUID
+    public var date: Day
+    /// As typed; read with `FieldParser.money` when you press Record Payment.
+    public var amount: String
+    public var method: PaymentMethod
+    public var note: String
+}
+
 extension AppModel {
     /// ⇧⌘N: a one-off invoice, for extra work or a monthly fee.
     public func newInvoice(for clientID: UUID? = nil) {
@@ -99,6 +109,69 @@ extension AppModel {
             guard self.change("Couldn't delete \(invoice.number)", { try $0.deleteDraft(invoice: id) }) else { return }
             if self.openInvoiceID == id { self.openInvoiceID = nil }
             if self.selectedInvoiceID == id { self.selectedInvoiceID = nil }
+        }
+    }
+
+    // MARK: Payments
+
+    /// The invoice the toolbar's Payment button records against: the open or selected invoice, when it
+    /// is sent and money is still owing. Anything else greys the button out.
+    public var payableInvoiceID: UUID? {
+        guard section == .invoices, let id = editingInvoiceID ?? selectedInvoiceID,
+              newPaymentEntry(for: id) != nil
+        else { return nil }
+        return id
+    }
+
+    /// A new payment as the editor's New payment area starts it: today, what's owing, a bank transfer
+    /// and no note. Nil when the invoice can't take a payment: it isn't sent, it is void, or it is
+    /// paid in full.
+    public func newPaymentEntry(for invoiceID: UUID) -> PaymentEntry? {
+        guard let invoice = library.invoice(invoiceID), invoice.stage == .sent, invoice.owing > .zero else { return nil }
+        return PaymentEntry(invoiceID: invoiceID, date: today, amount: money(invoice.owing),
+                            method: .bankTransfer, note: "")
+    }
+
+    /// The toolbar's Payment button: opens the invoice in the editor, where the Payments box has the
+    /// New payment area. No box opens. A draft or a void invoice says why it can't take one, for
+    /// callers the toolbar's greying doesn't cover.
+    public func startPayment(_ invoiceID: UUID) {
+        guard let invoice = library.invoice(invoiceID) else { return }
+        switch invoice.stage {
+        case .draft: return show(LibraryError.notSent, title: "Can't Record a Payment")
+        case .void: return show(LibraryError.isVoid, title: "Can't Record a Payment")
+        case .sent: break
+        }
+        // An invoice paid in full opens as well: its Payments box says so, and offers no new payment.
+        openInvoice(invoiceID)
+    }
+
+    /// Records the New payment area's payment. A refused amount shows why in a box, and the area keeps
+    /// what was typed. A recorded one shows no box: the figures on screen change, and the status bar
+    /// says what was recorded.
+    @discardableResult
+    public func recordPayment(_ entry: PaymentEntry) -> Bool {
+        guard let amount = FieldParser.money(entry.amount) else {
+            show(title: "Amount", text: "Type the amount paid, like 540 or $540.00.", kind: .warning)
+            return false
+        }
+        let payment = Payment(date: entry.date, amount: amount, method: entry.method,
+                              note: entry.note.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard change("Couldn't record the payment", { try $0.recordPayment(payment, toInvoice: entry.invoiceID) }),
+              let invoice = library.invoice(entry.invoiceID)
+        else { return false }
+        note("Recorded \(money(amount)) for \(invoice.number)")
+        return true
+    }
+
+    /// Asks first: removing a payment is a change to what the client owes.
+    public func removePayment(_ paymentID: UUID, from invoiceID: UUID) {
+        guard let invoice = library.invoice(invoiceID),
+              let payment = invoice.payments.first(where: { $0.id == paymentID }) else { return }
+        confirm(title: "Remove Payment",
+                text: "Remove the \(money(payment.amount)) payment of \(payment.date.long) from \(invoice.number)?",
+                confirm: "Remove") {
+            self.change("Couldn't remove the payment") { try $0.removePayment(paymentID, fromInvoice: invoiceID) }
         }
     }
 

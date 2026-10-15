@@ -181,6 +181,8 @@ extension Library {
             throw LibraryError.notFound
         }
         let removed = invoices[index].payments.remove(at: position)
+        // No payments left means no receipt stands either.
+        if invoices[index].payments.isEmpty { invoices[index].receiptSentAt = nil }
         let number = invoices[index].number
         log("Removed the \(removed.amount.formatted()) payment of \(removed.date.long) from \(number)", number: number)
     }
