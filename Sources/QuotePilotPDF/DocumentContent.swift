@@ -102,7 +102,7 @@ extension DocumentContent {
         case .deposit:
             totals.append(TotalLine(label: "Accepted total", value: money(lineTotals.total), strong: false))
             totals.append(TotalLine(label: "Deposit (\(invoice.depositPercent ?? 50)%)", value: money(invoice.amount), strong: true))
-        case .final where !invoice.deductions.isEmpty:
+        case .final where !invoice.deductions.isEmpty, .full where !invoice.deductions.isEmpty:
             totals.append(TotalLine(label: "Accepted total", value: money(lineTotals.total), strong: false))
             for deduction in invoice.deductions {
                 totals.append(TotalLine(label: "\(deduction.label), \(deduction.invoiceNumber)",

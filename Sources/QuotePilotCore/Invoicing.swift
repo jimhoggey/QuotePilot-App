@@ -38,6 +38,10 @@ extension InvoiceKind {
         case .full, .standalone: return "invoice"
         }
     }
+
+    /// The invoice that closes a quote's billing: the final one for 50/50, the full one otherwise.
+    /// A quote has at most one, whichever the plan says, and it subtracts every live deposit.
+    var isClosing: Bool { self == .final || self == .full }
 }
 
 extension LineItem {
@@ -64,12 +68,10 @@ extension Library {
     public func nextInvoiceKind(forQuote id: UUID) -> InvoiceKind? {
         guard let found = quote(id), found.stage == .accepted, !found.acceptedLines.isEmpty else { return nil }
         let kinds = invoices(forQuote: id).map(\.kind)
+        if kinds.contains(where: \.isClosing) { return nil }
         switch found.plan {
-        case .fiftyFifty:
-            if kinds.contains(.final) { return nil }
-            return kinds.contains(.deposit) ? .final : .deposit
-        case .fullAmount:
-            return kinds.contains(.full) ? nil : .full
+        case .fiftyFifty: return kinds.contains(.deposit) ? .final : .deposit
+        case .fullAmount: return .full
         }
     }
 
@@ -90,16 +92,17 @@ extension Library {
         quotes[index].completedOn = day
         log("Marked the job for \(found.number) complete", number: found.number)
         let closing: InvoiceKind = found.plan == .fiftyFifty ? .final : .full
-        guard !invoices(forQuote: id).contains(where: { $0.kind == closing }) else { return nil }
+        guard !invoices(forQuote: id).contains(where: { $0.kind.isClosing }) else { return nil }
         return draftInvoice(closing, for: found, on: day)
     }
 
-    /// The live final invoice that still subtracts this deposit, if any. Voiding or deleting the
-    /// deposit while one exists would leave the final deducting an invoice that is gone.
+    /// The live closing (final or full) invoice that still subtracts this deposit, if any. Voiding,
+    /// deleting or editing the deposit while one exists would leave that invoice deducting an amount
+    /// the deposit no longer has.
     func liveFinalDeducting(_ invoice: Invoice) -> Invoice? {
         guard invoice.kind == .deposit else { return nil }
         return invoices.first {
-            $0.quoteID == invoice.quoteID && $0.kind == .final && $0.stage != .void
+            $0.quoteID == invoice.quoteID && $0.kind.isClosing && $0.stage != .void
                 && $0.deductions.contains { $0.invoiceNumber == invoice.number }
         }
     }
@@ -119,7 +122,7 @@ extension Library {
         if kind == .deposit {
             invoice.depositPercent = quote.plan.depositPercent ?? 50
         }
-        if kind == .final {
+        if kind.isClosing {
             invoice.deductions = invoices(forQuote: quote.id)
                 .filter { $0.kind == .deposit }
                 .map { Deduction(label: "Less deposit", invoiceNumber: $0.number, amount: $0.amount) }

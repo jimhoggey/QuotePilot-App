@@ -43,6 +43,17 @@ import QuotePilotCore
         #expect(content.amount == "$540.00")
     }
 
+    @Test func aFullInvoiceThatSubtractsADepositShowsTheSubtraction() {
+        // Only reachable if a deposit exists when the plan says "full amount", but the PDF must still add up.
+        var invoice = Sample.invoice(.full)
+        let plain = DocumentContent.invoice(invoice, client: Sample.client, brand: Sample.brand, quoteNumber: "Q-0001")
+        #expect(plain.totals.map(\.label) == ["Total (AUD)"])
+        invoice.deductions = [Deduction(label: "Less deposit", invoiceNumber: "INV-0000", amount: Money(dollars: 540))]
+        let content = DocumentContent.invoice(invoice, client: Sample.client, brand: Sample.brand, quoteNumber: "Q-0001")
+        #expect(content.totals.map(\.label) == ["Accepted total", "Less deposit, INV-0000", "Balance (AUD)"])
+        #expect(content.amount == "$540.00")
+    }
+
     @Test func taxedInvoicesAreTaxInvoicesWithTheABN() {
         let content = DocumentContent.invoice(Sample.invoice(.standalone, taxed: true), client: Sample.client,
                                               brand: Sample.brand, quoteNumber: nil)

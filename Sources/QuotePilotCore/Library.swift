@@ -117,13 +117,26 @@ public struct Library: Codable, Sendable {
         return invoice
     }
 
+    /// Stores an edited quote. Once the quote has live invoices, nothing that changes what is billed may
+    /// change (plan, tax, or any line's amount, decision or ID); wording and dates may.
     public mutating func update(_ quote: Quote) throws {
         let index = try quoteIndex(quote.id)
+        if !invoices(forQuote: quote.id).isEmpty, quote.billsDifferently(from: quotes[index]) {
+            throw LibraryError.alreadyInvoiced
+        }
         quotes[index] = quote
     }
 
+    /// Stores an edited invoice. A deposit that a live final invoice subtracts keeps what it bills, or
+    /// the final would deduct a different amount than the deposit asks for.
     public mutating func update(_ invoice: Invoice) throws {
         let index = try invoiceIndex(invoice.id)
+        let old = invoices[index]
+        if let final = liveFinalDeducting(old),
+           invoice.lines != old.lines || invoice.taxed != old.taxed || invoice.depositPercent != old.depositPercent
+            || invoice.number != old.number || invoice.stage != old.stage {
+            throw LibraryError.deductedByFinal(final.number)
+        }
         invoices[index] = invoice
     }
 
@@ -155,5 +168,33 @@ public struct Library: Codable, Sendable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
+    }
+}
+
+extension Quote {
+    /// True when `old`'s invoices would no longer add up under this version: a different plan or tax
+    /// setting, a line added or removed, or any line with another quantity, unit, rate, decision or ID.
+    /// Titles, details, order, summary, terms and dates don't count.
+    func billsDifferently(from old: Quote) -> Bool {
+        struct Billed: Hashable {
+            var id: UUID
+            var code: String
+            var quantity: Decimal
+            var unit: Unit
+            var rate: Money
+            var decision: LineDecision?
+
+            init(_ line: LineItem) {
+                id = line.id
+                code = line.code
+                quantity = line.quantity
+                unit = line.unit
+                rate = line.rate
+                decision = line.decision
+            }
+        }
+        return plan != old.plan || taxed != old.taxed
+            || lines.count != old.lines.count
+            || Set(lines.map(Billed.init)) != Set(old.lines.map(Billed.init))
     }
 }
