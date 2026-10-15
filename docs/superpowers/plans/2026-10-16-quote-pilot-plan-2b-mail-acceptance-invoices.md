@@ -837,6 +837,8 @@ This task also adds the dialog overlay that later dialogs reuse.
 - Modify: `Sources/QuotePilotUI/App/RootView.swift` (show dialogs; toolbar Send)
 - Modify: `Sources/QuotePilotUI/App/Commands.swift` (⌘S)
 - Modify: `Sources/QuotePilotUI/Screens/QuoteEditorView.swift` (a Send by Mail button)
+- Modify: `Sources/QuotePilotUI/Screens/BrandView.swift` (the Emails tab's note)
+- Modify: `Resources/Info.plist` (why Quote Pilot uses the Documents folder)
 - Modify: `Tests/QuotePilotUITests/UIFixture.swift` (a fake Mail; a temporary sent folder)
 - Test: `Tests/QuotePilotUITests/MailTests.swift`
 
@@ -1385,6 +1387,18 @@ In `QuotePilotCommands.body`, inside `CommandGroup(replacing: .printItem)` befor
             .keyboardShortcut("s")
 ```
 
+Writing into `~/Documents` makes macOS ask once for permission to use the Documents folder. The
+project's rule is that every permission explains itself. In `Resources/Info.plist`, add inside the
+`<dict>`:
+
+```xml
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Quote Pilot keeps a copy of every PDF you send by Mail in Documents › Quote Pilot, so you have a record of exactly what each client received.</string>
+```
+
+If the write is refused (permission denied), `send` already shows the error in a message box and
+opens nothing. Leave it at that.
+
 In `BrandView.swift`'s `EmailsTab`, the banner says Mail drafts arrive in the next build. Change it to:
 "Quote Pilot fills in {client}, {contact}, {number}, {amount}, {due} and {business}. Send by Mail opens a
 draft with the PDF attached, and you always press Send yourself."
@@ -1410,7 +1424,7 @@ Run: `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk swift test
 Expected: everything passes.
 
 ```bash
-git add Sources/QuotePilotUI Tests/QuotePilotUITests
+git add Sources/QuotePilotUI Tests/QuotePilotUITests Resources/Info.plist
 git commit -m "Send by Mail: a draft with the PDF, a saved copy, and Did you send it?
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -2769,6 +2783,7 @@ invoice.
 - Modify: `Sources/QuotePilotUI/App/Dialogs.swift` (the `.payment` dialog)
 - Modify: `Sources/QuotePilotUI/Screens/InvoiceEditorView.swift` (Payments box; header buttons)
 - Modify: `Sources/QuotePilotUI/App/RootView.swift` (toolbar Payment)
+- Modify: `Sources/QuotePilotCore/Invoicing.swift` (removing the last payment clears the receipt)
 - Test: `Tests/QuotePilotUITests/PaymentTests.swift`
 
 **Interfaces:**
@@ -3123,10 +3138,32 @@ In `Win95Toolbar`, replace the Payment button line with:
                 }
 ```
 
+In `Sources/QuotePilotCore/Invoicing.swift`'s `removePayment(_:fromInvoice:)`, after removing the
+payment, add:
+
+```swift
+        // No payments left means no receipt stands either.
+        if invoices[index].payments.isEmpty { invoices[index].receiptSentAt = nil }
+```
+
+and add to `PaymentTests`:
+
+```swift
+    @Test func removingTheLastPaymentClearsTheReceipt() throws {
+        let model = try UIFixture.sampleModel()
+        let invoice = try hosting(model)
+        model.change("test") { try $0.markReceiptSent(invoice: invoice.id) }
+        let payment = try #require(invoice.payments.first)
+        model.removePayment(payment.id, from: invoice.id)
+        model.respond(try #require(model.message?.choices.first { $0.title == "Remove" }))
+        #expect(model.library.invoice(invoice.id)?.receiptSentAt == nil)
+    }
+```
+
 - [ ] **Step 6: Run the tests and look at the dialog**
 
 Run: `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk QP_SNAPSHOTS="$PWD/build/snapshots" swift test --filter PaymentTests`
-Expected: all seven tests pass. Look at `build/snapshots/payment-dialog.png`. It should show the
+Expected: all eight tests pass. Look at `build/snapshots/payment-dialog.png`. It should show the
 dialog over INV-0003's editor: "Acme Test Co owes $135.00 on INV-0003.", the date, $135.00 in the
 amount field, Bank transfer chosen, and Record outlined.
 
@@ -3136,7 +3173,7 @@ Run: `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX26.5.sdk swift test
 Expected: everything passes.
 
 ```bash
-git add Sources/QuotePilotUI Tests/QuotePilotUITests
+git add Sources Tests
 git commit -m "Record payments, remove them, and send receipts
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
