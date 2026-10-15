@@ -59,10 +59,16 @@ public enum FontFile {
     /// The font for `style` from the file at `url`; the file's own default style when `style` is nil or
     /// the file has no such style any more. Nil when the file isn't a font.
     ///
-    public static func font(at url: URL, style: FontStyle?, size: CGFloat) -> CTFont? {
+    ///
+    /// `weight` asks for a heavier cut of the same style, on the scale `NSFont.Weight` uses (medium is
+    /// 0.23, semibold 0.3): the file's own face of the same slant nearest that much heavier, never one
+    /// lighter than the style itself. Body text asks for these where it is emphasised. A file with no
+    /// heavier face gives the style itself, never a faked bold.
+    public static func font(at url: URL, style: FontStyle?, size: CGFloat, weight: CGFloat = 0) -> CTFont? {
         let all = descriptors(at: url)
         guard !all.isEmpty else { return nil }
-        let chosen = style.flatMap { descriptor(for: $0, in: all) } ?? defaultDescriptor(in: all)
+        var chosen = style.flatMap { descriptor(for: $0, in: all) } ?? defaultDescriptor(in: all)
+        if weight > 0 { chosen = heavier(than: chosen, by: weight, in: all) }
         return CTFontCreateWithFontDescriptor(chosen, size, nil)
     }
 
@@ -95,6 +101,23 @@ public enum FontFile {
         return rebuilt
     }
 
+    /// The face of the same slant (and, in a variable font, the same width and other axes) as `base`
+    /// that is heavier than it and nearest to `base`'s weight plus `weight`; `base` itself when the
+    /// file has none.
+    private static func heavier(than base: CTFontDescriptor, by weight: CGFloat, in all: [CTFontDescriptor]) -> CTFontDescriptor {
+        func apartFromWeight(_ descriptor: CTFontDescriptor) -> [String: Double] {
+            variations(of: descriptor).filter { $0.key != "wght" }
+        }
+        let baseWeight = weightTrait(of: base)
+        let target = baseWeight + Double(weight)
+        let italic = isItalic(base)
+        let others = apartFromWeight(base)
+        let candidates = all.filter {
+            isItalic($0) == italic && apartFromWeight($0) == others && weightTrait(of: $0) > baseWeight + 0.001
+        }
+        return candidates.min { abs(weightTrait(of: $0) - target) < abs(weightTrait(of: $1) - target) } ?? base
+    }
+
     // MARK: What Core Text says about a descriptor
 
     private static func name(of descriptor: CTFontDescriptor) -> String {
@@ -103,6 +126,20 @@ public enum FontFile {
 
     private static func styleName(of descriptor: CTFontDescriptor) -> String {
         CTFontDescriptorCopyAttribute(descriptor, kCTFontStyleNameAttribute) as? String ?? name(of: descriptor)
+    }
+
+    private static func traits(of descriptor: CTFontDescriptor) -> [String: Any] {
+        CTFontDescriptorCopyAttribute(descriptor, kCTFontTraitsAttribute) as? [String: Any] ?? [:]
+    }
+
+    /// How heavy the face is on Core Text's scale: 0 regular, 0.4 bold, below 0 lighter.
+    private static func weightTrait(of descriptor: CTFontDescriptor) -> Double {
+        (traits(of: descriptor)[kCTFontWeightTrait as String] as? NSNumber)?.doubleValue ?? 0
+    }
+
+    private static func isItalic(_ descriptor: CTFontDescriptor) -> Bool {
+        let symbolic = (traits(of: descriptor)[kCTFontSymbolicTrait as String] as? NSNumber)?.uint32Value ?? 0
+        return symbolic & CTFontSymbolicTraits.traitItalic.rawValue != 0
     }
 
     /// The axis values a descriptor sets, by axis tag. A variable font's default style sets none.

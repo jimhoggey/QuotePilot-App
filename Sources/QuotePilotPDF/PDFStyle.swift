@@ -14,21 +14,30 @@ public struct PDFStyle {
     /// Which named style of the heading font to draw (a variable font's Bold, say); nil is the font's
     /// own default style.
     public var headingFontStyle: FontStyle?
+    /// The font for the text of the document (lines, addresses, terms, notes); nil is the standard Mac
+    /// font. Headings keep the heading font.
+    public var bodyFontURL: URL?
+    /// Which named style of the body font to draw; nil is the font's own default style.
+    public var bodyFontStyle: FontStyle?
     public var logo: Logo?
 
     public init(accentHex: String = "#0B6B66", headingFontURL: URL? = nil, headingFontStyle: FontStyle? = nil,
-                logo: Logo? = nil) {
+                bodyFontURL: URL? = nil, bodyFontStyle: FontStyle? = nil, logo: Logo? = nil) {
         accent = PDFStyle.color(hex: accentHex) ?? PDFStyle.color(hex: "#0B6B66")!
         self.headingFontURL = headingFontURL
         self.headingFontStyle = headingFontStyle
+        self.bodyFontURL = bodyFontURL
+        self.bodyFontStyle = bodyFontStyle
         self.logo = logo
     }
 
     /// The brand's look, with its logo and font files found in the library's Assets folder.
     public init(brand: Brand, assetsFolder: URL?) {
-        let fontURL = brand.headingFontFile.flatMap { name in assetsFolder?.appendingPathComponent(name) }
+        let headingURL = brand.headingFontFile.flatMap { name in assetsFolder?.appendingPathComponent(name) }
+        let bodyURL = brand.bodyFontFile.flatMap { name in assetsFolder?.appendingPathComponent(name) }
         let logo = brand.logoFile.flatMap { name in assetsFolder.flatMap { Logo(url: $0.appendingPathComponent(name)) } }
-        self.init(accentHex: brand.accentHex, headingFontURL: fontURL, headingFontStyle: brand.headingFontStyle, logo: logo)
+        self.init(accentHex: brand.accentHex, headingFontURL: headingURL, headingFontStyle: brand.headingFontStyle,
+                  bodyFontURL: bodyURL, bodyFontStyle: brand.bodyFontStyle, logo: logo)
     }
 
     /// "#0B6B66" → an sRGB colour, or nil if it isn't six hex digits.
@@ -50,8 +59,15 @@ public struct PDFStyle {
         return NSFont.systemFont(ofSize: size, weight: .semibold) as CTFont
     }
 
+    /// The document's text font: the brand's body font in its chosen style when there is one that
+    /// loads, with the file's own heavier face where `weight` asks for emphasis; otherwise the
+    /// standard Mac font at that weight, as it always was.
     func body(_ size: CGFloat, weight: NSFont.Weight = .regular) -> CTFont {
-        NSFont.systemFont(ofSize: size, weight: weight) as CTFont
+        if let url = bodyFontURL,
+           let font = FontFile.font(at: url, style: bodyFontStyle, size: size, weight: CGFloat(weight.rawValue)) {
+            return font
+        }
+        return NSFont.systemFont(ofSize: size, weight: weight) as CTFont
     }
 }
 

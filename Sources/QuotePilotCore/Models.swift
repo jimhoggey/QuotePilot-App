@@ -76,6 +76,11 @@ public struct Brand: Codable, Hashable, Sendable {
     /// Which named style of the heading font to use (Bold, ExtraBold Italic, …); nil is the font's own
     /// default. Only meaningful beside `headingFontFile`.
     public var headingFontStyle: FontStyle?
+    /// The font for the text of quotes and invoices (lines, addresses, terms, notes), a file name in
+    /// Assets like the heading font; nil is the standard Mac font.
+    public var bodyFontFile: String?
+    /// Which named style of the body font to use; nil is the font's own default.
+    public var bodyFontStyle: FontStyle?
     public var quoteTerms = "Prices are fixed for the work listed. Work starts once this quote is accepted."
     public var invoiceTerms = "Please use the invoice number as your payment reference."
     public var emails = EmailTemplates.standard
@@ -338,7 +343,7 @@ extension Brand {
     enum CodingKeys: String, CodingKey {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
-        case hourlyRate, headingFontStyle
+        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle
     }
 
     public init(from decoder: Decoder) throws {
@@ -361,6 +366,8 @@ extension Brand {
         hourlyRate = try c.decodeIfPresent(Money.self, forKey: .hourlyRate)
         // A style that can't be read is the font's default, not an unreadable library.
         headingFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .headingFontStyle)
+        bodyFontFile = try c.decodeIfPresent(String.self, forKey: .bodyFontFile)
+        bodyFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .bodyFontStyle)
     }
 }
 

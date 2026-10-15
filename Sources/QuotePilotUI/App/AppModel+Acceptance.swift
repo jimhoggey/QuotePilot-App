@@ -107,13 +107,15 @@ public enum FileChoice: Equatable {
     case logo
     /// The Brand screen's heading font.
     case headingFont
+    /// The Brand screen's body font.
+    case bodyFont
 
     var contentTypes: [UTType] {
         switch self {
         case .returnedQuote: return [.pdf]
         case .legacyBackup: return [.json]
         case .logo: return [.png, .jpeg, .svg, .pdf]
-        case .headingFont: return [.font]
+        case .headingFont, .bodyFont: return [.font]
         }
     }
 }
@@ -279,6 +281,7 @@ extension AppModel {
             case .legacyBackup?: importLegacyBackup(at: url)
             case .logo?: importLogo(from: url)
             case .headingFont?: importHeadingFont(from: url)
+            case .bodyFont?: importBodyFont(from: url)
             case nil: break
             }
         }

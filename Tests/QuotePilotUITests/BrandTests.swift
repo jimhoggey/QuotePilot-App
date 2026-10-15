@@ -122,6 +122,7 @@ import QuotePilotPDF
     @Test func theBrandPickersUseTheOneImporterWithTheirOwnFileTypes() {
         #expect(FileChoice.logo.contentTypes == [.png, .jpeg, .svg, .pdf])
         #expect(FileChoice.headingFont.contentTypes == [.font])
+        #expect(FileChoice.bodyFont.contentTypes == [.font])
         #expect(FileChoice.returnedQuote.contentTypes == [.pdf])
         #expect(FileChoice.legacyBackup.contentTypes == [.json])
     }
@@ -304,14 +305,34 @@ import QuotePilotPDF
 
     /// The smallest window (980 x 620) gives the section 492 points (see the Dashboard's fit test),
     /// and the Look tab's groups sit in what is left of that after the Brand screen's padding (16),
-    /// the tab strip (24) and the panel's padding (20): 432. The groups must fit it whole, at the
-    /// narrowest the tab column goes (460 less the panel's padding and the scroller's gap).
-    @Test func theLookTabFitsTheSmallestWindow() throws {
+    /// the tab strip (24) and the panel's padding (20): 432. With the Body font group the Look tab
+    /// (Logo, Hourly rate, Heading font, Body font, Accent colour) is taller than that, whether or not
+    /// a font is chosen, so it scrolls: nothing may be cut off, so the tab must sit in a vertical
+    /// scroll view that holds all of it (at the narrowest the tab column goes: 460 less the panel's
+    /// padding and the scroller's gap).
+    @Test func theLookTabScrollsInTheSmallestWindowSoEveryGroupCanBeReached() throws {
         let model = try UIFixture.sampleModel()
         _ = NSApplication.shared
         let look = LookTab(model: model, brand: model.brandBinding).groupBoxStyle(.win95)
-        let needed = NSHostingView(rootView: look.frame(width: 460 - 20 - 6)).fittingSize
-        let available: CGFloat = 620 - 28 - 66 - 26 - 8 - 16 - 24 - 20
-        #expect(needed.height <= available, "the Look tab needs \(needed.height) of \(available)")
+        let needed = NSHostingView(rootView: look.frame(width: 460 - 20 - 6)).fittingSize.height
+
+        let size = CGSize(width: 778, height: 492)
+        let host = NSHostingView(rootView: BrandView(model: model, tab: .look).background(Win95.face)
+            .frame(width: size.width, height: size.height))
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.contentView = host
+        host.frame = CGRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            var found = (view as? NSScrollView).map { [$0] } ?? []
+            for subview in view.subviews { found += scrollViews(in: subview) }
+            return found
+        }
+        // The tab's scroll view is the one that scrolls up and down and is tall enough for the groups.
+        let tab = try #require(scrollViews(in: host).first { $0.hasVerticalScroller && ($0.documentView?.frame.height ?? 0) >= needed })
+        let document = try #require(tab.documentView)
+        #expect(document.frame.height > tab.contentSize.height, "taller than the \(tab.contentSize.height) it shows, so it scrolls")
+        #expect(document.frame.height >= needed)
     }
 }

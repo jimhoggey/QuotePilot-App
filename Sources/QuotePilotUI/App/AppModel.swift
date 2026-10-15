@@ -454,6 +454,16 @@ public final class AppModel {
         headingFontURL.flatMap(FontFile.displayName(at:))
     }
 
+    /// The body font's file in Assets, or nil when there's none.
+    public var bodyFontURL: URL? {
+        library.brand.bodyFontFile.map { store.assetsFolder.appendingPathComponent($0) }
+    }
+
+    /// The body font's name as people know it, or nil.
+    public var bodyFontName: String? {
+        bodyFontURL.flatMap(FontFile.displayName(at:))
+    }
+
     /// Puts a PNG, JPG, SVG or PDF into the library's Assets folder and makes it the logo. An SVG is
     /// turned into a one-page PDF on the way in (only the PDF is kept), so it stays sharp at any size.
     public func importLogo(from url: URL) {
@@ -488,16 +498,27 @@ public final class AppModel {
 
     /// Copies a TTF or OTF into the Assets folder and makes it the heading font.
     public func importHeadingFont(from url: URL) {
-        let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor] ?? []
-        guard !descriptors.isEmpty else {
+        guard let name = copyFontAsset(url, prefix: "heading-font") else { return }
+        // A style belongs to the font it was chosen from, so a new font starts on its own default.
+        change("Couldn't use that font") { $0.brand.headingFontFile = name; $0.brand.headingFontStyle = nil }
+    }
+
+    /// Copies a TTF or OTF into the Assets folder and makes it the body font.
+    public func importBodyFont(from url: URL) {
+        guard let name = copyFontAsset(url, prefix: "body-font") else { return }
+        change("Couldn't use that font") { $0.brand.bodyFontFile = name; $0.brand.bodyFontStyle = nil }
+    }
+
+    /// Copies a font file into Assets and returns its new name; with the Not a Font box and nothing
+    /// copied when the file isn't a font Quote Pilot can use.
+    private func copyFontAsset(_ url: URL, prefix: String) -> String? {
+        guard !FontFile.styles(at: url).isEmpty else {
             show(title: "Not a Font",
                  text: "\(url.lastPathComponent) isn't a font Quote Pilot can use. Choose a TTF or OTF file.",
                  kind: .warning)
-            return
+            return nil
         }
-        guard let name = copyAsset(url, prefix: "heading-font") else { return }
-        // A style belongs to the font it was chosen from, so a new font starts on its own default.
-        change("Couldn't use that font") { $0.brand.headingFontFile = name; $0.brand.headingFontStyle = nil }
+        return copyAsset(url, prefix: prefix)
     }
 
     public func removeLogo() {
@@ -506,6 +527,10 @@ public final class AppModel {
 
     public func removeHeadingFont() {
         change("Couldn't remove the heading font") { $0.brand.headingFontFile = nil; $0.brand.headingFontStyle = nil }
+    }
+
+    public func removeBodyFont() {
+        change("Couldn't remove the body font") { $0.brand.bodyFontFile = nil; $0.brand.bodyFontStyle = nil }
     }
 
     /// Copies a file into Assets under a fresh name ("logo-1A2B3C4D.png"), so a document already
