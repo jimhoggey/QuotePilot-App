@@ -38,6 +38,12 @@ enum UIFixture {
         return AppModel(store: store, now: { today.date() })
     }
 
+    /// A model holding the made-up sample business, on its own temporary folder.
+    @MainActor
+    static func sampleModel() throws -> AppModel {
+        try model(SampleLibrary.make(today: today, now: today.date()))
+    }
+
     /// A real 2×2 PNG.
     static func pngData() -> Data {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 2, pixelsHigh: 2, bitsPerSample: 8,

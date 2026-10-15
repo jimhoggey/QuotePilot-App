@@ -66,7 +66,7 @@ public struct RootView: View {
     @ViewBuilder
     private var sectionContent: some View {
         switch model.section {
-        case .dashboard: SectionPlaceholder(section: .dashboard)
+        case .dashboard: DashboardView(model: model)
         case .quotes: SectionPlaceholder(section: .quotes)
         case .invoices: SectionPlaceholder(section: .invoices)
         case .clients: SectionPlaceholder(section: .clients)
