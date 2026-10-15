@@ -17,20 +17,29 @@ struct ClientsView: View {
         let clients = Self.visibleClients(model)
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 6) {
+                // The list is only 400 wide in the smallest window. The buttons keep their full width
+                // (fixedSize) and Find takes what's left, right after them, so the count sits under the list.
                 HStack(spacing: 6) {
                     Button("New Client") { model.newClient() }
                         .buttonStyle(.win95)
+                        .fixedSize()
+                    Button("Delete Client") { model.deleteSelectedClient() }
+                        .buttonStyle(.win95)
+                        .fixedSize()
+                        .disabled(!model.canDeleteClient)
+                        .help(model.deleteClientHelp)
                     FindField(text: model.findBinding(.clients), request: model.findRequest)
                     Spacer()
-                    Text(DashboardView.count(clients.count, "client", "clients"))
-                        .font(Win95.body)
-                        .foregroundStyle(Win95.text)
                 }
                 DetailsList(clients, id: \.id, columns: columns, selection: $model.selectedClientID,
                             sort: DetailsSort(column: 0),
                             emptyText: model.findText[.clients, default: ""].isEmpty
                                 ? "No clients yet. Press New Client to add one."
                                 : "No clients match \"\(model.findText[.clients, default: ""])\".")
+                Text(DashboardView.count(clients.count, "client", "clients"))
+                    .font(Win95.body)
+                    .foregroundStyle(Win95.text)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
             // At the window's smallest (980 wide) the list and the details have 754 points between
             // them, so their minimums (400 + 320) must fit, or the row spills over the section tree.
