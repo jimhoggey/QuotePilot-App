@@ -3,6 +3,7 @@ import Foundation
 import PDFKit
 import SwiftUI
 import Testing
+import UniformTypeIdentifiers
 import QuotePilotCore
 import QuotePilotPDF
 @testable import QuotePilotUI
@@ -119,10 +120,16 @@ import QuotePilotPDF
     }
 
     @Test func theBrandPickersUseTheOneImporterWithTheirOwnFileTypes() {
-        #expect(FileChoice.logo.contentTypes == [.png, .jpeg, .pdf])
+        #expect(FileChoice.logo.contentTypes == [.png, .jpeg, .svg, .pdf])
         #expect(FileChoice.headingFont.contentTypes == [.font])
         #expect(FileChoice.returnedQuote.contentTypes == [.pdf])
         #expect(FileChoice.legacyBackup.contentTypes == [.json])
+    }
+
+    @Test func theLogoPickerOffersSVGAndTheHintSaysSo() {
+        #expect(FileChoice.logo.contentTypes.contains(.svg))
+        #expect(UTType.svg.preferredFilenameExtension == "svg")
+        #expect(LookTab.logoHint == "PNG, JPG, SVG or PDF. SVG and PDF logos stay sharp at any size.")
     }
 
     /// An SVG chosen as the logo reaches the logo handler, becomes a PDF in Assets, and is not read as
@@ -157,6 +164,7 @@ import QuotePilotPDF
         model.fileChosen(.success(try UIFixture.file("broken.svg", Data(#"<svg xmlns="http://www.w3.org/2000/svg"><rect"#.utf8))))
         #expect(model.message?.title == "Not an Image")
         #expect(model.message?.text.contains("broken.svg") == true)
+        #expect(model.message?.text.contains("SVG") == true)
         #expect(model.library.brand.logoFile == nil)
         #expect(model.dialog == nil)
         let kept = (try? FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)) ?? []

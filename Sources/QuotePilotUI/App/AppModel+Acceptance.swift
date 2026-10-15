@@ -112,7 +112,7 @@ public enum FileChoice: Equatable {
         switch self {
         case .returnedQuote: return [.pdf]
         case .legacyBackup: return [.json]
-        case .logo: return [.png, .jpeg, .pdf]
+        case .logo: return [.png, .jpeg, .svg, .pdf]
         case .headingFont: return [.font]
         }
     }

@@ -88,6 +88,9 @@ struct LookTab: View {
     let model: AppModel
     @Binding var brand: Brand
 
+    /// What the Logo group says about the files it takes.
+    static let logoHint = "PNG, JPG, SVG or PDF. SVG and PDF logos stay sharp at any size."
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             GroupBox("Logo") {
@@ -103,7 +106,7 @@ struct LookTab: View {
                                 .buttonStyle(.win95)
                                 .disabled(brand.logoFile == nil)
                         }
-                        Text("PNG, JPG or PDF. A PDF logo stays sharp at any size.")
+                        Text(Self.logoHint)
                             .font(Win95.small)
                     }
                 }

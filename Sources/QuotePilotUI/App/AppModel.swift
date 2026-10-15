@@ -465,7 +465,7 @@ public final class AppModel {
         }
         guard let name else {
             show(title: "Not an Image",
-                 text: "\(url.lastPathComponent) isn't an image Quote Pilot can use. Choose a PNG, JPG or PDF.",
+                 text: "\(url.lastPathComponent) isn't an image Quote Pilot can use. Choose a PNG, JPG, SVG or PDF.",
                  kind: .warning)
             return
         }
