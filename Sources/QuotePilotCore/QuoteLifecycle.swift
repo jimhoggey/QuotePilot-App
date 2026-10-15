@@ -122,7 +122,9 @@ extension Quote {
         if !form.acceptAll && form.ticked.isEmpty { problems.append(.nothingTicked) }
         if status(on: today) == .expired { problems.append(.expired(validUntil: validUntil)) }
 
-        let accepted = form.acceptAll ? codes : codes.filter { form.ticked.contains($0) }
+        // "Accept all" covers only the lines that were on the client's form: a line added later is
+        // declined (and flagged above), never accepted on the client's behalf.
+        let accepted = codes.filter { form.acceptAll ? onForm.contains($0) : form.ticked.contains($0) }
         return AcceptanceProposal(accepted: accepted,
                                   declined: codes.filter { !accepted.contains($0) },
                                   clientName: form.clientName,

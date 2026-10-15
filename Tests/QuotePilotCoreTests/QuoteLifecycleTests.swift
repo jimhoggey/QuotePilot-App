@@ -61,6 +61,18 @@ import Testing
         #expect(proposal.problems == [])
     }
 
+    @Test func acceptAllCoversOnlyTheLinesTheClientSaw() {
+        // The client's PDF had 01–03. Line 04 was added to the sent quote afterwards.
+        let (library, id) = Fixture.libraryWithQuote()
+        var quote = library.quote(id)!
+        quote.addLine(LineItem(title: "Training session", rate: Money(dollars: 200)))
+        let form = ReturnedForm(quoteNumber: "Q-0001", acceptAll: true, ticked: [], unticked: ["01", "02", "03"])
+        let proposal = quote.proposal(from: form, today: today)
+        #expect(proposal.accepted == ["01", "02", "03"])
+        #expect(proposal.declined == ["04"])
+        #expect(proposal.problems == [.missingLines(["04"])])
+    }
+
     @Test func tickedLinesAreAcceptedAndTheRestDeclined() {
         let (library, id) = Fixture.libraryWithQuote()
         let form = ReturnedForm(quoteNumber: "q-0001", acceptAll: false, ticked: ["01", "03"], unticked: ["02"],
