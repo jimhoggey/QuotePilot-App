@@ -2361,14 +2361,18 @@ struct LinesEditor<Footer: View>: View {
     var body: some View {
         let currency = model.currencyCode
         VStack(alignment: .leading, spacing: 4) {
+            // Column widths: keep whatever plan 2a's QuoteEditorView settled on (its 980-pt fix trimmed
+            // them, e.g. ID 24, Qty 48, Unit 72, Rate 92, Amount 88). Copy the current values from the
+            // existing LinesEditor/LineRow rather than these placeholders, and put them in one shared
+            // `LineColumns` enum used by both the header and LineRow so they can't drift.
             HStack(spacing: 4) {
-                if showCodes { columnHead("ID", width: 28) }
+                if showCodes { columnHead("ID", width: LineColumns.id) }
                 columnHead("Item", width: nil)
-                columnHead("Qty", width: 56)
-                columnHead("Unit", width: 80)
-                columnHead("Rate", width: 96)
-                columnHead("Amount", width: 96, trailing: true)
-                if editable { Spacer().frame(width: 3 * 20 + 2 * 4) }
+                columnHead("Qty", width: LineColumns.quantity)
+                columnHead("Unit", width: LineColumns.unit)
+                columnHead("Rate", width: LineColumns.rate)
+                columnHead("Amount", width: LineColumns.amount, trailing: true)
+                if editable { Spacer().frame(width: LineColumns.buttons) }
             }
             ForEach(Array(lines.enumerated()), id: \.element.id) { index, line in
                 LineRow(line: lineBinding(line.id), currency: currency, showCode: showCodes,
@@ -2557,16 +2561,19 @@ struct InvoiceEditorView: View {
         let invoice = model.invoiceBinding(invoiceID)
         VStack(spacing: 0) {
             header(invoice.wrappedValue)
+            // Same widths as plan 2a's QuoteEditorView after its 980-pt fix (form 500…640 with
+            // layoutPriority(1), preview at least 220), so the editor fits the minimum window.
             HStack(alignment: .top, spacing: 8) {
                 ScrollView {
                     form(invoice)
                         .padding(.trailing, 6)
                 }
-                .frame(minWidth: 560, idealWidth: 620, maxWidth: 720)
+                .frame(minWidth: 500, idealWidth: 620, maxWidth: 640)
+                .layoutPriority(1)
                 GroupBox("Preview") {
                     LivePDFPreview(model: model, content: model.invoiceContent(invoiceID))
                 }
-                .frame(minWidth: 300, maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
             }
             .padding(8)
         }
@@ -2699,7 +2706,9 @@ struct InvoiceEditorView: View {
   ```swift
       var body: some View {
           if let id = model.openInvoiceID, model.library.invoice(id) != nil {
+              // A fresh editor per invoice, so Duplicate never shows the previous invoice's state.
               InvoiceEditorView(model: model, invoiceID: id)
+                  .id(id)
           } else {
               list
           }
@@ -2707,6 +2716,10 @@ struct InvoiceEditorView: View {
   ```
 
 - Give the list's `DetailsList` `onOpen: { model.openInvoice($0) }`.
+- A draft isn't owed until it's sent: in `InvoiceRow.init`, make `owing` zero unless
+  `invoice.stage == .sent` (it matches the dashboard, which counts only sent invoices).
+- Keep plan 2a's `InvoicesView.layout(width:)` and its column set. The editor replaces the list only
+  when an invoice is open.
 - Replace its `NoteBanner` text with: "Double-click an invoice to open it. New Invoice (⇧⌘N) starts
   a one-off invoice; invoices for a job come from its quote."
 - Add a toolbar row above the list, as the quote list has:
@@ -3642,7 +3655,15 @@ unreadable screen's shortcut:
         lastSaved = now()
         openQuoteID = nil
         openInvoiceID = nil
-        change("Couldn't note the restore in Activity") { $0.log("Restored the backup \(backup.lastPathComponent)") }
+        // Keep plan 2a's guard: a failed Activity note (or backup) message stays visible, with a
+        // sentence saying the restore itself worked, instead of being replaced by the success box.
+        // Move plan 2a's existing restoreLatestBackup body here rather than retyping it.
+        guard change("Couldn't note the restore in Activity", { $0.log("Restored the backup \(backup.lastPathComponent)") }),
+              message == nil
+        else {
+            message?.text += " The backup itself was restored."
+            return
+        }
         show(title: "Backup Restored",
              text: "Quote Pilot restored \(backup.lastPathComponent). The library it replaced is kept in the same folder, named library-replaced-….json.")
     }
@@ -4104,7 +4125,8 @@ glance.
 - **Invoices:** deposits and balances from quotes (**Draft Invoice Now**, **Job Complete**), one-off
   invoices, payments, receipts, and voiding.
 - **Clients**, **Brand** (logo, heading font, colour, wording and terms) and **Activity**, a log of
-  every change. ⌘F finds anything in a list.
+  what happened: quotes started and sent, Mail drafts, acceptances, invoices, payments and restores.
+  ⌘F finds anything in a list.
 - **File menu:** import from the old Invoice Generator, export the year's payments for tax time, back
   up anywhere, or restore a daily backup.
 - Every change saves as you make it, with a daily backup. If the library file is ever damaged,
