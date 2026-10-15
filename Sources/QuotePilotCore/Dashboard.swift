@@ -125,8 +125,9 @@ extension Library {
     }
 }
 
-/// Quotes a CSV field when it holds a comma, a quote mark or a line break.
+/// Quotes a CSV field when it holds a comma, a quote mark or any line break (`isNewline` also
+/// catches "\r\n", which Swift treats as one Character that isn't equal to "\n").
 func csvField(_ text: String) -> String {
-    guard text.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" }) else { return text }
+    guard text.contains(where: { $0 == "," || $0 == "\"" || $0.isNewline }) else { return text }
     return "\"" + text.replacingOccurrences(of: "\"", with: "\"\"") + "\""
 }

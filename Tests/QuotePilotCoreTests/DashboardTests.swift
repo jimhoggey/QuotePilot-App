@@ -94,9 +94,11 @@ import Testing
         """)
     }
 
-    @Test func csvFieldsWithCommasOrQuotesAreQuoted() {
+    @Test func csvFieldsWithCommasQuotesOrLineBreaksAreQuoted() {
         #expect(csvField("Plain") == "Plain")
         #expect(csvField("Smith, Jones") == "\"Smith, Jones\"")
         #expect(csvField("The \"best\" job") == "\"The \"\"best\"\" job\"")
+        #expect(csvField("line one\nline two") == "\"line one\nline two\"")
+        #expect(csvField("line one\r\nline two") == "\"line one\r\nline two\"")
     }
 }
