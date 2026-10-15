@@ -272,6 +272,9 @@ extension Library {
         }
         for invoice in invoices {
             check(invoice.lines, of: invoice.number)
+            if let percent = invoice.depositPercent, !(0...100).contains(percent) {
+                found.append("\(invoice.number) has a deposit of \(percent)%, outside 0 to 100%.")
+            }
             for payment in invoice.payments where !Library.allows(payment.amount) {
                 found.append("\(invoice.number) has a payment of \(payment.amount.formatted(currencyCode: currency)), \(over).")
             }

@@ -36,10 +36,31 @@ import QuotePilotCore
         #expect(!DocumentRenderer.hasForm(Data("hello".utf8), quoteNumber: "Q-0001"))
     }
 
+    /// The release-build fallback: the widgets are on the page, but the catalog has no AcroForm, so
+    /// other viewers wouldn't fill them. Only the "/AcroForm" byte check tells these apart.
+    @Test func widgetsWithoutAnAcroFormAreNotAForm() {
+        var data = quotePDF()
+        while let range = data.range(of: Data("/AcroForm".utf8)) {
+            data.replaceSubrange(range, with: Data("/AcroFxrm".utf8))
+        }
+        // The widgets are still there, so only the missing AcroForm can make this false.
+        let widgets = PDFDocument(data: data)?.page(at: 0)?.annotations ?? []
+        #expect(widgets.contains { $0.fieldName == QuoteFormFields.acceptAll("Q-0001") })
+        #expect(!DocumentRenderer.hasForm(data, quoteNumber: "Q-0001"))
+    }
+
     @Test func theQuoteNumberComesFromTheKeywords() {
         #expect(ReturnedQuoteReader.quoteNumber(inMetadataOf: quotePDF()) == "Q-0001")
         let kept = flattened(quotePDF(), info: [kCGPDFContextKeywords: ["quotepilot", "Q-0001"]])
         #expect(ReturnedQuoteReader.quoteNumber(inMetadataOf: kept) == "Q-0001")
+    }
+
+    /// Keywords separated by a semicolon or a comma, not only a comma and a space, still name the quote.
+    @Test func keywordsSeparatedBySemicolonsOrCommasStillName() {
+        let semicolon = flattened(quotePDF(), info: [kCGPDFContextKeywords: "quotepilot;Q-0001"])
+        #expect(ReturnedQuoteReader.quoteNumber(inMetadataOf: semicolon) == "Q-0001")
+        let comma = flattened(quotePDF(), info: [kCGPDFContextKeywords: "quotepilot,Q-0001"])
+        #expect(ReturnedQuoteReader.quoteNumber(inMetadataOf: comma) == "Q-0001")
     }
 
     @Test func aPDFWithoutQuotePilotKeywordsNamesNoQuote() {

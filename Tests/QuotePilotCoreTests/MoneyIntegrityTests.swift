@@ -289,4 +289,17 @@ import Testing
             "Brand: quotes are valid for -1 days, outside 0 to 365.",
         ])
     }
+
+    @Test func aDepositOutsideZeroToAHundredIsAProblem() throws {
+        var (library, _, deposit) = try withDeposit()
+        let index = library.invoices.firstIndex { $0.id == deposit.id }!
+        library.invoices[index].depositPercent = 250
+        #expect(library.problems() == ["INV-0001 has a deposit of 250%, outside 0 to 100%."])
+        library.invoices[index].depositPercent = 50
+        #expect(library.problems().isEmpty)
+        library.invoices[index].depositPercent = 0
+        #expect(library.problems().isEmpty)
+        library.invoices[index].depositPercent = 100
+        #expect(library.problems().isEmpty)
+    }
 }
