@@ -69,6 +69,21 @@ public struct Library: Codable, Sendable {
         return number
     }
 
+    /// Adds numbers that were issued elsewhere (a library a restore replaced, or a PDF already mailed)
+    /// to the used ones. Numbers already there are left alone, so it can run twice.
+    public mutating func keepUsed(_ numbers: [String]) {
+        var known = Set(usedNumbers)
+        for number in numbers where known.insert(number).inserted {
+            usedNumbers.append(number)
+        }
+    }
+
+    /// Every number this library has put on a quote or invoice, whether or not `usedNumbers` lists it
+    /// (a library saved before that list existed).
+    public var documentNumbers: [String] {
+        quotes.map(\.number) + invoices.map(\.number)
+    }
+
     // MARK: Lookups
 
     public func client(_ id: UUID?) -> Client? { clients.first { $0.id == id } }

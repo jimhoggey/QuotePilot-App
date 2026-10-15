@@ -218,6 +218,78 @@ import QuotePilotCore
         #expect(kept.count == 1)
     }
 
+    // MARK: Numbers are never reused, even across a restore
+
+    /// A made-up mailed PDF in the sent folder's year folder.
+    private func mailedFile(_ name: String, in model: AppModel) throws {
+        let folder = model.sentFolder.appendingPathComponent("2026", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("pdf".utf8).write(to: folder.appendingPathComponent(name))
+    }
+
+    /// The backup is older than the numbers issued since: restoring it must not hand them out again.
+    @Test func restoringABackupNeverBringsBackANumberIssuedSince() throws {
+        let model = try UIFixture.sampleModel()
+        let backup = try #require(model.store.backups().first)
+        #expect(model.library.nextNumber(.quote) == "Q-0005")
+        #expect(model.library.nextNumber(.invoice) == "INV-0004")
+        model.newQuote()
+        model.newInvoice()
+        #expect(model.library.quote(number: "Q-0005") != nil)
+        #expect(model.library.invoices.contains { $0.number == "INV-0004" })
+
+        model.restore(from: backup)
+        // The quote and invoice are gone with the replaced library, but their numbers stay used.
+        #expect(model.library.quote(number: "Q-0005") == nil)
+        #expect(model.library.usedNumbers.contains("Q-0005"))
+        #expect(model.library.usedNumbers.contains("INV-0004"))
+        model.newQuote()
+        model.newInvoice()
+        #expect(model.library.quote(number: "Q-0006") != nil)
+        #expect(model.library.invoices.contains { $0.number == "INV-0005" })
+        // And it was saved, in the same change as the Activity entry.
+        guard case .loaded(let onDisk) = model.store.load() else {
+            Issue.record("Expected the saved library")
+            return
+        }
+        #expect(onDisk.usedNumbers.contains("Q-0005") && onDisk.usedNumbers.contains("INV-0004"))
+    }
+
+    /// A number in a mailed PDF's file name was sent to a client, so it is used whatever the library says.
+    @Test func restoringNeverReusesANumberFoundInTheSentFolder() throws {
+        let model = try UIFixture.sampleModel()
+        try mailedFile("Q-0007 Sample Client Pty Ltd.pdf", in: model)
+        try mailedFile("INV-0009 Sample Client Pty Ltd.pdf", in: model)
+        try mailedFile("Receipt INV-0010 Sample Client Pty Ltd.pdf", in: model)
+        try mailedFile("notes.txt", in: model)
+        model.restore(from: try #require(model.store.backups().first))
+        #expect(model.library.nextNumber(.quote) == "Q-0008")
+        #expect(model.library.nextNumber(.invoice) == "INV-0011")
+        model.newQuote()
+        #expect(model.library.quote(number: "Q-0008") != nil)
+    }
+
+    /// The library being replaced couldn't be read, so its used numbers are lost: the sent folder is
+    /// what is left to go on.
+    @Test func restoringOverAnUnreadableLibraryStillSkipsSentNumbers() throws {
+        let folder = UIFixture.makeFolder()
+        let store = LibraryStore(folder: folder)
+        try store.save(SampleLibrary.make(today: UIFixture.today, now: UIFixture.today.date()))
+        try FileManager.default.createDirectory(at: store.backupsFolder, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: store.libraryURL,
+                                         to: store.backupsFolder.appendingPathComponent("library-2026-10-01.json"))
+        try Data("not a library".utf8).write(to: store.libraryURL)
+        let model = AppModel(store: store, now: { UIFixture.today.date() }, mail: FakeMail(), sentFolder: UIFixture.makeFolder())
+        #expect(model.loadState != .ready)
+        try mailedFile("Q-0012 Sample Client Pty Ltd.pdf", in: model)
+        try mailedFile("INV-0020 Sample Client Pty Ltd.pdf", in: model)
+
+        model.restoreLatestBackup()
+        #expect(model.loadState == .ready)
+        #expect(model.library.nextNumber(.quote) == "Q-0013")
+        #expect(model.library.nextNumber(.invoice) == "INV-0021")
+    }
+
     @Test func aBackupThatCantBeRestoredKeepsTheDialogAndShowsItsBox() throws {
         let model = try UIFixture.sampleModel()
         model.newQuote()

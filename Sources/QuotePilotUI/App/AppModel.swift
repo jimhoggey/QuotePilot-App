@@ -562,13 +562,20 @@ public final class AppModel {
     /// kept beside it (`LibraryStore` copies it to library-replaced-….json). A restore that worked
     /// shows no box: the dialog closes and the status bar says which backup came back. A restore that
     /// failed shows its box and leaves the dialog up, to choose another.
+    ///
+    /// Numbers are never reused, so a restore keeps every number the library it replaces had issued,
+    /// and every number in a mailed PDF's file name in the sent folder (which still counts when the
+    /// replaced library couldn't be read), alongside the backup's own. They're saved in the same
+    /// change as the Activity entry, and held in memory at once so none can be issued in between.
     public func restore(from backup: URL) {
+        let issued = library.usedNumbers + library.documentNumbers + SentArchive.numbers(in: sentFolder)
         do {
             library = try store.restore(from: backup, now: now())
         } catch {
             show(error, title: "Couldn't restore the backup")
             return
         }
+        library.keepUsed(issued)
         loadState = .ready
         lastSaved = now()
         openQuoteID = nil
@@ -577,7 +584,10 @@ public final class AppModel {
         // The backup is back whatever happens next. When the Activity note (or today's backup) then
         // fails, that message box stays up (with a line saying the restore worked) instead of being
         // replaced by the note.
-        guard change("Couldn't note the restore in Activity", { $0.log("Restored the backup \(backup.lastPathComponent)") }),
+        guard change("Couldn't note the restore in Activity", {
+                  $0.keepUsed(issued)
+                  $0.log("Restored the backup \(backup.lastPathComponent)")
+              }),
               message == nil
         else {
             message?.text += " The backup itself was restored."

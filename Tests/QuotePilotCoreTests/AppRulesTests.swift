@@ -68,6 +68,39 @@ import Testing
         #expect(library.invoice(invoice.id)?.owing == .zero)
     }
 
+    @Test func numbersKeptUsedAreNeverIssuedAgain() {
+        var library = Library()
+        library.keepUsed(["Q-0007", "INV-0003", "Q-0007"])
+        #expect(library.usedNumbers == ["Q-0007", "INV-0003"])
+        #expect(library.nextNumber(.quote) == "Q-0008")
+        #expect(library.nextNumber(.invoice) == "INV-0004")
+        // Keeping them twice changes nothing.
+        library.keepUsed(["Q-0007"])
+        #expect(library.usedNumbers == ["Q-0007", "INV-0003"])
+    }
+
+    @Test func theNumbersOnQuotesAndInvoicesCount() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        try library.draftNextInvoice(forQuote: id, on: today)
+        #expect(library.documentNumbers == ["Q-0001", "INV-0001"])
+    }
+
+    @Test func numbersInMailedFileNamesAreFound() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuotePilotTests-\(UUID().uuidString)", isDirectory: true)
+        let year = root.appendingPathComponent("2026", isDirectory: true)
+        try FileManager.default.createDirectory(at: year, withIntermediateDirectories: true)
+        for name in ["Q-0003 Sample Client Pty Ltd.pdf", "Q-0003 Sample Client Pty Ltd (2).pdf",
+                     "Receipt INV-0009 Sample Client Pty Ltd.pdf", "reply for q-0012 (scan).pdf",
+                     "Q-10050 Sample Client Pty Ltd.pdf", "Q-00021.pdf", "XQ-0004.pdf", "Q-1234567.pdf",
+                     "Q-12.pdf", "notes.txt"] {
+            try Data().write(to: year.appendingPathComponent(name))
+        }
+        #expect(SentArchive.numbers(in: root) == ["INV-0009", "Q-0003", "Q-0012", "Q-10050"])
+        // A folder that doesn't exist has none.
+        #expect(SentArchive.numbers(in: root.appendingPathComponent("missing")).isEmpty)
+    }
+
     @Test func receiptsNeedAPayment() throws {
         var (library, _) = Fixture.acceptedLibrary()
         let invoice = try sentStandalone(&library)
