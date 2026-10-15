@@ -11,7 +11,7 @@ small `qp` command for trying it all before the app's screens exist.
 `QuotePilotPDF` draws documents with Core Text, adds the form with PDFKit and reads it back.
 `qp` is a command-line tool over both. Plan 2 adds the SwiftUI app on top of the same two libraries.
 
-**Tech Stack:** Swift 6 (Command Line Tools 27.0, no Xcode), Swift Testing, Foundation, Core Text,
+**Tech Stack:** Swift 6.4 (Command Line Tools 27.0, no Xcode), Swift Testing, Foundation, Core Text,
 Core Graphics, PDFKit, AppKit (fonts and colours only). No third-party packages.
 
 **Spec:** `docs/superpowers/specs/2026-10-15-quote-pilot-design.md`
@@ -117,20 +117,29 @@ README.md, LICENSE
 
 - [ ] **Step 1: Confirm the repaired toolchain**
 
-The user installs Command Line Tools for Xcode 27.0 first
-(`sudo softwareupdate --install "Command Line Tools for Xcode 27.0-27.0"`, run by the user, not by Claude).
+The user installed Command Line Tools for Xcode 27.0 on 15 Oct 2026 (Swift 6.4). With it, SwiftPM's
+build system doesn't find the Swift Testing macro plugin on its own (`plugin for module 'TestingMacros'
+not found`), so `Package.swift` points the compiler at
+`/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing` when that folder exists.
+That fix was proven in a scratch package before this plan ran.
 
 Run: `swift --version && swift package --version`
-Expected: a Swift 6.x version line and a package version, with **no** `dyld … Symbol not found` error.
-If the dyld error is still there, stop and give the user the clean-reinstall commands to run
-themselves, explaining each: `sudo mv /Library/Developer/CommandLineTools /Library/Developer/CommandLineTools.old`
-then `xcode-select --install`.
+Expected: `Apple Swift version 6.4` and `Swift Package Manager - Swift 6.4…`, with **no**
+`dyld … Symbol not found` error. If it's back, stop and tell the user.
 
 - [ ] **Step 2: Write `Package.swift` (core only for now)**
 
 ```swift
 // swift-tools-version: 6.0
+import Foundation
 import PackageDescription
+
+// Command Line Tools 27.0 install the Swift Testing macro plugin in a folder SwiftPM's build system
+// doesn't search. Point the compiler at it when it's there; Xcode users don't need this.
+let testingPlugins = "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing"
+let testSettings: [SwiftSetting] = FileManager.default.fileExists(atPath: testingPlugins)
+    ? [.unsafeFlags(["-plugin-path", testingPlugins])]
+    : []
 
 let package = Package(
     name: "QuotePilot",
@@ -140,7 +149,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "QuotePilotCore"),
-        .testTarget(name: "QuotePilotCoreTests", dependencies: ["QuotePilotCore"]),
+        .testTarget(name: "QuotePilotCoreTests", dependencies: ["QuotePilotCore"],
+                    swiftSettings: testSettings),
     ]
 )
 ```
@@ -2877,7 +2887,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ```swift
 // swift-tools-version: 6.0
+import Foundation
 import PackageDescription
+
+// Command Line Tools 27.0 install the Swift Testing macro plugin in a folder SwiftPM's build system
+// doesn't search. Point the compiler at it when it's there; Xcode users don't need this.
+let testingPlugins = "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing"
+let testSettings: [SwiftSetting] = FileManager.default.fileExists(atPath: testingPlugins)
+    ? [.unsafeFlags(["-plugin-path", testingPlugins])]
+    : []
 
 let package = Package(
     name: "QuotePilot",
@@ -2890,9 +2908,10 @@ let package = Package(
         .target(name: "QuotePilotCore"),
         .target(name: "QuotePilotPDF", dependencies: ["QuotePilotCore"],
                 swiftSettings: [.swiftLanguageMode(.v5)]),
-        .testTarget(name: "QuotePilotCoreTests", dependencies: ["QuotePilotCore"]),
+        .testTarget(name: "QuotePilotCoreTests", dependencies: ["QuotePilotCore"],
+                    swiftSettings: testSettings),
         .testTarget(name: "QuotePilotPDFTests", dependencies: ["QuotePilotCore", "QuotePilotPDF"],
-                    swiftSettings: [.swiftLanguageMode(.v5)]),
+                    swiftSettings: testSettings + [.swiftLanguageMode(.v5)]),
     ]
 )
 ```
