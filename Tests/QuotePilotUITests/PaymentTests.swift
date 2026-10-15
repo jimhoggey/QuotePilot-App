@@ -166,6 +166,20 @@ import QuotePilotCore
         #expect(model.library.invoice(invoice.id)?.receiptSentAt == nil)
     }
 
+    /// A receipt covers the payments up to when it was sent; a new payment makes the box offer
+    /// Send Receipt… again, with no "Receipt sent" line left over.
+    @Test func aNewPaymentClearsTheReceiptSoItCanBeSentAgain() throws {
+        let model = try UIFixture.sampleModel()
+        let invoice = try hosting(model)
+        model.change("test") { try $0.markReceiptSent(invoice: invoice.id) }
+        #expect(model.library.invoice(invoice.id)?.receiptSentAt != nil)
+        var entry = try #require(model.newPaymentEntry(for: invoice.id))
+        entry.amount = "$10.00"
+        #expect(model.recordPayment(entry))
+        #expect(model.library.invoice(invoice.id)?.receiptSentAt == nil)
+        #expect(model.library.invoice(invoice.id)?.payments.count == 2)
+    }
+
     // MARK: The status-bar note
 
     @Test func theStatusBarShowsTheNoteUntilTheNextSave() throws {

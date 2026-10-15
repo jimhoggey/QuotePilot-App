@@ -170,6 +170,8 @@ extension Library {
         let owing = invoices[index].owing
         guard payment.amount <= owing else { throw LibraryError.paymentMoreThanOwing(owing) }
         invoices[index].payments.append(payment)
+        // A receipt already sent covers the payments up to then, not this one: Send Receipt… is offered again.
+        invoices[index].receiptSentAt = nil
         let number = invoices[index].number
         log("Recorded \(payment.amount.formatted()) paid on \(payment.date.long) by \(payment.method.label.lowercased()) for \(number)",
             number: number)

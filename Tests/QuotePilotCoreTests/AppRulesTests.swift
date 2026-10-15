@@ -110,6 +110,27 @@ import Testing
         #expect(library.invoice(invoice.id)?.receiptSentAt != nil)
     }
 
+    /// The receipt that was sent covers the payments up to then, not a later one, so a new payment
+    /// clears the mark and Send Receipt… is on offer again.
+    @Test func aNewPaymentClearsTheReceiptMark() throws {
+        var (library, _) = Fixture.acceptedLibrary()
+        let invoice = try sentStandalone(&library)
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 100)), toInvoice: invoice.id)
+        try library.markReceiptSent(invoice: invoice.id)
+        #expect(library.invoice(invoice.id)?.receiptSentAt != nil)
+
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 50)), toInvoice: invoice.id)
+        #expect(library.invoice(invoice.id)?.receiptSentAt == nil)
+        #expect(library.invoice(invoice.id)?.payments.count == 2)
+
+        // A refused payment changes nothing, the mark included.
+        try library.markReceiptSent(invoice: invoice.id)
+        #expect(throws: LibraryError.paymentMoreThanOwing(Money(dollars: 150))) {
+            try library.recordPayment(Payment(date: today, amount: Money(dollars: 999)), toInvoice: invoice.id)
+        }
+        #expect(library.invoice(invoice.id)?.receiptSentAt != nil)
+    }
+
     @Test func acceptanceNeedsASentQuote() {
         var (library, id) = Fixture.libraryWithQuote(stage: .draft)
         #expect(throws: LibraryError.notSent) {

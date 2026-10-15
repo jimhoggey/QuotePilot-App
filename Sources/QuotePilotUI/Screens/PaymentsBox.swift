@@ -106,9 +106,12 @@ struct NewPaymentArea: View {
                 Win95FieldRow("Note:", labelWidth: Self.labelWidth) {
                     Win95TextField("Note", text: $entry.note, prompt: "Optional, e.g. a reference")
                 }
+                // Styled as the default button because Return in any of these fields presses it
+                // (`onSubmit` below); it takes no shortcut of its own, so Return elsewhere on the
+                // screen doesn't record a payment.
                 Button("Record Payment") { model.recordPayment(entry) }
-                    .buttonStyle(.win95)
-                    .help("Record this payment against the invoice")
+                    .buttonStyle(.win95Default)
+                    .help("Record this payment against the invoice (Return in a field does too)")
             }
         }
         // Return in any of the fields records it too.
