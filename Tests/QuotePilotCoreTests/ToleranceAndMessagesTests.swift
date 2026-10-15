@@ -69,6 +69,8 @@ import Testing
             #expect(error.localizedDescription == error.message)
         }
         #expect(LibraryError.deductedByFinal("INV-0002").message.contains("INV-0002"))
+        // A quote with invoices keeps its client too, so the message says so.
+        #expect(LibraryError.alreadyInvoiced.message.contains("its client"))
         #expect(LibraryError.unknownLineCodes(["09"]).message.contains("09"))
         #expect(LibraryError.paymentMoreThanOwing(Money(dollars: 300)).message.contains("$300.00"))
         #expect(LibraryStore.StoreError.wouldOverwriteUnreadableLibrary.localizedDescription.contains("library"))

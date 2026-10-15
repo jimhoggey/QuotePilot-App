@@ -20,7 +20,7 @@ extension LibraryError: LocalizedError {
         case .nothingLeftToInvoice:
             return "Everything on this quote has already been invoiced."
         case .alreadyInvoiced:
-            return "This quote already has invoices, so what the client accepted and what's billed are locked. Void its invoices first to change them."
+            return "This quote already has invoices, so its client, what the client accepted and what's billed are locked. Void its invoices first to change them."
         case .isVoid:
             return "This invoice is void."
         case .hasPayments:

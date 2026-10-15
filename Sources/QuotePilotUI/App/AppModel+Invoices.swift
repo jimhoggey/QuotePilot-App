@@ -58,6 +58,18 @@ extension AppModel {
         openInvoice(created)
     }
 
+    /// Whether a quote's billing details are locked: it has invoices that still count, so Core
+    /// (`Library.update(_ quote:)`) refuses a new client, plan or GST setting and any line added,
+    /// removed or changed in amount. The quote editor greys those controls out and says so
+    /// (`billingLockedNote`) instead of offering what would only end in an error box. Voiding its
+    /// invoices unlocks it again.
+    public func billingLocked(forQuote id: UUID) -> Bool {
+        !library.invoices(forQuote: id).isEmpty
+    }
+
+    /// The sentence the quote editor shows while `billingLocked(forQuote:)`.
+    public static let billingLockedNote = "This quote has invoices, so its client, lines and payment plan are locked. Its wording and dates can still change."
+
     /// Whether "Job Complete" is on offer for a quote: it is accepted and the job isn't marked complete
     /// yet. It doesn't depend on whether an invoice is left to draft, because the job is finished
     /// whether or not the closing invoice already exists (Draft Invoice Now may have drafted it).

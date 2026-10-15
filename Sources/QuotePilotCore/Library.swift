@@ -140,7 +140,8 @@ public struct Library: Codable, Sendable {
 
     /// Stores an edited quote. A draft's line IDs are renumbered first, so what's stored is what the PDF
     /// shows and what sending freezes. Once the quote has live invoices, nothing that changes what is
-    /// billed may change (plan, tax, or any line's amount, decision or ID); wording and dates may.
+    /// billed may change (its client, plan, tax, or any line's amount, decision or ID, or a line added
+    /// or removed); wording and dates may.
     public mutating func update(_ quote: Quote) throws {
         let index = try quoteIndex(quote.id)
         var quote = quote

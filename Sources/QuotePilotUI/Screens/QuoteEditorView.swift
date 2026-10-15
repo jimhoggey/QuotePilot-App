@@ -102,13 +102,22 @@ struct QuoteEditorView: View {
 
     private func form(_ quote: Binding<Quote>) -> some View {
         let current = quote.wrappedValue
+        // Core refuses a new client, plan, GST setting or line change once the quote has invoices, so
+        // those controls are greyed out and a banner says why, instead of an error box per attempt.
+        let locked = model.billingLocked(forQuote: quoteID)
         return VStack(alignment: .leading, spacing: 10) {
             if current.stage != .draft {
                 NoteBanner("This quote has been sent. Changes here change Quote Pilot's copy, not the PDF your client already has.")
             }
+            if locked {
+                NoteBanner(AppModel.billingLockedNote)
+            }
             GroupBox("Quote") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Win95FieldRow("Client:") { ClientPicker(clients: model.library.clients, selection: quote.clientID) }
+                    Win95FieldRow("Client:") {
+                        ClientPicker(clients: model.library.clients, selection: quote.clientID)
+                            .disabled(locked)
+                    }
                     Win95FieldRow("Title:") {
                         Win95TextField("Title", text: quote.title, prompt: "e.g. Website rebuild, phase 1")
                     }
@@ -116,15 +125,21 @@ struct QuoteEditorView: View {
                     Win95FieldRow("Valid until:") { DayPicker(label: "Valid until", day: quote.validUntil) }
                     Win95FieldRow("Payment:") {
                         Win95RadioGroup(selection: quote.plan, options: PaymentPlan.allCases.map { ($0, $0.summary) })
+                            .disabled(locked)
                     }
                     if model.library.brand.gstRegistered || current.taxed {
-                        Win95FieldRow("GST:") { Toggle("Add GST (10%)", isOn: quote.taxed).toggleStyle(.win95) }
+                        Win95FieldRow("GST:") {
+                            Toggle("Add GST (10%)", isOn: quote.taxed)
+                                .toggleStyle(.win95)
+                                .disabled(locked)
+                        }
                     }
                 }
             }
             GroupBox("Lines") {
                 LinesEditor(model: model, lines: quote.lines,
                             showDecision: current.stage == .accepted || current.stage == .declined,
+                            editable: !locked,
                             onAdd: {
                                 var edited = quote.wrappedValue
                                 edited.addLine(LineItem(title: "", rate: .zero))

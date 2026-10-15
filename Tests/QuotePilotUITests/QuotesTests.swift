@@ -23,6 +23,66 @@ import QuotePilotCore
         #expect(model.message == nil)
     }
 
+    /// The editor reads `billingLocked(forQuote:)` to grey out the Client, GST and Payment-plan controls
+    /// and the lines, and to show the banner. It follows the quote's live invoices, as Core does.
+    @Test func aQuoteWithInvoicesLocksItsBillingDetails() throws {
+        let (library, quoteID) = try UIFixture.invoicedLibrary()
+        let model = try UIFixture.model(library)
+        #expect(model.billingLocked(forQuote: quoteID))
+        #expect(AppModel.billingLockedNote
+            == "This quote has invoices, so its client, lines and payment plan are locked. Its wording and dates can still change.")
+
+        // What is locked is what Core refuses: the client, the plan, GST and the lines...
+        let binding = model.quoteBinding(quoteID)
+        for edit: (inout Quote) -> Void in [{ $0.clientID = nil }, { $0.plan = .fullAmount }, { $0.taxed.toggle() },
+                                            { $0.addLine(LineItem(title: "Extra", rate: Money(dollars: 10))) },
+                                            { $0.lines.removeLast() }] {
+            var quote = binding.wrappedValue
+            edit(&quote)
+            model.message = nil
+            binding.wrappedValue = quote
+            #expect(model.message?.text == LibraryError.alreadyInvoiced.message)
+        }
+        // ...and what stays open is what Core allows: wording and dates.
+        model.message = nil
+        var quote = binding.wrappedValue
+        quote.title = "Renamed job"
+        quote.summary = "New wording"
+        quote.terms = "New terms"
+        quote.validUntil = quote.validUntil.adding(days: 7)
+        binding.wrappedValue = quote
+        #expect(model.message == nil)
+        #expect(model.library.quote(quoteID)?.validUntil == quote.validUntil)
+    }
+
+    @Test func theLockedQuoteEditorDraws() throws {
+        let (library, quoteID) = try UIFixture.invoicedLibrary()
+        let model = try UIFixture.model(library)
+        model.openQuote(quoteID)
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 980, height: 620), name: "quote-locked")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
+    @Test func aQuoteWithNoLiveInvoicesIsNotLocked() throws {
+        let model = try UIFixture.sampleModel()
+        // Sent, accepted without an invoice, and draft quotes have none.
+        for quote in model.library.quotes where model.library.invoices(forQuote: quote.id).isEmpty {
+            #expect(!model.billingLocked(forQuote: quote.id), "\(quote.number)")
+        }
+        #expect(!model.billingLocked(forQuote: UUID()))
+
+        // Voiding its only invoice unlocks the quote again: a void invoice doesn't count.
+        let (library, quoteID) = try UIFixture.invoicedLibrary()
+        let invoiced = try UIFixture.model(library)
+        let invoice = try #require(invoiced.library.invoices(forQuote: quoteID).first)
+        #expect(invoiced.billingLocked(forQuote: quoteID))
+        invoiced.change("test") {
+            try $0.markSent(invoice: invoice.id)
+            try $0.voidInvoice(invoice.id)
+        }
+        #expect(!invoiced.billingLocked(forQuote: quoteID))
+    }
+
     @Test func aDraftsLineIDsFollowTheOrderAfterAMove() throws {
         let model = try UIFixture.model()
         model.newQuote()
