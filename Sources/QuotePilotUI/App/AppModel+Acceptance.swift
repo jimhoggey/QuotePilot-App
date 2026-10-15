@@ -93,10 +93,13 @@ public struct AcceptanceReview: Equatable {
 /// What the File menu's open panel is choosing a file for.
 public enum FileChoice: Equatable {
     case returnedQuote
+    /// Invoice Generator's "Back up to file" JSON.
+    case legacyBackup
 
     var contentTypes: [UTType] {
         switch self {
         case .returnedQuote: return [.pdf]
+        case .legacyBackup: return [.json]
         }
     }
 }
@@ -244,6 +247,7 @@ extension AppModel {
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             switch choice {
             case .returnedQuote?: readReturnedQuote(at: url)
+            case .legacyBackup?: importLegacyBackup(at: url)
             case nil: break
             }
         }

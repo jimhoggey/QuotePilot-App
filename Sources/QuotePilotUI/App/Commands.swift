@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// The menu bar. Each command checks for itself whether it applies, and says so in a message box
-/// when it doesn't. While a message box, dialog, save panel or open panel is up every command but
-/// Close waits (`whenFree`).
+/// The menu bar. A command that can't run is greyed out (Send by Mail…, Save PDF…, Back Up To…),
+/// not explained in a message box. While a message box, dialog, save panel or open panel is up every
+/// command but Close waits (`whenFree`).
 public struct QuotePilotCommands: Commands {
     let model: AppModel
 
@@ -24,24 +24,30 @@ public struct QuotePilotCommands: Commands {
                 .keyboardShortcut("o")
         }
         // Every change saves itself, so there's no Save. Close lives in the same group, so it's put
-        // back; it isn't held by whenFree, as closing the window is always allowed.
+        // back; it isn't held by whenFree, as closing the window is always allowed. The import and
+        // backup items follow it in the same group, which keeps their order under Close.
         CommandGroup(replacing: .saveItem) {
             Button("Close") { NSApp.keyWindow?.performClose(nil) }
                 .keyboardShortcut("w")
+            Divider()
+            Button("Import from Invoice Generator…") { model.whenFree { model.choosingFile = .legacyBackup } }
+            Button("Export Payments for Tax Time…") { model.whenFree { model.dialog = .taxExport } }
+            Divider()
+            Button("Back Up To…") { model.whenFree { model.exportBackupCopy() } }
+                .disabled(!model.canBackUp)
+            Button("Restore Backup…") { model.whenFree { model.dialog = .restore } }
         }
         CommandGroup(replacing: .printItem) {
             Button("Send by Mail…") {
                 model.whenFree {
-                    if let document = model.sendableDocument {
-                        model.send(document)
-                    } else {
-                        model.show(title: "Send by Mail", text: "Open a quote or select an invoice first.")
-                    }
+                    if let document = model.sendableDocument { model.send(document) }
                 }
             }
             .keyboardShortcut("s")
+            .disabled(model.sendableDocument == nil)
             Button("Save PDF…") { model.whenFree { model.exportPDF() } }
                 .keyboardShortcut("p")
+                .disabled(!model.canExportPDF)
         }
         CommandMenu("Go") {
             ForEach(AppSection.allCases) { section in

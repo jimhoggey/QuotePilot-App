@@ -7,6 +7,12 @@ public enum Dialog: Equatable {
     case emailPrompt(clientID: UUID, document: MailDocument)
     /// Check what the client accepted, then confirm.
     case acceptance(AcceptanceReview)
+    /// What an import brought in, and what to do by hand.
+    case importReport(ImportReport)
+    /// Choose the financial year for the payments CSV.
+    case taxExport
+    /// Choose a daily backup to restore.
+    case restore
 }
 
 /// A Windows 95 dialog: navy title bar, grey body, bevelled edge.
@@ -113,6 +119,12 @@ struct DialogOverlay: View {
             EmailPromptView(model: model, clientID: clientID, document: document)
         case .acceptance(let review):
             AcceptanceReviewView(model: model, review: review)
+        case .importReport(let report):
+            ImportReportView(model: model, report: report)
+        case .taxExport:
+            TaxExportView(model: model)
+        case .restore:
+            RestoreView(model: model)
         }
     }
 }

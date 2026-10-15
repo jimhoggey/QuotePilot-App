@@ -45,9 +45,10 @@ import QuotePilotCore
         #expect(model.loadState == .ready)
         #expect(model.library.quote(quoteID) != nil)
         #expect(FileManager.default.fileExists(atPath: model.store.libraryURL.path))
-        #expect(model.message?.title == "Backup Restored")
-        // There was no file to keep, so the message doesn't mention one.
-        #expect(model.message?.text == "Quote Pilot restored library-2026-10-15.json.")
+        // No box: the status bar says it, and Activity keeps the entry.
+        #expect(model.message == nil)
+        #expect(model.statusNote?.text == "Restored the 15 Oct 2026 backup")
+        #expect(model.library.activity.first?.message == "Restored the backup library-2026-10-15.json")
     }
 
     @Test func startingEmptyLeavesTheBackupAlone() throws {
@@ -185,6 +186,8 @@ import QuotePilotCore
         let kept = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("library-replaced-") }
         #expect(kept.count == 1)
         #expect(model.library.activity.first?.message.hasPrefix("Restored the backup") == true)
+        #expect(model.message == nil)
+        #expect(model.statusNote?.text == "Restored the 15 Oct 2026 backup")
     }
 
     @Test func anExistingLibraryIsBackedUpOnLaunch() throws {
@@ -235,10 +238,14 @@ import QuotePilotCore
 
     @Test func savePDFNeedsAQuoteOrAnInvoice() throws {
         let model = try UIFixture.model()
+        var beeps = 0
+        model.beep = { beeps += 1 }
+        #expect(!model.canExportPDF)
+        // The menu item is greyed out then; called anyway, it beeps and explains nothing.
         model.exportPDF()
         #expect(model.pendingExport == nil)
-        #expect(model.message != nil)
-        model.message = nil
+        #expect(model.message == nil)
+        #expect(beeps == 1)
         model.newQuote()
         #expect(model.canExportPDF)
         model.exportPDF()
@@ -285,7 +292,7 @@ import QuotePilotCore
         model.beep = { beeps += 1 }
         var ran = 0
 
-        model.pendingExport = PDFExport(data: Data("%PDF".utf8), fileName: "Q-0001.pdf")
+        model.pendingExport = FileExport(data: Data("%PDF".utf8), fileName: "Q-0001.pdf")
         model.whenFree { ran += 1 }
         #expect(ran == 0)
         #expect(beeps == 1)
@@ -312,6 +319,45 @@ import QuotePilotCore
         model.whenFree { ran += 1 }
         #expect(ran == 1)
         #expect(beeps == 1)
+    }
+
+    /// The toolbar, the section tree and the section behind a modal state are disabled by `isBusy`,
+    /// and `whenFree` waits on the same four conditions, so a click can't do what a menu command can't.
+    @Test func theWindowIsBusyWhileAnyModalStateIsUp() throws {
+        let model = try UIFixture.model()
+        #expect(!model.isBusy)
+
+        model.show(title: "Careful", text: "Read this first.")
+        #expect(model.isBusy)
+        model.message = nil
+        #expect(!model.isBusy)
+
+        model.dialog = .taxExport
+        #expect(model.isBusy)
+        model.dialog = nil
+        #expect(!model.isBusy)
+
+        model.pendingExport = FileExport(data: Data("%PDF".utf8), fileName: "Q-0001.pdf")
+        #expect(model.isBusy)
+        model.finishExport(.failure(CocoaError(.userCancelled)))
+        #expect(!model.isBusy)
+
+        model.choosingFile = .returnedQuote
+        #expect(model.isBusy)
+        model.choosingFile = nil
+        #expect(!model.isBusy)
+
+        // `whenFree` is the same test.
+        var beeps = 0
+        model.beep = { beeps += 1 }
+        for raise in [{ model.choosingFile = .legacyBackup }, { model.pendingExport = FileExport(data: Data(), fileName: "x.pdf") }] as [() -> Void] {
+            raise()
+            model.whenFree {}
+            #expect(model.isBusy)
+            model.choosingFile = nil
+            model.pendingExport = nil
+        }
+        #expect(beeps == 2)
     }
 
     /// `QP_LIBRARY_FOLDER` points the app at a demo library; its mailed copies go beside it, never
@@ -344,7 +390,7 @@ import QuotePilotCore
 
     @Test func cancellingTheSavePanelIsNotAnError() throws {
         let model = try UIFixture.model()
-        let export = PDFExport(data: Data("%PDF".utf8), fileName: "Q-0001.pdf")
+        let export = FileExport(data: Data("%PDF".utf8), fileName: "Q-0001.pdf")
 
         model.pendingExport = export
         model.finishExport(.failure(CocoaError(.userCancelled)))

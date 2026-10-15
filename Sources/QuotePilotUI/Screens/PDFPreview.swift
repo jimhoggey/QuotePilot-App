@@ -5,9 +5,9 @@ import QuotePilotPDF
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// A PDF for the save panel.
-struct PDFFile: FileDocument {
-    static var readableContentTypes: [UTType] { [.pdf] }
+/// A file for the save panel: a PDF, the tax-time CSV, or a copy of the library.
+struct ExportFile: FileDocument {
+    static var readableContentTypes: [UTType] { [.pdf, .commaSeparatedText, .json] }
 
     var data: Data
 

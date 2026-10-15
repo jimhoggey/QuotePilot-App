@@ -5,6 +5,7 @@ import Observation
 import QuotePilotCore
 import QuotePilotPDF
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Where the app keeps the library and the copies of mailed PDFs.
 public struct AppFolders: Equatable {
@@ -25,10 +26,25 @@ public struct AppFolders: Equatable {
     }
 }
 
-/// A PDF waiting for the save panel.
-public struct PDFExport {
+/// A file waiting for the save panel: a PDF, the tax-time CSV, or a copy of the library.
+public struct FileExport {
     public var data: Data
     public var fileName: String
+    public var contentType: UTType
+
+    public init(data: Data, fileName: String, contentType: UTType = .pdf) {
+        self.data = data
+        self.fileName = fileName
+        self.contentType = contentType
+    }
+
+    /// What a failed save calls it: "Couldn't save the PDF".
+    var kindName: String {
+        if contentType == .pdf { return "PDF" }
+        if contentType == .commaSeparatedText { return "CSV" }
+        if contentType == .json { return "backup" }
+        return "file"
+    }
 }
 
 /// A short line for the status bar's last cell, such as "Recorded $135.00 for INV-0003": what the
@@ -69,19 +85,32 @@ public final class AppModel {
     public var section: AppSection = .dashboard
     public var selectedQuoteID: UUID?
     /// The quote open in the editor; nil shows the quote list.
-    public var openQuoteID: UUID?
+    public var openQuoteID: UUID? {
+        // Back at the list, a quote that fell outside the search isn't left selected there.
+        didSet { if openQuoteID == nil { dropHiddenSelections() } }
+    }
     public var selectedInvoiceID: UUID?
     /// The invoice open in the editor; nil shows the invoice list.
-    public var openInvoiceID: UUID?
+    public var openInvoiceID: UUID? {
+        didSet { if openInvoiceID == nil { dropHiddenSelections() } }
+    }
     public var selectedClientID: UUID?
-    /// Each list's search text, kept while you move between sections.
-    public var findText: [AppSection: String] = [:]
+    /// Each list's search text, kept while you move between sections. A search that hides the
+    /// selected quote, invoice or client clears that selection (`dropHiddenSelections`).
+    public var findText: [AppSection: String] = [:] {
+        didSet { dropHiddenSelections() }
+    }
     /// Bumped by ⌘F; the current list's Find field takes the cursor.
     public var findRequest = 0
     public var message: MessageBox?
     /// What the last action did, for the status bar (see `note(_:)`).
     public private(set) var statusNote: StatusNote?
-    public var pendingExport: PDFExport?
+    public var pendingExport: FileExport? {
+        didSet { if let pendingExport { lastExport = pendingExport } }
+    }
+    /// The last file the save panel was asked for, kept for `finishExport`: SwiftUI may clear
+    /// `pendingExport` as the panel closes, before it reports.
+    @ObservationIgnored var lastExport: FileExport?
     /// The dialog panel showing over the window, if any (the email prompt, the acceptance review…).
     public var dialog: Dialog?
     /// What the open panel is choosing a file for, while it's showing.
@@ -216,14 +245,18 @@ public final class AppModel {
         choice.action()
     }
 
-    /// Runs `action` only when no message box, dialog, save panel or open panel is up, and beeps
-    /// otherwise. A message box or dialog is modal to the keyboard and the menus as well as the mouse,
-    /// as in Windows 95: every menu command goes through here, so a second command can't replace an
-    /// error that hasn't been read.
+    /// Whether a message box, dialog, save panel or open panel is up. The window behind is modal to
+    /// the keyboard and the menus as well as the mouse, as in Windows 95: the toolbar, the section
+    /// tree and the section are disabled while this is true, and `whenFree` waits on it. The save and
+    /// open panels count as well: a command behind one could change what it's saving or opening for.
+    public var isBusy: Bool {
+        message != nil || dialog != nil || pendingExport != nil || choosingFile != nil
+    }
+
+    /// Runs `action` only when nothing is `isBusy`, and beeps otherwise. Every menu command goes
+    /// through here, so a second command can't replace an error that hasn't been read.
     public func whenFree(_ action: () -> Void) {
-        // The save and open panels are modal as well: a command behind one could change what it's
-        // saving or opening for.
-        guard message == nil, dialog == nil, pendingExport == nil, choosingFile == nil else {
+        guard !isBusy else {
             beep()
             return
         }
@@ -233,16 +266,46 @@ public final class AppModel {
     /// Called when the save panel closes. Cancelling it is not an error.
     public func finishExport(_ result: Result<URL, Error>) {
         if case .failure(let error) = result, (error as? CocoaError)?.code != .userCancelled {
-            show(error, title: "Couldn't save the PDF")
+            show(error, title: "Couldn't save the \((pendingExport ?? lastExport)?.kindName ?? "file")")
         }
         pendingExport = nil
+        lastExport = nil
     }
 
     // MARK: Find
 
-    /// ⌘F
+    /// Whether a Find field is on screen: the Quotes, Invoices, Clients and Activity lists have one;
+    /// the Dashboard, Brand and an open editor don't.
+    public var showsFindField: Bool {
+        guard loadState == .ready else { return false }
+        switch section {
+        case .quotes: return openQuoteID.flatMap { library.quote($0) } == nil
+        case .invoices: return editingInvoiceID == nil
+        case .clients, .activity: return true
+        case .dashboard, .brand: return false
+        }
+    }
+
+    /// ⌘F: puts the cursor in the list's Find field, and beeps when there is none on screen.
     public func find() {
+        guard showsFindField else { return beep() }
         findRequest += 1
+    }
+
+    /// A search that hides the selected quote, invoice or client clears that selection, so Open,
+    /// Duplicate, Delete Draft, ⌘S and Save PDF never act on a row the list doesn't show. Run when a
+    /// search changes and when an editor closes onto its list. A selection is not cleared when the
+    /// library changes under it: renaming the selected client leaves their form open.
+    private func dropHiddenSelections() {
+        if let id = selectedQuoteID, !QuoteListView.visibleRows(self).contains(where: { $0.id == id }) {
+            selectedQuoteID = nil
+        }
+        if let id = selectedInvoiceID, !InvoicesView.visibleRows(self).contains(where: { $0.id == id }) {
+            selectedInvoiceID = nil
+        }
+        if let id = selectedClientID, !ClientsView.visibleClients(self).contains(where: { $0.id == id }) {
+            selectedClientID = nil
+        }
     }
 
     public func findBinding(_ section: AppSection) -> Binding<String> {
@@ -412,7 +475,7 @@ public final class AppModel {
 
     /// Copies a file into Assets under a fresh name ("logo-1A2B3C4D.png"), so a document already
     /// showing the old file never meets a half-copied one. Returns the new name.
-    private func copyAsset(_ url: URL, prefix: String) -> String? {
+    func copyAsset(_ url: URL, prefix: String) -> String? {
         let name = "\(prefix)-\(UUID().uuidString.prefix(8)).\(url.pathExtension.lowercased())"
         do {
             try FileManager.default.createDirectory(at: store.assetsFolder, withIntermediateDirectories: true)
@@ -463,14 +526,15 @@ public final class AppModel {
         }
     }
 
+    /// Whether there is something for Save PDF… to save; the menu item and the toolbar button are
+    /// greyed out when there isn't.
     public var canExportPDF: Bool { exportableContent != nil }
 
+    /// Opens the save panel for the PDF. With nothing to save it only beeps: the menu item and the
+    /// toolbar button are greyed out then, so this is the fallback.
     public func exportPDF() {
-        guard let content = exportableContent else {
-            show(title: "Save PDF", text: "Open or select a quote or an invoice first.")
-            return
-        }
-        pendingExport = PDFExport(data: pdf(content), fileName: content.fileName)
+        guard let content = exportableContent else { return beep() }
+        pendingExport = FileExport(data: pdf(content), fileName: content.fileName)
     }
 
     // MARK: Backups
@@ -484,14 +548,21 @@ public final class AppModel {
         return day.short
     }
 
-    /// Puts the newest backup back. The file it replaces is kept beside it by `LibraryStore`.
+    /// Puts the newest backup back (the unreadable-library screen's button, and the Library Missing
+    /// prompt's).
     public func restoreLatestBackup() {
         guard let backup = latestBackup else {
             show(title: "No Backup", text: "There's no backup to restore yet.", kind: .warning)
             return
         }
-        // When the library file is missing there's nothing to keep, and the message says no more.
-        let replacing = FileManager.default.fileExists(atPath: store.libraryURL.path)
+        restore(from: backup)
+    }
+
+    /// Replaces the library with a backup, at once: the Restore dialog says the library it replaces is
+    /// kept beside it (`LibraryStore` copies it to library-replaced-….json). A restore that worked
+    /// shows no box: the dialog closes and the status bar says which backup came back. A restore that
+    /// failed shows its box and leaves the dialog up, to choose another.
+    public func restore(from backup: URL) {
         do {
             library = try store.restore(from: backup, now: now())
         } catch {
@@ -500,16 +571,18 @@ public final class AppModel {
         }
         loadState = .ready
         lastSaved = now()
-        // The backup is back whatever happens next. When only the Activity note fails, its message
-        // box stays up (with a line saying the restore worked) instead of being replaced.
-        guard change("Couldn't note the restore in Activity", { $0.log("Restored the backup \(backup.lastPathComponent)") }) else {
+        openQuoteID = nil
+        openInvoiceID = nil
+        dialog = nil
+        // The backup is back whatever happens next. When the Activity note (or today's backup) then
+        // fails, that message box stays up (with a line saying the restore worked) instead of being
+        // replaced by the note.
+        guard change("Couldn't note the restore in Activity", { $0.log("Restored the backup \(backup.lastPathComponent)") }),
+              message == nil
+        else {
             message?.text += " The backup itself was restored."
             return
         }
-        var text = "Quote Pilot restored \(backup.lastPathComponent)."
-        if replacing {
-            text += " The file it couldn't read is kept in the same folder, named library-replaced-….json."
-        }
-        show(title: "Backup Restored", text: text)
+        note("Restored the \(Self.backupLabel(backup)) backup")
     }
 }

@@ -18,25 +18,26 @@ public struct RootView: View {
                 .overlay(WindowDragArea())
             switch model.loadState {
             case .ready:
-                // While a message box is up, nothing behind it takes a click, a Tab or a key.
+                // While a message box, dialog, save panel or open panel is up (`isBusy`), nothing
+                // behind it takes a click, a Tab or a key, as with the menus (`whenFree`).
                 Win95Toolbar(model: model)
-                    .disabled(boxIsUp)
+                    .disabled(model.isBusy)
                 HStack(spacing: 4) {
                     SectionTree(model: model)
                         .frame(width: 190)
-                        .disabled(boxIsUp)
+                        .disabled(model.isBusy)
                     // Exactly the room beside the tree, and clipped to it: a section that needs more
                     // is cut on the right instead of pushing the tree, or the window, aside.
                     sectionContent
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
-                        .disabled(boxIsUp)
+                        .disabled(model.isBusy)
                 }
                 .padding(4)
                 StatusBar(model: model)
             case .unreadable(let reason):
                 UnreadableLibraryView(model: model, reason: reason)
-                    .disabled(boxIsUp)
+                    .disabled(model.isBusy)
             }
         }
         .ignoresSafeArea(.container, edges: .top)
@@ -44,8 +45,9 @@ public struct RootView: View {
         .background(Win95.face)
         .preferredColorScheme(.light)
         .overlay { messageOverlay }
-        .fileExporter(isPresented: exporting, document: model.pendingExport.map { PDFFile(data: $0.data) },
-                      contentType: .pdf, defaultFilename: model.pendingExport?.fileName) { result in
+        .fileExporter(isPresented: exporting, document: model.pendingExport.map { ExportFile(data: $0.data) },
+                      contentType: model.pendingExport?.contentType ?? .pdf,
+                      defaultFilename: model.pendingExport?.fileName) { result in
             model.finishExport(result)
         }
         .fileImporter(isPresented: choosing, allowedContentTypes: model.choosingFile?.contentTypes ?? [.pdf]) { result in
@@ -56,8 +58,6 @@ public struct RootView: View {
             model.dropped(urls)
         }
     }
-
-    private var boxIsUp: Bool { model.message != nil || model.dialog != nil }
 
     private var windowTitle: String {
         if case .unreadable = model.loadState { return "Quote Pilot" }
@@ -231,8 +231,8 @@ struct SectionTree: View {
     }
 
     private func step(_ delta: Int) -> KeyPress.Result {
-        // A message box or dialog owns the keyboard; the tree is disabled behind it, this is a second guard.
-        guard model.message == nil, model.dialog == nil else { return .ignored }
+        // A message box, dialog or panel owns the keyboard; the tree is disabled behind it, this is a second guard.
+        guard !model.isBusy else { return .ignored }
         let all = AppSection.allCases
         let index = all.firstIndex(of: model.section) ?? 0
         model.go(to: all[min(max(index + delta, 0), all.count - 1)])
