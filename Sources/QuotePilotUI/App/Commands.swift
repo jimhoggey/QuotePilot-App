@@ -86,6 +86,9 @@ public struct QuotePilotCommands: Commands {
             Divider()
             Button("Check for Updates…") { model.whenFree { model.checkForUpdatesNow() } }
                 .disabled(!model.canCheckForUpdates)
+            // On once a check has found a newer version; it asks before it does anything.
+            Button("Install Update…") { model.whenFree { model.installUpdate() } }
+                .disabled(!model.canInstallUpdate)
         }
     }
 }

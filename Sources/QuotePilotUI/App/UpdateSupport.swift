@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 // What the updater needs from outside: the two values it remembers, the log it writes, and the one
@@ -80,6 +81,12 @@ struct UpdateServices {
     var settings: any UpdateSettings
     var log: UpdateLog
     var fetch: UpdateChecker.Fetch
+    /// Downloads, checks and swaps in the new app.
+    var installer: any UpdateInstalling
+    /// Whether the user can write to a folder (the one the app is in).
+    var folderIsWritable: (String) -> Bool = { FileManager.default.isWritableFile(atPath: $0) }
+    /// Closes Quote Pilot once the helper has been started.
+    var quit: () -> Void = { NSApp.terminate(nil) }
 
     /// Whether this is an app bundle. Under `swift run` and in the tests it isn't, and nothing checks
     /// for updates on its own there.
@@ -88,6 +95,6 @@ struct UpdateServices {
     static var live: UpdateServices {
         UpdateServices(version: AppVersion.current, bundlePath: Bundle.main.bundlePath,
                        settings: UserDefaultsUpdateSettings(), log: UpdateLog(url: UpdateLog.standardURL),
-                       fetch: UpdateChecker.live)
+                       fetch: UpdateChecker.live, installer: SystemInstaller())
     }
 }

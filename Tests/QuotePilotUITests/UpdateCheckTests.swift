@@ -232,11 +232,15 @@ import Testing
         #expect(model.availableUpdate == nil)
     }
 
-    @Test func aManualCheckThatFindsANewerVersionNotesItToo() async throws {
+    /// Someone who chose Check for Updates… and has an update is asked about it straight away; the
+    /// status bar and the Help menu say so as well.
+    @Test func aManualCheckThatFindsANewerVersionOffersItToo() async throws {
         let (model, _) = try makeModel(FetchScript(json: UpdateFixture.releaseJSON()))
         await model.checkForUpdates(manual: true)
         #expect(model.availableUpdate?.version == "1.1.0")
         #expect(model.statusNote?.text == "Quote Pilot 1.1.0 is available. Help → Install Update…")
+        #expect(model.message?.title == "Install Update")
+        #expect(model.canInstallUpdate)
     }
 
     @Test func checkForUpdatesIsOffWhileACheckIsRunning() async throws {

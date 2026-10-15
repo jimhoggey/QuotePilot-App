@@ -105,11 +105,23 @@ public struct ReleaseInfo: Equatable, Sendable {
 
 enum UpdateError: LocalizedError {
     case githubReplied(Int)
+    case downloadFailed(String)
+    case unzipFailed
+    case notTheApp(String)
+    case couldNotStartHelper(String)
 
     var errorDescription: String? {
         switch self {
         case .githubReplied(let status):
             return "GitHub answered with an error (\(status))."
+        case .downloadFailed(let reason):
+            return "The update couldn't be downloaded. \(reason)"
+        case .unzipFailed:
+            return "The downloaded update couldn't be unpacked."
+        case .notTheApp(let reason):
+            return "The downloaded update isn't the Quote Pilot it should be (\(reason)), so nothing was changed."
+        case .couldNotStartHelper(let reason):
+            return "The update couldn't be started, so nothing was changed. \(reason)"
         }
     }
 }

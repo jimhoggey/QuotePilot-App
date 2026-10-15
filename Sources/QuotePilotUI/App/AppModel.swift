@@ -124,6 +124,8 @@ public final class AppModel {
     public internal(set) var availableUpdate: ReleaseInfo?
     /// True while a check for updates is waiting for GitHub.
     public internal(set) var isCheckingForUpdates = false
+    /// True from the click on Update until Quote Pilot quits, or the install fails.
+    public internal(set) var isInstallingUpdate = false
     /// How the updater reaches GitHub, the settings and the log; tests swap it for fakes.
     @ObservationIgnored var updates: UpdateServices = .live
     /// Opens Mail drafts; tests use a fake.
