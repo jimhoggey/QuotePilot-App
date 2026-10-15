@@ -1,3 +1,4 @@
+import AppKit
 import QuotePilotCore
 import SwiftUI
 
@@ -113,6 +114,25 @@ public enum DetailsLayout {
         }
     }
 
+    /// The room the columns get: what is inside the list, less the strip a classic always-visible
+    /// scroller takes from the rows (0 when scrollers float over the content).
+    public static func columnsWidth(total: CGFloat, legacyScroller: CGFloat) -> CGFloat {
+        max(0, total - legacyScroller)
+    }
+
+    /// How wide the scroller is right now: 0 unless the Mac is set to always show scroll bars
+    /// (or a mouse is attached), which makes them classic scrollers beside the rows.
+    static var legacyScrollerWidth: CGFloat {
+        guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    }
+
+    /// The selection, but only when it is one of these rows (it may have been deleted or filtered out).
+    static func visibleSelection<Row, ID: Hashable>(_ selection: ID?, in rows: [Row], id: KeyPath<Row, ID>) -> ID? {
+        guard let selection, rows.contains(where: { $0[keyPath: id] == selection }) else { return nil }
+        return selection
+    }
+
     /// A stable sort: rows that compare equal keep their order.
     public static func sorted<Row>(_ rows: [Row], by value: (Row) -> SortValue, ascending: Bool) -> [Row] {
         rows.enumerated()
@@ -136,7 +156,12 @@ public struct DetailsList<Row, ID: Hashable>: View {
     let onOpen: ((ID) -> Void)?
     let rowMenu: ((ID) -> AnyView)?
     @State private var sort: DetailsSort?
+    @State private var scrollerReserve: CGFloat = DetailsLayout.legacyScrollerWidth
     @FocusState private var focused: Bool
+    /// Lets a test draw the list as if it had keyboard focus; a real focus needs a key window.
+    var forcedFocus: Bool?
+
+    private var isFocused: Bool { forcedFocus ?? focused }
 
     public init(_ rows: [Row], id: KeyPath<Row, ID>, columns: [DetailsColumn<Row>], selection: Binding<ID?>,
                 sort: DetailsSort? = nil, emptyText: String,
@@ -158,8 +183,13 @@ public struct DetailsList<Row, ID: Hashable>: View {
 
     public var body: some View {
         let ordered = orderedRows
+        // With nothing selected (or the selection gone), the dotted focus rectangle goes round the list.
+        let listShowsFocus = isFocused && DetailsLayout.visibleSelection(selection, in: ordered, id: id) == nil
+        // The empty state has no scroller, so it keeps the whole width.
+        let reserve = ordered.isEmpty ? 0 : scrollerReserve
         return GeometryReader { geometry in
-            let widths = DetailsLayout.widths(columns.map(\.width), total: geometry.size.width - 4)
+            let room = DetailsLayout.columnsWidth(total: geometry.size.width - 4, legacyScroller: reserve)
+            let widths = DetailsLayout.widths(columns.map(\.width), total: room)
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
                     header(widths)
@@ -181,11 +211,15 @@ public struct DetailsList<Row, ID: Hashable>: View {
                 .focused($focused)
                 .onKeyPress(.upArrow) { step(-1, ordered, proxy) }
                 .onKeyPress(.downArrow) { step(1, ordered, proxy) }
-                .onKeyPress(.return) { openSelection() }
+                .onKeyPress(.return) { openSelection(ordered) }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
+            scrollerReserve = DetailsLayout.legacyScrollerWidth
         }
         .background(Win95.field)
         .overlay(Bevel(.sunken))
+        .overlay(listShowsFocus ? FocusRect().padding(3) : nil)
         .clipped()
     }
 
@@ -225,7 +259,7 @@ public struct DetailsList<Row, ID: Hashable>: View {
         let rowID = row[keyPath: id]
         let selected = rowID == selection
         let base = DetailsRowView(row: row, columns: columns, widths: widths, selected: selected,
-                                  showsFocus: selected && focused)
+                                  showsFocus: selected && isFocused)
             .id(rowID)
             .onTapGesture(count: 2) {
                 selection = rowID
@@ -277,9 +311,9 @@ public struct DetailsList<Row, ID: Hashable>: View {
         return .handled
     }
 
-    private func openSelection() -> KeyPress.Result {
-        guard let selection, let onOpen else { return .ignored }
-        onOpen(selection)
+    private func openSelection(_ ordered: [Row]) -> KeyPress.Result {
+        guard let visible = DetailsLayout.visibleSelection(selection, in: ordered, id: id), let onOpen else { return .ignored }
+        onOpen(visible)
         return .handled
     }
 }
@@ -304,7 +338,8 @@ struct DetailsRowView<Row>: View {
             }
         }
         .background(selected ? Win95.selection : Color.clear)
-        .overlay(showsFocus ? FocusRect() : nil)
+        // White dots: this rectangle always sits on the navy of the selected row.
+        .overlay(showsFocus ? FocusRect(color: Win95.highlight) : nil)
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

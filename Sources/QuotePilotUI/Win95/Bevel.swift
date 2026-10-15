@@ -51,7 +51,12 @@ public extension View {
 
 /// The dotted rectangle Windows 95 draws around the focused control.
 public struct FocusRect: View {
-    public init() {}
+    let color: Color
+
+    /// Black dots by default; pass white for a rectangle that sits on navy (a selected row).
+    public init(color: Color = Win95.dark) {
+        self.color = color
+    }
 
     public var body: some View {
         // Dots are whole 1 pt squares on every other point. A dashed stroke straddles pixels on a
@@ -70,7 +75,7 @@ public struct FocusRect: View {
                 dots.addRect(CGRect(x: size.width - 1, y: y, width: 1, height: 1))
                 y += 2
             }
-            context.fill(dots, with: .color(Win95.dark))
+            context.fill(dots, with: .color(color))
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
