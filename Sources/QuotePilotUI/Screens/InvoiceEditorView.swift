@@ -85,14 +85,12 @@ struct InvoiceEditorView: View {
                 if invoice.stage == .sent, invoice.payments.isEmpty {
                     Button("Void…") { model.voidInvoice(invoiceID) }
                         .disabled(!rules.canVoid)
-                        .help(rules.canVoid ? "Cancel this invoice; its number stays used"
-                              : "Final invoice \(rules.finalDeducting?.number ?? "") deducts this deposit. Void or delete it first.")
+                        .help(rules.deductedHelp ?? "Cancel this invoice; its number stays used")
                 }
                 if invoice.stage == .draft {
                     Button("Delete Draft") { model.deleteDraftInvoice(invoiceID) }
                         .disabled(!rules.canDelete)
-                        .help(rules.canDelete ? "Delete this draft; its number won't be used again"
-                              : "Final invoice \(rules.finalDeducting?.number ?? "") deducts this deposit. Void or delete it first.")
+                        .help(rules.deductedHelp ?? "Delete this draft; its number won't be used again")
                 }
                 if invoice.kind == .standalone {
                     Button("Duplicate") { model.duplicateInvoice(invoiceID) }

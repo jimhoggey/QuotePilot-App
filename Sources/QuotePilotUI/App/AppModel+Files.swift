@@ -4,6 +4,21 @@ import QuotePilotPDF
 import UniformTypeIdentifiers
 
 extension AppModel {
+    // MARK: What the File menu can run
+
+    /// Whether the library can be worked with. While it can't be read (`loadState` is unreadable) the
+    /// File menu greys out Read Returned Quote…, Import from Invoice Generator… and Export Payments
+    /// for Tax Time…, and the New commands: nothing they would make can be saved. Restore Backup… is
+    /// the one command that stays on, since it is the way out (`canRestoreBackup`).
+    public var libraryIsOpen: Bool { loadState == .ready }
+
+    /// Whether Restore Backup… has a backup to offer. A save sets `lastSaved`, which is read first so
+    /// the menu looks again when the first one makes the library's first backup.
+    public var canRestoreBackup: Bool {
+        _ = lastSaved
+        return !store.backups().isEmpty
+    }
+
     // MARK: Import from Invoice Generator
 
     /// Reads the old tool's backup file, adds what it holds that Quote Pilot doesn't have, and shows
@@ -23,7 +38,9 @@ extension AppModel {
         dialog = .importReport(report)
     }
 
-    /// Saves the old tool's logo into Assets as the brand logo. False when it isn't a usable image.
+    /// Saves the old tool's logo into Assets as the brand logo. False when it isn't a usable image or
+    /// can't be saved. It shows no message box of its own either way: the import report is already
+    /// up for it, and it carries a note saying the logo didn't come in.
     private func useImportedLogo(_ data: Data) -> Bool {
         let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
         let jpeg: [UInt8] = [0xFF, 0xD8, 0xFF]
@@ -39,9 +56,9 @@ extension AppModel {
             .appendingPathComponent("imported-logo-\(UUID().uuidString).\(ext)")
         defer { try? FileManager.default.removeItem(at: temporary) }
         guard (try? data.write(to: temporary)) != nil, Logo(url: temporary) != nil,
-              let name = copyAsset(temporary, prefix: "logo")
+              let name = try? copyAssetQuietly(temporary, prefix: "logo")
         else { return false }
-        return change("Couldn't use the imported logo") { $0.brand.logoFile = name }
+        return tryChange { $0.brand.logoFile = name } == nil
     }
 
     // MARK: Tax time

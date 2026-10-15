@@ -138,6 +138,80 @@ import QuotePilotCore
         #expect(model.selectedClientID == nil)
     }
 
+    /// Not only a new search or a closing editor: any change that takes the selected row out of the
+    /// search clears it too. Recording an invoice's last payment while the list is searched for "part".
+    @Test func aChangeThatHidesTheSelectedRowClearsTheSelection() throws {
+        let model = try UIFixture.sampleModel()
+        let invoice = try #require(model.library.invoices.first { $0.number == "INV-0003" })
+        model.section = .invoices
+        model.selectedInvoiceID = invoice.id
+        model.findText[.invoices] = "part"
+        #expect(model.selectedInvoiceID == invoice.id)
+        #expect(model.sendableDocument == .invoice(invoice.id))
+
+        // Part of what's owing: still part paid, still shown, still selected.
+        var entry = try #require(model.newPaymentEntry(for: invoice.id))
+        entry.amount = "$10.00"
+        #expect(model.recordPayment(entry))
+        #expect(model.selectedInvoiceID == invoice.id)
+
+        // The rest: it is Paid now, which the search hides, so nothing is left selected.
+        let rest = try #require(model.newPaymentEntry(for: invoice.id))
+        #expect(model.recordPayment(rest))
+        #expect(model.library.invoice(invoice.id)?.status(on: model.today) == .paid)
+        #expect(!InvoicesView.visibleRows(model).contains { $0.id == invoice.id })
+        #expect(model.selectedInvoiceID == nil)
+        #expect(model.sendableDocument == nil)
+        #expect(!model.canExportPDF)
+        #expect(model.payableInvoiceID == nil)
+    }
+
+    @Test func aQuoteAcceptedOutOfTheSearchIsNotLeftSelected() throws {
+        let model = try UIFixture.sampleModel()
+        let quote = try #require(model.library.quote(number: "Q-0002"))
+        model.section = .quotes
+        model.selectedQuoteID = quote.id
+        model.findText[.quotes] = "sent"
+        #expect(model.selectedQuoteID == quote.id)
+        model.change("test") {
+            try $0.recordAcceptance(Acceptance(source: .byHand, accepted: [], declined: ["01", "02"]), forQuote: quote.id)
+        }
+        #expect(model.library.quote(quote.id)?.stage == .declined)
+        #expect(model.selectedQuoteID == nil)
+        #expect(!model.canExportPDF)
+    }
+
+    /// A change that fails saves nothing and so hides nothing: the selection stays.
+    @Test func aRefusedChangeLeavesTheSelectionAlone() throws {
+        let model = try UIFixture.sampleModel()
+        let invoice = try #require(model.library.invoices.first { $0.number == "INV-0003" })
+        model.section = .invoices
+        model.selectedInvoiceID = invoice.id
+        model.findText[.invoices] = "part"
+        var entry = try #require(model.newPaymentEntry(for: invoice.id))
+        entry.amount = "$9,999.00"
+        #expect(!model.recordPayment(entry))
+        #expect(model.selectedInvoiceID == invoice.id)
+        #expect(model.message != nil)
+    }
+
+    /// The one exception: renaming the selected client leaves their form open, whatever the search
+    /// says, or the form would vanish under the cursor on the keystroke that stops matching.
+    @Test func renamingTheSelectedClientLeavesTheirFormOpen() throws {
+        let model = try UIFixture.sampleModel()
+        var acme = try #require(model.library.clients.first { $0.name == "Acme Test Co" })
+        model.section = .clients
+        model.selectedClientID = acme.id
+        model.findText[.clients] = "acme"
+        acme.name = "Zed Test Co"
+        model.updateClient(acme)
+        #expect(!ClientsView.visibleClients(model).contains { $0.id == acme.id })
+        #expect(model.selectedClientID == acme.id)
+        // Changing the search is when it clears.
+        model.findText[.clients] = "acme!"
+        #expect(model.selectedClientID == nil)
+    }
+
     /// A search in one list leaves the other lists' selections alone.
     @Test func aSearchOnlyClearsASelectionItHides() throws {
         let model = try UIFixture.sampleModel()

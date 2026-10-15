@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// The menu bar. A command that can't run is greyed out (Send by Mail…, Save PDF…, Back Up To…),
-/// not explained in a message box. While a message box, dialog, save panel or open panel is up every
+/// The menu bar. A command that can't run is greyed out (Send by Mail…, Save PDF…, Back Up To…, the
+/// import and export commands while the library can't be read, Restore Backup… with no backup), not
+/// explained in a message box. While a message box, dialog, save panel or open panel is up every
 /// command but Close waits (`whenFree`).
 public struct QuotePilotCommands: Commands {
     let model: AppModel
@@ -15,13 +16,17 @@ public struct QuotePilotCommands: Commands {
         CommandGroup(replacing: .newItem) {
             Button("New Quote") { model.whenFree { model.newQuote() } }
                 .keyboardShortcut("n")
+                .disabled(!model.libraryIsOpen)
             Button("New Invoice") { model.whenFree { model.newInvoice() } }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
+                .disabled(!model.libraryIsOpen)
             Button("New Client") { model.whenFree { model.newClient() } }
                 .keyboardShortcut("n", modifiers: [.command, .option])
+                .disabled(!model.libraryIsOpen)
             Divider()
             Button("Read Returned Quote…") { model.whenFree { model.choosingFile = .returnedQuote } }
                 .keyboardShortcut("o")
+                .disabled(!model.libraryIsOpen)
         }
         // Every change saves itself, so there's no Save. Close lives in the same group, so it's put
         // back; it isn't held by whenFree, as closing the window is always allowed. The import and
@@ -31,11 +36,15 @@ public struct QuotePilotCommands: Commands {
                 .keyboardShortcut("w")
             Divider()
             Button("Import from Invoice Generator…") { model.whenFree { model.choosingFile = .legacyBackup } }
+                .disabled(!model.libraryIsOpen)
             Button("Export Payments for Tax Time…") { model.whenFree { model.dialog = .taxExport } }
+                .disabled(!model.libraryIsOpen)
             Divider()
             Button("Back Up To…") { model.whenFree { model.exportBackupCopy() } }
                 .disabled(!model.canBackUp)
+            // The one command that works while the library can't be read; with no backup it has nothing to offer.
             Button("Restore Backup…") { model.whenFree { model.dialog = .restore } }
+                .disabled(!model.canRestoreBackup)
         }
         CommandGroup(replacing: .printItem) {
             Button("Send by Mail…") {

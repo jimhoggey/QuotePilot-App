@@ -111,6 +111,25 @@ import QuotePilotCore
         #expect(model.library.quote(number: "Q-0101") != nil)
     }
 
+    /// The logo can't be saved (here: a file sits where the Assets folder should be). That is said
+    /// once, as a note in the import report: no message box over it, since the report is the one place
+    /// the import says what is left to do.
+    @Test func aLogoThatCantBeSavedIsSaidInTheReportAndInNoBox() throws {
+        let model = try UIFixture.sampleModel()
+        #expect(FileManager.default.createFile(atPath: model.store.assetsFolder.path, contents: Data()))
+        model.importLegacyBackup(at: try UIFixture.file("b.json", Self.backup(logo: dataURL(UIFixture.pngData()))))
+        #expect(model.message == nil)
+        #expect(model.library.brand.logoFile == nil)
+        guard case .importReport(let report) = model.dialog else {
+            Issue.record("Expected the import report")
+            return
+        }
+        #expect(report.notes.contains { $0.contains("logo") && $0.contains("Brand page") })
+        // The documents came in all the same.
+        #expect(model.library.quote(number: "Q-0101") != nil)
+        #expect(report.addedQuotes == ["Q-0101"])
+    }
+
     @Test func theImportMenuItemOpensTheJSONPicker() throws {
         let model = try UIFixture.sampleModel()
         model.choosingFile = .legacyBackup
@@ -186,6 +205,45 @@ import QuotePilotCore
 
         // An existing library file counts from the start.
         #expect(try UIFixture.sampleModel().canBackUp)
+    }
+
+    /// The menu items read `libraryIsOpen` (Read Returned Quote…, Import from Invoice Generator…,
+    /// Export Payments for Tax Time…, and the New commands) and `canRestoreBackup` (Restore Backup…):
+    /// on the unreadable-library screen only restoring is on offer, and only when there is a backup.
+    @Test func theFileMenuOffersOnlyRestoreWhileTheLibraryCantBeRead() throws {
+        let model = try UIFixture.sampleModel()
+        #expect(model.libraryIsOpen)
+        #expect(model.canRestoreBackup, "a library that loaded makes today's backup")
+
+        let folder = try UIFixture.file("library.json", Data("not a library".utf8)).deletingLastPathComponent()
+        let unreadable = try UIFixture.model(folder: folder)
+        #expect(unreadable.loadState != .ready)
+        #expect(!unreadable.libraryIsOpen)
+        // No backup yet: Restore Backup… is greyed out too.
+        #expect(!unreadable.canRestoreBackup)
+
+        // With a backup beside it, Restore Backup… is the one command that works.
+        try FileManager.default.createDirectory(at: unreadable.store.backupsFolder, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: unreadable.store.backupsFolder.appendingPathComponent("library-2026-10-01.json"))
+        #expect(!unreadable.libraryIsOpen)
+        #expect(unreadable.canRestoreBackup)
+
+        // Restoring opens the library again.
+        let good = try UIFixture.sampleModel()
+        let backup = try #require(good.store.backups().first)
+        try FileManager.default.copyItem(at: backup, to: unreadable.store.backupsFolder.appendingPathComponent("library-2026-10-02.json"))
+        unreadable.restore(from: unreadable.store.backupsFolder.appendingPathComponent("library-2026-10-02.json"))
+        #expect(unreadable.libraryIsOpen)
+    }
+
+    /// Restore Backup… has nothing to offer on a new library, and is on once the first save has made a backup.
+    @Test func restoreBackupIsGreyedOutUntilThereIsABackup() throws {
+        let model = try UIFixture.model()
+        #expect(model.libraryIsOpen)
+        #expect(model.store.backups().isEmpty)
+        #expect(!model.canRestoreBackup)
+        model.newClient()
+        #expect(model.canRestoreBackup)
     }
 
     @Test func aDamagedLibraryIsNotOfferedAsABackup() throws {

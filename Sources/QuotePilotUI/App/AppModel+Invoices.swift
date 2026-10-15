@@ -231,14 +231,28 @@ struct InvoiceRules: Equatable {
 
     var canDelete: Bool { invoice.stage == .draft && !isDeducted }
 
+    /// What has to happen to the final invoice before this deposit can change, as a sentence: void or
+    /// delete it, or, when it has payments (a sent invoice with payments can be neither), remove them
+    /// and then void it.
+    var finalFirst: String? {
+        guard let final = finalDeducting else { return nil }
+        return final.payments.isEmpty ? "Void or delete \(final.number) first." : "Remove \(final.number)'s payments, then void it."
+    }
+
+    /// The Void… and Delete Draft tooltips while the final invoice deducts this deposit.
+    var deductedHelp: String? {
+        guard let final = finalDeducting, let first = finalFirst else { return nil }
+        return "Final invoice \(final.number) deducts this deposit. \(first)"
+    }
+
     /// The one sentence about this invoice's state, or none for an ordinary draft.
     var note: Note? {
         switch invoice.stage {
         case .void:
             return Note(text: "This invoice is void. It no longer counts as owed, and its number stays used.", warning: true)
         case .draft:
-            guard let final = finalDeducting else { return nil }
-            return Note(text: "Final invoice \(final.number) deducts this deposit, so its lines, GST and terms can't be changed. Void or delete \(final.number) first.",
+            guard let final = finalDeducting, let first = finalFirst else { return nil }
+            return Note(text: "Final invoice \(final.number) deducts this deposit, so its lines, GST and terms can't be changed. \(first)",
                         warning: false)
         case .sent:
             // Payments come first: they are what stops it being voided, and a deduction only matters after.
@@ -247,7 +261,8 @@ struct InvoiceRules: Equatable {
                             warning: false)
             }
             if let final = finalDeducting {
-                return Note(text: "This invoice has been sent, so it can't be changed. Final invoice \(final.number) deducts it, so void or delete \(final.number) before voiding this one.",
+                let first = final.payments.isEmpty ? "void or delete \(final.number)" : "remove \(final.number)'s payments, then void it,"
+                return Note(text: "This invoice has been sent, so it can't be changed. Final invoice \(final.number) deducts it, so \(first) before voiding this one.",
                             warning: false)
             }
             return Note(text: "This invoice has been sent, so it can't be changed. If something's wrong, void it and draft a new one.",

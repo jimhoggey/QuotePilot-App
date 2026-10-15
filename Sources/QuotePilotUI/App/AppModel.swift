@@ -185,22 +185,31 @@ public final class AppModel {
     /// When the edit or the save fails, nothing changes and a message box says why.
     @discardableResult
     public func change(_ failureTitle: String, _ edit: (inout Library) throws -> Void) -> Bool {
-        guard loadState == .ready else {
-            show(LibraryStore.StoreError.wouldOverwriteUnreadableLibrary, title: failureTitle)
+        if let error = tryChange(edit) {
+            show(error, title: failureTitle)
             return false
         }
+        return true
+    }
+
+    /// `change` without its message box: nil when the change was made and saved, otherwise why not,
+    /// with nothing changed. For a step that already has its own place on screen to say so (the
+    /// import report's notes), so one action never shows two.
+    func tryChange(_ edit: (inout Library) throws -> Void) -> Error? {
+        guard loadState == .ready else { return LibraryStore.StoreError.wouldOverwriteUnreadableLibrary }
         var copy = library
         do {
             try edit(&copy)
             try store.save(copy)
         } catch {
-            show(error, title: failureTitle)
-            return false
+            return error
         }
         library = copy
         lastSaved = now()
+        // The change may have taken the selected quote or invoice out of the list's search.
+        dropHiddenSelections(afterChange: true)
         backUpIfDue()
-        return true
+        return nil
     }
 
     /// Today's backup, tried once a day.
@@ -294,16 +303,18 @@ public final class AppModel {
 
     /// A search that hides the selected quote, invoice or client clears that selection, so Open,
     /// Duplicate, Delete Draft, ⌘S and Save PDF never act on a row the list doesn't show. Run when a
-    /// search changes and when an editor closes onto its list. A selection is not cleared when the
-    /// library changes under it: renaming the selected client leaves their form open.
-    private func dropHiddenSelections() {
+    /// search changes, when an editor closes onto its list, and after every change that saved (a
+    /// payment that makes an invoice Paid hides it from a "sent" search). A change leaves the selected
+    /// client alone (`afterChange`): renaming them leaves their form open, where clearing it would
+    /// close the form under the cursor on the keystroke that stops matching the search.
+    private func dropHiddenSelections(afterChange: Bool = false) {
         if let id = selectedQuoteID, !QuoteListView.visibleRows(self).contains(where: { $0.id == id }) {
             selectedQuoteID = nil
         }
         if let id = selectedInvoiceID, !InvoicesView.visibleRows(self).contains(where: { $0.id == id }) {
             selectedInvoiceID = nil
         }
-        if let id = selectedClientID, !ClientsView.visibleClients(self).contains(where: { $0.id == id }) {
+        if !afterChange, let id = selectedClientID, !ClientsView.visibleClients(self).contains(where: { $0.id == id }) {
             selectedClientID = nil
         }
     }
@@ -476,15 +487,20 @@ public final class AppModel {
     /// Copies a file into Assets under a fresh name ("logo-1A2B3C4D.png"), so a document already
     /// showing the old file never meets a half-copied one. Returns the new name.
     func copyAsset(_ url: URL, prefix: String) -> String? {
-        let name = "\(prefix)-\(UUID().uuidString.prefix(8)).\(url.pathExtension.lowercased())"
         do {
-            try FileManager.default.createDirectory(at: store.assetsFolder, withIntermediateDirectories: true)
-            try FileManager.default.copyItem(at: url, to: store.assetsFolder.appendingPathComponent(name))
-            return name
+            return try copyAssetQuietly(url, prefix: prefix)
         } catch {
             show(error, title: "Couldn't copy \(url.lastPathComponent)")
             return nil
         }
+    }
+
+    /// `copyAsset` that throws instead of showing a message box.
+    func copyAssetQuietly(_ url: URL, prefix: String) throws -> String {
+        let name = "\(prefix)-\(UUID().uuidString.prefix(8)).\(url.pathExtension.lowercased())"
+        try FileManager.default.createDirectory(at: store.assetsFolder, withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: url, to: store.assetsFolder.appendingPathComponent(name))
+        return name
     }
 
     // MARK: Documents

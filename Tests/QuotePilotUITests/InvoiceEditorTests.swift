@@ -268,13 +268,41 @@ import QuotePilotCore
     // MARK: A deposit the final invoice deducts
 
     /// A 50/50 quote's deposit (INV-0001), then its final (INV-0002), which deducts the deposit.
-    func deductedDeposit(sent: Bool = false, paid: Bool = false) throws -> (model: AppModel, deposit: UUID, final: Invoice) {
+    func deductedDeposit(sent: Bool = false, paid: Bool = false, finalPaid: Bool = false)
+        throws -> (model: AppModel, deposit: UUID, final: Invoice) {
         var (library, quoteID) = try UIFixture.invoicedLibrary()
         let deposit = try #require(library.invoices.first).id
         if sent { try library.markSent(invoice: deposit) }
         if paid { try library.recordPayment(Payment(date: UIFixture.today, amount: Money(dollars: 100)), toInvoice: deposit) }
         let final = try library.draftNextInvoice(forQuote: quoteID, on: UIFixture.today)
+        if finalPaid {
+            // A final invoice with a payment is sent, and can't be voided until the payment is removed.
+            try library.markSent(invoice: final.id)
+            try library.recordPayment(Payment(date: UIFixture.today, amount: Money(dollars: 50)), toInvoice: final.id)
+        }
         return (try UIFixture.model(library), deposit, final)
+    }
+
+    /// When the final invoice has payments, "void or delete it first" can't be done as it stands: the
+    /// note and the Void/Delete tooltips say to remove its payments, then void it.
+    @Test func aFinalWithPaymentsSaysToRemoveThemThenVoid() throws {
+        let (model, deposit, final) = try deductedDeposit(finalPaid: true)
+        let rules = try #require(model.invoiceRules(deposit))
+        #expect(rules.finalDeducting?.id == final.id)
+        #expect(rules.note?.text == "Final invoice INV-0002 deducts this deposit, so its lines, GST and terms can't be changed. Remove INV-0002's payments, then void it.")
+        #expect(rules.deductedHelp == "Final invoice INV-0002 deducts this deposit. Remove INV-0002's payments, then void it.")
+
+        let (sentModel, sentDeposit, _) = try deductedDeposit(sent: true, finalPaid: true)
+        let sentRules = try #require(sentModel.invoiceRules(sentDeposit))
+        #expect(sentRules.note?.text == "This invoice has been sent, so it can't be changed. Final invoice INV-0002 deducts it, so remove INV-0002's payments, then void it, before voiding this one.")
+        #expect(sentRules.deductedHelp == "Final invoice INV-0002 deducts this deposit. Remove INV-0002's payments, then void it.")
+
+        // Without payments on the final the wording is as it was, in the note and the tooltips.
+        let (plainModel, plainDeposit, _) = try deductedDeposit()
+        let plain = try #require(plainModel.invoiceRules(plainDeposit))
+        #expect(plain.deductedHelp == "Final invoice INV-0002 deducts this deposit. Void or delete INV-0002 first.")
+        // An invoice nothing deducts has no such tooltip.
+        #expect(rulesFor(try UIFixture.sampleModel(), "INV-0002").deductedHelp == nil)
     }
 
     @Test func aDraftDepositTheFinalDeductsIsLocked() throws {
