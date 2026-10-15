@@ -11,11 +11,16 @@ public struct PDFStyle {
 
     public var accent: CGColor
     public var headingFontURL: URL?
+    /// Which named style of the heading font to draw (a variable font's Bold, say); nil is the font's
+    /// own default style.
+    public var headingFontStyle: FontStyle?
     public var logo: Logo?
 
-    public init(accentHex: String = "#0B6B66", headingFontURL: URL? = nil, logo: Logo? = nil) {
+    public init(accentHex: String = "#0B6B66", headingFontURL: URL? = nil, headingFontStyle: FontStyle? = nil,
+                logo: Logo? = nil) {
         accent = PDFStyle.color(hex: accentHex) ?? PDFStyle.color(hex: "#0B6B66")!
         self.headingFontURL = headingFontURL
+        self.headingFontStyle = headingFontStyle
         self.logo = logo
     }
 
@@ -23,7 +28,7 @@ public struct PDFStyle {
     public init(brand: Brand, assetsFolder: URL?) {
         let fontURL = brand.headingFontFile.flatMap { name in assetsFolder?.appendingPathComponent(name) }
         let logo = brand.logoFile.flatMap { name in assetsFolder.flatMap { Logo(url: $0.appendingPathComponent(name)) } }
-        self.init(accentHex: brand.accentHex, headingFontURL: fontURL, logo: logo)
+        self.init(accentHex: brand.accentHex, headingFontURL: fontURL, headingFontStyle: brand.headingFontStyle, logo: logo)
     }
 
     /// "#0B6B66" → an sRGB colour, or nil if it isn't six hex digits.
@@ -36,12 +41,11 @@ public struct PDFStyle {
                        alpha: 1)
     }
 
-    /// The brand's heading font, or the system font in semibold when there's none or it won't load.
+    /// The brand's heading font in its chosen style (the font's default style when none is chosen), or
+    /// the system font in semibold when there's no heading font or it won't load.
     func heading(_ size: CGFloat) -> CTFont {
-        if let url = headingFontURL,
-           let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor],
-           let first = descriptors.first {
-            return CTFontCreateWithFontDescriptor(first, size, nil)
+        if let url = headingFontURL, let font = FontFile.font(at: url, style: headingFontStyle, size: size) {
+            return font
         }
         return NSFont.systemFont(ofSize: size, weight: .semibold) as CTFont
     }

@@ -73,6 +73,9 @@ public struct Brand: Codable, Hashable, Sendable {
     /// File names inside the library's Assets folder.
     public var logoFile: String?
     public var headingFontFile: String?
+    /// Which named style of the heading font to use (Bold, ExtraBold Italic, …); nil is the font's own
+    /// default. Only meaningful beside `headingFontFile`.
+    public var headingFontStyle: FontStyle?
     public var quoteTerms = "Prices are fixed for the work listed. Work starts once this quote is accepted."
     public var invoiceTerms = "Please use the invoice number as your payment reference."
     public var emails = EmailTemplates.standard
@@ -335,7 +338,7 @@ extension Brand {
     enum CodingKeys: String, CodingKey {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
-        case hourlyRate
+        case hourlyRate, headingFontStyle
     }
 
     public init(from decoder: Decoder) throws {
@@ -356,6 +359,8 @@ extension Brand {
         paymentDueDays = try c.value(.paymentDueDays, or: d.paymentDueDays)
         quoteValidDays = try c.value(.quoteValidDays, or: d.quoteValidDays)
         hourlyRate = try c.decodeIfPresent(Money.self, forKey: .hourlyRate)
+        // A style that can't be read is the font's default, not an unreadable library.
+        headingFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .headingFontStyle)
     }
 }
 
