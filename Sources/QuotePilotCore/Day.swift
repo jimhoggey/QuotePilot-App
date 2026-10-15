@@ -6,10 +6,29 @@ public struct Day: Hashable, Comparable, Sendable, Codable, CustomStringConverti
     public let month: Int
     public let day: Int
 
+    /// The date must exist (not 31 February). A `Day` that can't be written as `iso` and read back
+    /// would make a library the next launch can't open, so this traps rather than carry one.
     public init(year: Int, month: Int, day: Int) {
+        precondition(Day.isValid(year: year, month: month, day: day),
+                     "Day(year:month:day:) needs a date that exists, not \(year)-\(month)-\(day)")
+        self.init(uncheckedYear: year, month: month, day: day)
+    }
+
+    /// For a date that has already been checked (`Day(iso:)`), and for tests that need a day that
+    /// doesn't exist. Everything else goes through `init(year:month:day:)`.
+    init(uncheckedYear year: Int, month: Int, day: Int) {
         self.year = year
         self.month = month
         self.day = day
+    }
+
+    /// Whether the date exists on the Gregorian calendar, with a four-digit year (the only years
+    /// `iso` can write and `Day(iso:)` can read back).
+    static func isValid(year: Int, month: Int, day: Int) -> Bool {
+        guard (1...9999).contains(year), (1...12).contains(month), day >= 1 else { return false }
+        let isLeapYear = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+        let daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        return day <= daysInMonth[month - 1]
     }
 
     /// The day a moment falls on in a time zone (this Mac's by default).
@@ -37,12 +56,9 @@ public struct Day: Hashable, Comparable, Sendable, Codable, CustomStringConverti
         guard let year = Int(iso.prefix(4)),
               let month = Int(iso.dropFirst(5).prefix(2)),
               let day = Int(iso.suffix(2)),
-              (1...12).contains(month), (1...31).contains(day)
+              Day.isValid(year: year, month: month, day: day)   // 2026-02-31 is rejected, not rolled over
         else { return nil }
-        let candidate = Day(year: year, month: month, day: day)
-        // 2026-02-31 would roll over to March; reject it.
-        guard Day(candidate.midnightUTC, timeZone: .gmt) == candidate else { return nil }
-        self = candidate
+        self.init(uncheckedYear: year, month: month, day: day)
     }
 
     public var iso: String { String(format: "%04d-%02d-%02d", year, month, day) }

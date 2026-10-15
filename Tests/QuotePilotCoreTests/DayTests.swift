@@ -58,6 +58,28 @@ import Testing
         #expect(Day(iso: "2028-02-29") == Day(year: 2028, month: 2, day: 29))
     }
 
+    @Test func knowsWhichDaysExist() {
+        #expect(!Day.isValid(year: 2026, month: 2, day: 31))
+        #expect(!Day.isValid(year: 2027, month: 2, day: 29))
+        #expect(Day.isValid(year: 2028, month: 2, day: 29))
+        #expect(!Day.isValid(year: 2100, month: 2, day: 29))   // not a leap year: divisible by 100, not 400
+        #expect(Day.isValid(year: 2000, month: 2, day: 29))
+        #expect(Day.isValid(year: 2026, month: 4, day: 30))
+        #expect(!Day.isValid(year: 2026, month: 4, day: 31))
+        #expect(Day.isValid(year: 2026, month: 12, day: 31))
+        #expect(!Day.isValid(year: 2026, month: 0, day: 15))
+        #expect(!Day.isValid(year: 2026, month: 13, day: 15))
+        #expect(!Day.isValid(year: 2026, month: 10, day: 0))
+        #expect(!Day.isValid(year: 0, month: 1, day: 1))
+        #expect(!Day.isValid(year: 10_000, month: 1, day: 1))
+    }
+
+    @Test func buildingADayThatDoesNotExistTraps() async {
+        await #expect(processExitsWith: .failure) { _ = Day(year: 2026, month: 2, day: 31) }
+        await #expect(processExitsWith: .failure) { _ = Day(year: 2027, month: 2, day: 29) }
+        await #expect(processExitsWith: .success) { _ = Day(year: 2028, month: 2, day: 29) }
+    }
+
     @Test func decodingRejectsBadDates() {
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode([Day].self, from: Data("[\"2026-02-31\"]".utf8))

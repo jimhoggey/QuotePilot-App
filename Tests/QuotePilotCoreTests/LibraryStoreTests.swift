@@ -51,6 +51,38 @@ import Testing
         #expect(reason.contains("newer version"))
     }
 
+    /// A library holding a day that doesn't exist: Day's public init refuses to build one, so this uses
+    /// the unchecked init the decoder shares with `Day(iso:)`.
+    func libraryWithAnImpossibleDay() -> Library {
+        var (library, _) = Fixture.acceptedLibrary()
+        library.quotes[0].issued = Day(uncheckedYear: 2026, month: 2, day: 31)
+        return library
+    }
+
+    @Test func neverWritesALibraryTheNextLaunchCantRead() throws {
+        let store = tempStore()
+        var good = Library()
+        good.brand.businessName = "Sample Studio"
+        try store.save(good)
+        let before = try Data(contentsOf: store.libraryURL)
+
+        let bad = libraryWithAnImpossibleDay()
+        #expect(String(decoding: try Library.makeEncoder().encode(bad), as: UTF8.self).contains("2026-02-31"))
+        #expect(throws: LibraryStore.StoreError.wouldWriteUnreadableLibrary) { try store.save(bad) }
+        #expect(try Data(contentsOf: store.libraryURL) == before)
+        guard case .loaded(let loaded) = store.load() else {
+            Issue.record("the saved library should still read")
+            return
+        }
+        #expect(loaded.brand.businessName == "Sample Studio")
+    }
+
+    @Test func aFirstSaveOfAnUnreadableLibraryWritesNothing() throws {
+        let store = tempStore()
+        #expect(throws: LibraryStore.StoreError.wouldWriteUnreadableLibrary) { try store.save(libraryWithAnImpossibleDay()) }
+        #expect(!FileManager.default.fileExists(atPath: store.libraryURL.path))
+    }
+
     @Test func backsUpOnceADayAndKeepsThirty() throws {
         let store = tempStore()
         try store.save(Library())

@@ -12,6 +12,8 @@ public struct LibraryStore: Sendable {
 
     public enum StoreError: Error, Equatable, Sendable {
         case wouldOverwriteUnreadableLibrary
+        /// The library as it stands encodes to JSON that this version can't read back.
+        case wouldWriteUnreadableLibrary
         case backupFromNewerVersion(Int)
     }
 
@@ -51,7 +53,8 @@ public struct LibraryStore: Sendable {
     }
 
     /// Writes a temporary file and swaps it in, so a crash can't leave half a library. Refuses to
-    /// replace a library file it can't read: that file needs restoring, not overwriting.
+    /// replace a library file it can't read (that file needs restoring, not overwriting), and refuses
+    /// to write one the next launch couldn't read.
     public func save(_ library: Library) throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: libraryURL.path), case .unreadable = load() {
@@ -60,10 +63,17 @@ public struct LibraryStore: Sendable {
         try writeLibrary(library)
     }
 
-    /// Encodes the library and writes it to library.json atomically. Callers decide whether the
+    /// The only place library.json is written: encodes the library, reads the result back the way the
+    /// next launch will, and only then replaces the file atomically. Callers decide whether the
     /// existing file may be replaced.
     private func writeLibrary(_ library: Library) throws {
-        try Library.makeEncoder().encode(library).write(to: libraryURL, options: .atomic)
+        let data = try Library.makeEncoder().encode(library)
+        do {
+            _ = try Library.makeDecoder().decode(Library.self, from: data)
+        } catch {
+            throw StoreError.wouldWriteUnreadableLibrary
+        }
+        try data.write(to: libraryURL, options: .atomic)
     }
 
     /// Copies the library into Backups/ at most once a day, keeping the newest 30. Makes no backup
