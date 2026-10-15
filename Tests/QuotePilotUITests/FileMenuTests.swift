@@ -106,7 +106,8 @@ import QuotePilotCore
             Issue.record("Expected the import report")
             return
         }
-        #expect(report.notes.contains { $0.contains("logo couldn't be read") })
+        #expect(report.notes.contains("The old tool's logo couldn't be read. Add your logo on the Brand page."))
+        #expect(!report.notes.contains { $0.contains("couldn't be saved") })
         // The documents came in all the same.
         #expect(model.library.quote(number: "Q-0101") != nil)
     }
@@ -124,7 +125,8 @@ import QuotePilotCore
             Issue.record("Expected the import report")
             return
         }
-        #expect(report.notes.contains { $0.contains("logo") && $0.contains("Brand page") })
+        #expect(report.notes.contains("The old tool's logo couldn't be saved. Add your logo on the Brand page."))
+        #expect(!report.notes.contains { $0.contains("couldn't be read") })
         // The documents came in all the same.
         #expect(model.library.quote(number: "Q-0101") != nil)
         #expect(report.addedQuotes == ["Q-0101"])
@@ -267,13 +269,28 @@ import QuotePilotCore
         #expect(model.statusNote?.text == "Restored the 15 Oct 2026 backup")
         #expect(StatusBarText.items(model.dashboard, lastSaved: model.lastSaved, note: model.statusNote,
                                     currencyCode: "AUD")[3] == "Restored the 15 Oct 2026 backup")
-        #expect(model.library.activity.first?.message == "Restored the backup library-2026-10-15.json")
+        #expect(model.library.activity.first?.message == "Restored the 15 Oct 2026 backup")
         // The editor that was open belongs to the library that was replaced.
         #expect(model.openQuoteID == nil)
         // The library it replaced is kept beside it.
         let folder = model.store.libraryURL.deletingLastPathComponent()
         let kept = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("library-replaced-") }
         #expect(kept.count == 1)
+    }
+
+    /// Activity names the backup by its day, the way the Restore dialog and the status note do, not by
+    /// its file name.
+    @Test func restoringLogsTheBackupByItsDayNotItsFileName() throws {
+        let model = try UIFixture.sampleModel()
+        let backup = try #require(model.store.backups().first)
+        #expect(backup.lastPathComponent == "library-2026-10-15.json")
+        model.restore(from: backup)
+        let entry = try #require(model.library.activity.first?.message)
+        #expect(entry == "Restored the \(AppModel.backupLabel(backup)) backup")
+        #expect(entry == "Restored the 15 Oct 2026 backup")
+        #expect(entry == model.statusNote?.text)
+        #expect(!entry.contains("library-"))
+        #expect(!entry.contains(".json"))
     }
 
     // MARK: Numbers are never reused, even across a restore
@@ -507,6 +524,49 @@ import QuotePilotCore
         model.openInvoiceID = nil
         model.selectedInvoiceID = try #require(model.library.invoices.first { $0.number == "INV-0003" }).id
         #expect(model.sendableDocument != nil)
+    }
+
+    /// A quote or invoice with no client has nobody to write to, so ⌘S, the toolbar's Send and the
+    /// menu item are greyed out (the editor's button too: it reads the same client). Choosing a client
+    /// turns them back on. `send` keeps its "No Client" box for any way in that is left.
+    @Test func nothingCanBeSentForADocumentWithNoClient() throws {
+        let mail = FakeMail()
+        let model = try UIFixture.sampleModel(mail: mail)
+        let client = try #require(model.library.clients.first)
+
+        // A quote: the sample's draft Q-0004 can be sent until its client is taken away.
+        var quote = try #require(model.library.quote(number: "Q-0004"))
+        model.openQuote(quote.id)
+        #expect(model.sendableDocument == .quote(quote.id))
+        quote.clientID = nil
+        model.updateQuote(quote)
+        #expect(model.library.quote(quote.id)?.clientID == nil)
+        #expect(model.sendableDocument == nil)
+        model.openQuoteID = nil
+        #expect(model.selectedQuoteID == quote.id)
+        #expect(model.sendableDocument == nil)
+
+        // The fallback still explains, and drafts nothing.
+        model.send(.quote(quote.id))
+        #expect(model.message?.title == "No Client")
+        #expect(mail.drafts.isEmpty)
+        model.message = nil
+
+        quote.clientID = client.id
+        model.updateQuote(quote)
+        #expect(model.sendableDocument == .quote(quote.id))
+
+        // An invoice: a new one-off invoice starts without a client.
+        model.newInvoice()
+        let invoiceID = try #require(model.openInvoiceID)
+        #expect(model.library.invoice(invoiceID)?.clientID == nil)
+        #expect(model.sendableDocument == nil)
+        model.openInvoiceID = nil
+        #expect(model.selectedInvoiceID == invoiceID)
+        #expect(model.sendableDocument == nil)
+
+        model.invoiceBinding(invoiceID).wrappedValue.clientID = client.id
+        #expect(model.sendableDocument == .invoice(invoiceID))
     }
 
     @Test func savingAPDFWithNothingToSaveBeepsInsteadOfExplaining() throws {

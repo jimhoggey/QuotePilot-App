@@ -4,13 +4,17 @@ import QuotePilotPDF
 
 extension AppModel {
     /// What ⌘S sends: the open quote on Quotes, the open or selected invoice on Invoices. A void
-    /// invoice no longer counts, so nothing is sent for it: the menu item, ⌘S and the toolbar's Send
-    /// are greyed out.
+    /// invoice no longer counts, and a quote or invoice with no client has nobody to write to, so
+    /// nothing is sent for either: the menu item, ⌘S and the toolbar's Send are greyed out, and the
+    /// editor's button too. (`send` still says "No Client" if it is reached some other way.)
     public var sendableDocument: MailDocument? {
         switch section {
-        case .quotes: return (openQuoteID ?? selectedQuoteID).map(MailDocument.quote)
+        case .quotes:
+            guard let id = openQuoteID ?? selectedQuoteID, library.quote(id)?.clientID != nil else { return nil }
+            return .quote(id)
         case .invoices:
-            guard let id = editingInvoiceID ?? selectedInvoiceID, library.invoice(id)?.stage != .void else { return nil }
+            guard let id = editingInvoiceID ?? selectedInvoiceID, let invoice = library.invoice(id),
+                  invoice.stage != .void, invoice.clientID != nil else { return nil }
             return .invoice(id)
         default: return nil
         }

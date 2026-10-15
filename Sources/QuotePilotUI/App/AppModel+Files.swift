@@ -32,16 +32,19 @@ extension AppModel {
             report = try LegacyImport.importBackup(data, into: &library, today: today)
         }
         guard saved, var report else { return }
-        if let logo = report.logoData, library.brand.logoFile == nil, !useImportedLogo(logo) {
-            report.notes.append("The old tool's logo couldn't be read. Add your logo on the Brand page.")
+        if let logo = report.logoData, library.brand.logoFile == nil, let problem = useImportedLogo(logo) {
+            report.notes.append("The old tool's logo \(problem). Add your logo on the Brand page.")
         }
         dialog = .importReport(report)
     }
 
-    /// Saves the old tool's logo into Assets as the brand logo. False when it isn't a usable image or
-    /// can't be saved. It shows no message box of its own either way: the import report is already
-    /// up for it, and it carries a note saying the logo didn't come in.
-    private func useImportedLogo(_ data: Data) -> Bool {
+    /// Saves the old tool's logo into Assets as the brand logo. Nil when it was saved. Otherwise what
+    /// went wrong, to finish "The old tool's logo …": "couldn't be read" when it isn't a usable image,
+    /// "couldn't be saved" when the image is fine but can't be stored. It shows no message box of its
+    /// own either way: the import report is already up for it, and it carries a note saying the logo
+    /// didn't come in.
+    private func useImportedLogo(_ data: Data) -> String? {
+        let unreadable = "couldn't be read"
         let png: [UInt8] = [0x89, 0x50, 0x4E, 0x47]
         let jpeg: [UInt8] = [0xFF, 0xD8, 0xFF]
         let ext: String
@@ -50,15 +53,16 @@ extension AppModel {
         } else if data.starts(with: jpeg) {
             ext = "jpg"
         } else {
-            return false
+            return unreadable
         }
         let temporary = FileManager.default.temporaryDirectory
             .appendingPathComponent("imported-logo-\(UUID().uuidString).\(ext)")
         defer { try? FileManager.default.removeItem(at: temporary) }
-        guard (try? data.write(to: temporary)) != nil, Logo(url: temporary) != nil,
-              let name = try? copyAssetQuietly(temporary, prefix: "logo")
-        else { return false }
-        return tryChange { $0.brand.logoFile = name } == nil
+        guard (try? data.write(to: temporary)) != nil, Logo(url: temporary) != nil else { return unreadable }
+        guard let name = try? copyAssetQuietly(temporary, prefix: "logo"),
+              tryChange({ $0.brand.logoFile = name }) == nil
+        else { return "couldn't be saved" }
+        return nil
     }
 
     // MARK: Tax time

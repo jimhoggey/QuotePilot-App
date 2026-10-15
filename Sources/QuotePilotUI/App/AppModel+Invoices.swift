@@ -68,7 +68,7 @@ extension AppModel {
     }
 
     /// The sentence the quote editor shows while `billingLocked(forQuote:)`.
-    public static let billingLockedNote = "This quote has invoices, so its client, lines and payment plan are locked. Its wording and dates can still change."
+    public static let billingLockedNote = "This quote has invoices, so its client, lines and payment plan are locked. Its title, dates, work summary and terms can still change."
 
     /// Whether "Job Complete" is on offer for a quote: it is accepted and the job isn't marked complete
     /// yet. It doesn't depend on whether an invoice is left to draft, because the job is finished
@@ -261,7 +261,7 @@ struct InvoiceRules: Equatable {
                             warning: false)
             }
             if let final = finalDeducting {
-                let first = final.payments.isEmpty ? "void or delete \(final.number)" : "remove \(final.number)'s payments, then void it,"
+                let first = final.payments.isEmpty ? "void or delete \(final.number)" : "remove \(final.number)'s payments and void \(final.number)"
                 return Note(text: "This invoice has been sent, so it can't be changed. Final invoice \(final.number) deducts it, so \(first) before voiding this one.",
                             warning: false)
             }

@@ -48,7 +48,7 @@ import QuotePilotCore
         // No box: the status bar says it, and Activity keeps the entry.
         #expect(model.message == nil)
         #expect(model.statusNote?.text == "Restored the 15 Oct 2026 backup")
-        #expect(model.library.activity.first?.message == "Restored the backup library-2026-10-15.json")
+        #expect(model.library.activity.first?.message == "Restored the 15 Oct 2026 backup")
     }
 
     @Test func startingEmptyLeavesTheBackupAlone() throws {
@@ -185,7 +185,7 @@ import QuotePilotCore
         #expect(model.library.quote(quoteID) != nil)
         let kept = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("library-replaced-") }
         #expect(kept.count == 1)
-        #expect(model.library.activity.first?.message.hasPrefix("Restored the backup") == true)
+        #expect(model.library.activity.first?.message == "Restored the 15 Oct 2026 backup")
         #expect(model.message == nil)
         #expect(model.statusNote?.text == "Restored the 15 Oct 2026 backup")
     }

@@ -27,13 +27,17 @@ public struct QuotePilotCommands: Commands {
             Button("Read Returned Quote…") { model.whenFree { model.choosingFile = .returnedQuote } }
                 .keyboardShortcut("o")
                 .disabled(!model.libraryIsOpen)
-        }
-        // Every change saves itself, so there's no Save. Close lives in the same group, so it's put
-        // back; it isn't held by whenFree, as closing the window is always allowed. The import and
-        // backup items follow it in the same group, which keeps their order under Close.
-        CommandGroup(replacing: .saveItem) {
-            Button("Close") { NSApp.keyWindow?.performClose(nil) }
-                .keyboardShortcut("w")
+            Divider()
+            Button("Send by Mail…") {
+                model.whenFree {
+                    if let document = model.sendableDocument { model.send(document) }
+                }
+            }
+            .keyboardShortcut("s")
+            .disabled(model.sendableDocument == nil)
+            Button("Save PDF…") { model.whenFree { model.exportPDF() } }
+                .keyboardShortcut("p")
+                .disabled(!model.canExportPDF)
             Divider()
             Button("Import from Invoice Generator…") { model.whenFree { model.choosingFile = .legacyBackup } }
                 .disabled(!model.libraryIsOpen)
@@ -46,18 +50,16 @@ public struct QuotePilotCommands: Commands {
             Button("Restore Backup…") { model.whenFree { model.dialog = .restore } }
                 .disabled(!model.canRestoreBackup)
         }
-        CommandGroup(replacing: .printItem) {
-            Button("Send by Mail…") {
-                model.whenFree {
-                    if let document = model.sendableDocument { model.send(document) }
-                }
-            }
-            .keyboardShortcut("s")
-            .disabled(model.sendableDocument == nil)
-            Button("Save PDF…") { model.whenFree { model.exportPDF() } }
-                .keyboardShortcut("p")
-                .disabled(!model.canExportPDF)
+        // The File menu's groups keep a fixed order (new, save, import/export, print), so everything
+        // that sits above Close is in the first group and Close is alone in the next. Every change
+        // saves itself, so there's no Save. Close isn't held by whenFree, as closing the window is
+        // always allowed.
+        CommandGroup(replacing: .saveItem) {
+            Button("Close") { NSApp.keyWindow?.performClose(nil) }
+                .keyboardShortcut("w")
         }
+        // Send by Mail… and Save PDF… moved up with the others, so Print has nothing of ours to hold.
+        CommandGroup(replacing: .printItem) {}
         CommandMenu("Go") {
             ForEach(AppSection.allCases) { section in
                 Button(section.title) { model.whenFree { model.go(to: section) } }

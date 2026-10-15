@@ -142,8 +142,21 @@ extension AppModel {
         }
         guard canRecordAcceptance(quote) else { return }
         openQuote(quote.id)
-        dialog = .acceptance(AcceptanceReview(quote: quote, proposal: quote.proposal(from: form, today: today),
+        dialog = .acceptance(acceptanceReview(quote, proposal: quote.proposal(from: form, today: today),
                                               source: .returnedPDF, fileName: url.lastPathComponent))
+    }
+
+    /// The review for a quote. An empty Date field (hand-ticking has none, and a client may leave it
+    /// blank on the PDF) starts as today, written the way people fill in the PDF's Date field
+    /// ("16/10/2026"). A date the client filled in is kept as it is.
+    private func acceptanceReview(_ quote: Quote, proposal: AcceptanceProposal, source: AcceptanceSource,
+                                  fileName: String?) -> AcceptanceReview {
+        var review = AcceptanceReview(quote: quote, proposal: proposal, source: source, fileName: fileName)
+        if review.clientDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let day = today
+            review.clientDate = String(format: "%02d/%02d/%04d", day.day, day.month, day.year)
+        }
+        return review
     }
 
     /// "Record Acceptance…": every line starts unticked. `fileName` is the PDF the client sent when it
@@ -156,7 +169,7 @@ extension AppModel {
         let proposal = quote.proposal(from: ReturnedForm(quoteNumber: quote.number, acceptAll: false, ticked: [],
                                                          unticked: quote.lineCodes),
                                       today: today)
-        dialog = .acceptance(AcceptanceReview(quote: quote, proposal: proposal, source: .byHand, fileName: fileName))
+        dialog = .acceptance(acceptanceReview(quote, proposal: proposal, source: .byHand, fileName: fileName))
     }
 
     /// Records the review as it stands, with no question. Nothing ticked records a decline: the

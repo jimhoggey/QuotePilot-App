@@ -294,7 +294,7 @@ import QuotePilotCore
 
         let (sentModel, sentDeposit, _) = try deductedDeposit(sent: true, finalPaid: true)
         let sentRules = try #require(sentModel.invoiceRules(sentDeposit))
-        #expect(sentRules.note?.text == "This invoice has been sent, so it can't be changed. Final invoice INV-0002 deducts it, so remove INV-0002's payments, then void it, before voiding this one.")
+        #expect(sentRules.note?.text == "This invoice has been sent, so it can't be changed. Final invoice INV-0002 deducts it, so remove INV-0002's payments and void INV-0002 before voiding this one.")
         #expect(sentRules.deductedHelp == "Final invoice INV-0002 deducts this deposit. Remove INV-0002's payments, then void it.")
 
         // Without payments on the final the wording is as it was, in the note and the tooltips.

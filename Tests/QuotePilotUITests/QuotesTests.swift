@@ -30,7 +30,7 @@ import QuotePilotCore
         let model = try UIFixture.model(library)
         #expect(model.billingLocked(forQuote: quoteID))
         #expect(AppModel.billingLockedNote
-            == "This quote has invoices, so its client, lines and payment plan are locked. Its wording and dates can still change.")
+            == "This quote has invoices, so its client, lines and payment plan are locked. Its title, dates, work summary and terms can still change.")
 
         // What is locked is what Core refuses: the client, the plan, GST and the lines...
         let binding = model.quoteBinding(quoteID)

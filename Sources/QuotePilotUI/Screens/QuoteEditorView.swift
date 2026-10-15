@@ -70,7 +70,8 @@ struct QuoteEditorView: View {
             HStack(spacing: 6) {
                 Button("Send by Mail…") { model.send(.quote(quoteID)) }
                     .buttonStyle(.win95Default)
-                    .help("Open a Mail draft with this quote attached (⌘S)")
+                    .disabled(quote.clientID == nil)
+                    .help(quote.clientID == nil ? "Choose a client first" : "Open a Mail draft with this quote attached (⌘S)")
                 if quote.stage != .draft, model.library.invoices(forQuote: quoteID).isEmpty {
                     Button("Record Acceptance…") { model.startHandTicking(quoteID) }
                         .help("Tick the lines the client accepted, when they couldn't fill in the PDF")
@@ -106,11 +107,12 @@ struct QuoteEditorView: View {
         // those controls are greyed out and a banner says why, instead of an error box per attempt.
         let locked = model.billingLocked(forQuote: quoteID)
         return VStack(alignment: .leading, spacing: 10) {
-            if current.stage != .draft {
-                NoteBanner("This quote has been sent. Changes here change Quote Pilot's copy, not the PDF your client already has.")
-            }
+            // One banner: the lock says more than the sent note does, so a sent quote that has
+            // invoices shows only the lock.
             if locked {
                 NoteBanner(AppModel.billingLockedNote)
+            } else if current.stage != .draft {
+                NoteBanner("This quote has been sent. Changes here change Quote Pilot's copy, not the PDF your client already has.")
             }
             GroupBox("Quote") {
                 VStack(alignment: .leading, spacing: 6) {

@@ -79,7 +79,8 @@ struct InvoiceEditorView: View {
                 if invoice.stage != .void {
                     Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
                         .buttonStyle(.win95Default)
-                        .help("Open a Mail draft with this invoice attached (⌘S)")
+                        .disabled(invoice.clientID == nil)
+                        .help(invoice.clientID == nil ? "Choose a client first" : "Open a Mail draft with this invoice attached (⌘S)")
                 }
                 // Greyed, not hidden, for a deposit the final invoice deducts: the note on the form says why.
                 if invoice.stage == .sent, invoice.payments.isEmpty {

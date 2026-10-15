@@ -65,8 +65,8 @@ struct QuoteListView: View {
                 Button("Delete Draft") { if let selected { model.deleteDraftQuote(selected.id) } }
                     .buttonStyle(.win95)
                     .disabled(selected?.stage != .draft)
-                Spacer()
                 FindField(text: model.findBinding(.quotes), request: model.findRequest)
+                Spacer()
                 Text(DashboardView.count(rows.count, "quote", "quotes"))
                     .font(Win95.body)
                     .foregroundStyle(Win95.text)

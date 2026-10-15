@@ -602,7 +602,7 @@ public final class AppModel {
         // replaced by the note.
         guard change("Couldn't note the restore in Activity", {
                   $0.keepUsed(issued)
-                  $0.log("Restored the backup \(backup.lastPathComponent)")
+                  $0.log("Restored the \(Self.backupLabel(backup)) backup")
               }),
               message == nil
         else {

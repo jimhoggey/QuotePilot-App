@@ -264,6 +264,46 @@ private struct SizeRecorder: Layout {
         #expect(model.message?.text == LibraryError.notSent.message)
     }
 
+    /// The Date field starts as today, written the way the PDF's own is filled in, when there's no date
+    /// to start from: hand-ticking, and a returned PDF the client left undated. A date the client
+    /// filled in stays.
+    @Test func theReviewsDateStartsAsTodayUnlessTheClientDatedIt() throws {
+        let model = try UIFixture.sampleModel()
+        let quote = try #require(model.library.quote(number: "Q-0002"))
+        #expect(model.today == Day(year: 2026, month: 10, day: 15))
+
+        // Hand-ticking has no PDF to read a date from.
+        model.startHandTicking(quote.id)
+        #expect(try review(model).source == .byHand)
+        #expect(try review(model).clientDate == "15/10/2026")
+
+        // So does a PDF with no tick boxes.
+        model.dialog = nil
+        model.readReturnedQuote(at: try flattened(model, keepingKeywords: true, name: "Q-0002 printed.pdf"))
+        #expect(try review(model).source == .byHand)
+        #expect(try review(model).clientDate == "15/10/2026")
+
+        // A returned PDF the client ticked and signed but didn't date.
+        model.dialog = nil
+        let data = model.pdf(try #require(model.quoteContent(quote.id)))
+        let undated = try UIFixture.file("Q-0002 undated.pdf", UIFixture.fill(data, ticking: ["01"], name: "Alex Sample"))
+        model.readReturnedQuote(at: undated)
+        let undatedReview = try review(model)
+        #expect(undatedReview.source == .returnedPDF)
+        #expect(undatedReview.clientName == "Alex Sample")
+        #expect(undatedReview.accepted == ["01"])
+        #expect(undatedReview.clientDate == "15/10/2026")
+
+        // A date the client filled in is kept, not replaced by today's.
+        model.dialog = nil
+        model.readReturnedQuote(at: try returned(model, ticking: ["01"]))
+        #expect(try review(model).clientDate == "16/10/2026")
+
+        // Confirming records the date the review shows.
+        model.confirmAcceptance(try review(model))
+        #expect(model.library.quote(quote.id)?.acceptance?.clientDate == "16/10/2026")
+    }
+
     /// What the review's button says and which warnings show follow the ticks as they are now, not
     /// as they were when the review opened.
     @Test func theButtonAndTheWarningsFollowTheTicks() throws {
