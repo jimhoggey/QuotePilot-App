@@ -4,12 +4,13 @@ A simple Mac app for the paperwork side of a one-person business: send a quote, 
 the lines they want right on the PDF, invoice for what they accepted, and see at a glance what's been
 paid and what's still owed.
 
-**Status:** in progress. The business rules, the PDFs and the first half of the Mac app are built and
-tested. Mail drafts, reading returned quotes, invoicing, payments and backups on screen come next.
+**Status:** the whole first version works. It covers quotes with a tick-box PDF, reading the
+returned PDF, invoices (deposit and balance, or full amount), payments, receipts, Mail drafts, a
+dashboard, and backups. It's built and tested on macOS 26 with Apple's Command Line Tools.
 
 ## Built and tested so far
 
-The engine the app will run on is written and covered by automated tests. Today you can try the quote, invoice and receipt PDFs with the `qp` tool; everything else runs once the app's screens arrive.
+The engine the app runs on is written and covered by automated tests. Everything below runs in the Mac app; the `qp` tool can also make sample PDFs and read a returned quote from the terminal.
 
 - **Quote PDFs the client can tick.** Every line has an ID and a tick box, with an "Accept all" box at
   the top and fields for the client's name and the date. The form is a standard PDF form (an AcroForm),
@@ -24,7 +25,7 @@ The engine the app will run on is written and covered by automated tests. Today 
 - **Safe storage.** One library file, saved atomically, never overwritten if it can't be read, with
   dated backups and restore.
 - **Import** of documents from the earlier single-page Invoice Generator.
-- **`qp`,** a small command-line tool for trying the PDFs before the app exists.
+- **`qp`,** a small command-line tool for trying the PDFs and a sample library from the terminal.
 
 ## The Mac app
 
@@ -33,18 +34,24 @@ glance.
 
 - **Dashboard:** what you're waiting to be paid, what's overdue, what's come in this financial year
   and what's quoted, in big numbers, with the lists behind them.
-- **Quotes:** a list, and an editor with a live preview of the PDF the client will tick.
+- **Quotes:** an editor with a live preview of the PDF the client will tick. Quote Pilot never sends
+  email itself. **Send by Mail** opens a Mail draft with the PDF attached; you press Send in Mail,
+  then Quote Pilot asks "Did you send it?".
+- **Returned quotes:** drop the client's PDF anywhere on the window, or use File → Read Returned
+  Quote…. Check the ticks and confirm. A 50/50 quote then drafts its deposit invoice. If the
+  client's app lost the ticks, tick the lines by hand.
+- **Invoices:** deposits and balances from quotes (**Draft Invoice Now**, **Job Complete**), one-off
+  invoices, payments, receipts, and voiding. Payments are entered in the invoice screen, with no
+  dialog.
 - **Clients**, **Brand** (logo, heading font, colour, wording and terms) and **Activity**, a log of
-  every change.
-- **Invoices** can be listed and saved as PDFs. Drafting, sending and payments come next.
+  what happened: quotes started and sent, Mail drafts, acceptances, invoices, payments and restores.
+  ⌘F finds in the Quotes, Invoices, Clients and Activity lists.
+- **File menu:** Import from Invoice Generator…, Export Payments for Tax Time…, Back Up To… and
+  Restore Backup…. Restore Backup… restores the daily backup you pick, with no extra question. The
+  status bar says which backup came back.
 - Every change saves as you make it, with a daily backup. If the library file is ever damaged,
-  Quote Pilot won't save over it and offers the latest backup instead.
-
-## Coming next
-
-Mail drafts with the PDF attached (you always press Send yourself), dropping a returned quote onto the
-window, ticking lines by hand, the invoice editor, payments and receipts, import from the old
-Invoice Generator, and backup and restore on screen.
+  Quote Pilot won't save over it and offers the latest backup instead. Every mailed PDF is also kept
+  in `~/Documents/Quote Pilot/<year>/`.
 
 ## Building
 

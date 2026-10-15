@@ -328,7 +328,7 @@ public struct PixelIconView: View {
                 for (x, char) in row.enumerated() {
                     guard let color = PixelIcon.palette[char] else { continue }
                     context.fill(Path(CGRect(x: CGFloat(x) * cell, y: CGFloat(y) * cell, width: cell, height: cell)),
-                                 with: .color(color))
+                                 with: .color(color), style: FillStyle(antialiased: false))
                 }
             }
         }

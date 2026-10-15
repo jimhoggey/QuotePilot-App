@@ -16,6 +16,9 @@ app="build/Quote Pilot.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$binary" "$app/Contents/MacOS/Quote Pilot"
 cp Resources/Info.plist "$app/Contents/Info.plist"
+# The Dock icon, drawn by the app's own pixel-art code.
+"$binary" --make-iconset build/AppIcon.iconset
+iconutil -c icns build/AppIcon.iconset -o "$app/Contents/Resources/AppIcon.icns"
 # An ad-hoc signature, so macOS runs the app on this Mac.
 codesign --force --sign - "$app"
 echo "Built $app"
