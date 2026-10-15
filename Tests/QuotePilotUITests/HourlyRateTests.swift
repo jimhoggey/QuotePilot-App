@@ -85,14 +85,78 @@ import QuotePilotCore
         #expect(stored[0].rate == .zero)
     }
 
-    @Test func addLineStartsInUnitsAtNothingEvenWithAnHourlyRate() throws {
+    /// Add Line on a quote, as the editor does it: `addLine(.blank(hourlyRate:))`.
+    @Test func addLineOnAQuoteStartsInHoursAtTheHourlyRate() throws {
         let (model, quoteID) = try modelWithADraft()
+        var quote = model.library.quote(quoteID)!
+        quote.addLine(.blank(hourlyRate: model.library.brand.hourlyRate))
+        let added = try #require(quote.lines.last)
+        #expect(added.unit == .hours)
+        #expect(added.rate == hourly)
+        #expect(added.title.isEmpty)
+        #expect(added.code == "02")
+        // The line that was there is not touched.
+        #expect(quote.lines[0].unit == .units)
+        #expect(quote.lines[0].rate == .zero)
+    }
+
+    @Test func addLineOnAQuoteWithNoHourlyRateStartsInUnitsAtNothing() throws {
+        let (model, quoteID) = try modelWithADraft()
+        var brand = model.library.brand
+        brand.hourlyRate = nil
+        model.updateBrand(brand)
         var quote = model.library.quote(quoteID)!
         quote.addLine(.blank(hourlyRate: model.library.brand.hourlyRate))
         let added = try #require(quote.lines.last)
         #expect(added.unit == .units)
         #expect(added.rate == .zero)
         #expect(added.code == "02")
+    }
+
+    /// Add Line on an invoice, as the editor does it: `lines.append(.blank(hourlyRate:))`.
+    @Test func addLineOnAnInvoiceStartsInHoursAtTheHourlyRate() throws {
+        var library = Library()
+        library.brand.hourlyRate = hourly
+        var invoice = library.newInvoice(on: UIFixture.today)
+        invoice.lines.append(.blank(hourlyRate: library.brand.hourlyRate))
+        let added = try #require(invoice.lines.last)
+        #expect(added.unit == .hours)
+        #expect(added.rate == hourly)
+        #expect(added.title.isEmpty)
+        try library.update(invoice)
+        #expect(library.invoice(invoice.id)?.lines.last?.rate == hourly)
+    }
+
+    @Test func addLineOnAnInvoiceWithNoHourlyRateStartsInUnitsAtNothing() throws {
+        var library = Library()
+        var invoice = library.newInvoice(on: UIFixture.today)
+        invoice.lines.append(.blank(hourlyRate: library.brand.hourlyRate))
+        let added = try #require(invoice.lines.last)
+        #expect(added.unit == .units)
+        #expect(added.rate == .zero)
+        // Blank on the Brand page is stored as no rate; a stray $0 means the same thing.
+        library.brand.hourlyRate = .zero
+        invoice.lines.append(.blank(hourlyRate: library.brand.hourlyRate))
+        #expect(invoice.lines.last?.unit == .units)
+    }
+
+    /// A rate typed over the filled-in one stays through the line table, and switching the unit away
+    /// and back keeps the typed rate too.
+    @Test func aRateTypedOverTheFilledInOneSurvivesTheLineTable() throws {
+        let (model, quoteID) = try modelWithADraft()
+        var quote = model.library.quote(quoteID)!
+        quote.addLine(.blank(hourlyRate: hourly))
+        var line = try #require(quote.lines.last)
+        line.rate = Money(dollars: 120)
+        let stored = try #require(quote.lines.replacing(line, id: line.id, hourlyRate: hourly, editable: true))
+        #expect(stored.last?.rate == Money(dollars: 120))
+        var days = line
+        days.unit = .days
+        let toDays = try #require(stored.replacing(days, id: line.id, hourlyRate: hourly, editable: true))
+        var back = days
+        back.unit = .hours
+        let backInHours = try #require(toDays.replacing(back, id: line.id, hourlyRate: hourly, editable: true))
+        #expect(backInHours.last?.rate == Money(dollars: 120))
     }
 
     // MARK: A field keeps up with a change made elsewhere

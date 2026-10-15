@@ -55,7 +55,7 @@ struct NextStep: Equatable {
         switch quote.status(on: today) {
         case .draft:
             let (sentence, action) = draftHint(hasClient: library.client(quote.clientID) != nil,
-                                               hasLines: !quote.lines.isEmpty,
+                                               lines: quote.lines, total: quote.totals.total,
                                                ready: "Next: Send by Mail… to send it to the client.")
             return NextStep(steps: progress(titles, at: 0), sentence: sentence, action: action)
 
@@ -129,7 +129,7 @@ struct NextStep: Equatable {
         switch invoice.stage {
         case .draft:
             let (sentence, action) = draftHint(hasClient: library.client(invoice.clientID) != nil,
-                                               hasLines: !invoice.lines.isEmpty,
+                                               lines: invoice.lines, total: invoice.lineTotals.total,
                                                ready: "Next: check it, then Send by Mail…")
             return NextStep(steps: progress(titles, at: 0), sentence: sentence, action: action)
 
@@ -155,10 +155,16 @@ struct NextStep: Equatable {
 
     // MARK: Pieces
 
-    /// What a draft needs, in order: a client, some work, then sending.
-    private static func draftHint(hasClient: Bool, hasLines: Bool, ready: String) -> (String, Action?) {
+    /// What a draft needs, in order: a client, some work (at least one line with a title, so a blank
+    /// line that Add Line just made doesn't count), a price (a total above $0), then sending. The
+    /// total is the lines' own total, with GST if the document is taxed, before any deposit share or
+    /// deduction on an invoice. Quotes and invoices share this rule.
+    private static func draftHint(hasClient: Bool, lines: [LineItem], total: Money,
+                                  ready: String) -> (String, Action?) {
         if !hasClient { return ("Next: choose the client.", nil) }
-        if !hasLines { return ("Next: add the work, one line each.", nil) }
+        let hasWork = lines.contains { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        if !hasWork { return ("Next: add the work, one line each.", nil) }
+        if total <= .zero { return ("Next: give the work a price.", nil) }
         return (ready, .send)
     }
 

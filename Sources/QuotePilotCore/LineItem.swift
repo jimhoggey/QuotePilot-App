@@ -47,12 +47,19 @@ public struct LineItem: Codable, Hashable, Identifiable, Sendable {
 }
 
 extension LineItem {
-    /// The unit a line added with Add Line starts in. Only a line in hours takes the hourly rate.
-    public static let newLineUnit: Unit = .units
+    /// The unit a line added with Add Line starts in: hours at the remembered hourly rate when there
+    /// is one, otherwise units. Blank or $0 on Brand means no rate (`Brand.hourlyRate`), as does nil.
+    public static func startingUnit(hourlyRate: Money?) -> Unit {
+        guard let hourlyRate, hourlyRate > .zero else { return .units }
+        return .hours
+    }
 
-    /// The blank line Add Line adds: no wording, `newLineUnit`, and the hourly rate if that unit is hours.
-    public static func blank(unit: Unit = newLineUnit, hourlyRate: Money?) -> LineItem {
-        LineItem(title: "", unit: unit, rate: .zero).withHourlyRate(hourlyRate, after: nil)
+    /// The blank line Add Line adds, for a quote and an invoice alike: no wording and, by default, the
+    /// unit `startingUnit` gives, which for hours takes the hourly rate. With no hourly rate it is a
+    /// line in units at $0, as it has always been.
+    public static func blank(unit: Unit? = nil, hourlyRate: Money?) -> LineItem {
+        LineItem(title: "", unit: unit ?? startingUnit(hourlyRate: hourlyRate), rate: .zero)
+            .withHourlyRate(hourlyRate, after: nil)
     }
 
     /// The one rule for the remembered hourly rate (`Brand.hourlyRate`): this line, with its rate set to `hourlyRate` when it

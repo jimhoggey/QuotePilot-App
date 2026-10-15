@@ -158,7 +158,7 @@ struct HourlyRateField: View {
                             alignment: .leading, prompt: "e.g. $90.00") { rate = Self.stored($0) }
                     .frame(width: 100)
             }
-            Text("New lines in hours start at this rate. You can still change any line.")
+            Text("With a rate here, new lines start in hours at this rate. You can still change any line.")
                 .font(Win95.small)
                 .fixedSize(horizontal: false, vertical: true)
         }

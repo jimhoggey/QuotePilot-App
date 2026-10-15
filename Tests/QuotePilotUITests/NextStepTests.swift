@@ -81,6 +81,100 @@ import QuotePilotCore
         #expect(next.action == .send)
     }
 
+    /// A library with one draft quote holding exactly `lines`, with a client unless asked otherwise.
+    func draft(_ lines: [LineItem], client: Bool = true, taxed: Bool = false) throws -> (library: Library, quote: UUID) {
+        var library = Library()
+        let sample = Client(name: "Sample Client Pty Ltd", contactName: "Sam Example")
+        library.addClient(sample)
+        var quote = library.newQuote(on: today, clientID: client ? sample.id : nil)
+        quote.taxed = taxed
+        for line in lines { quote.addLine(line) }
+        try library.update(quote)
+        return (library, quote.id)
+    }
+
+    let notYetReady = "Next: Send by Mail… to send it to the client."
+
+    @Test func aBlankLineIsNotTheWorkAdded() throws {
+        // What Add Line makes: no title, no price.
+        let next = try self.next(try draft([.blank(hourlyRate: nil)]))
+        #expect(states(next) == [.current, .todo, .todo, .todo, .todo])
+        #expect(next.sentence == "Next: add the work, one line each.")
+        #expect(next.action == nil)
+        // Several blank lines are no more than one.
+        let several = try self.next(try draft([.blank(hourlyRate: nil), .blank(hourlyRate: nil)]))
+        #expect(several.sentence == "Next: add the work, one line each.")
+    }
+
+    @Test func aLineWithAPriceButNoTitleIsNotTheWorkAdded() throws {
+        let next = try self.next(try draft([LineItem(title: "", rate: Money(dollars: 500))]))
+        #expect(next.sentence == "Next: add the work, one line each.")
+        #expect(next.action == nil)
+        // A title of spaces is no title.
+        let spaces = try self.next(try draft([LineItem(title: "   ", rate: Money(dollars: 500))]))
+        #expect(spaces.sentence == "Next: add the work, one line each.")
+        #expect(spaces.action == nil)
+    }
+
+    @Test func aTitledLineAtNothingSaysToGiveItAPrice() throws {
+        let next = try self.next(try draft([LineItem(title: "Design", rate: .zero)]))
+        #expect(states(next) == [.current, .todo, .todo, .todo, .todo])
+        #expect(next.sentence == "Next: give the work a price.")
+        #expect(next.action == nil)
+        // Every titled line at nothing, and a blank one beside them: still no price.
+        let several = try self.next(try draft([LineItem(title: "Design", rate: .zero),
+                                               LineItem(title: "Build", rate: .zero),
+                                               .blank(hourlyRate: nil)]))
+        #expect(several.sentence == "Next: give the work a price.")
+        #expect(several.action == nil)
+    }
+
+    @Test func aQuantityOfNothingLeavesTheTotalAtNothing() throws {
+        let next = try self.next(try draft([LineItem(title: "Design", quantity: 0, rate: Money(dollars: 600))]))
+        #expect(next.sentence == "Next: give the work a price.")
+    }
+
+    @Test func aTitleAndATotalAboveNothingIsReady() throws {
+        let next = try self.next(try draft([LineItem(title: "Design", rate: Money(cents: 1))]))
+        #expect(next.sentence == notYetReady)
+        #expect(next.action == .send)
+        // One priced line is enough; the other may stay at nothing.
+        let mixed = try self.next(try draft([LineItem(title: "Design", rate: .zero),
+                                             LineItem(title: "Build", rate: Money(dollars: 1200))]))
+        #expect(mixed.sentence == notYetReady)
+        #expect(mixed.action == .send)
+        // GST doesn't change it.
+        let taxed = try self.next(try draft([LineItem(title: "Design", rate: Money(dollars: 600))], taxed: true))
+        #expect(taxed.action == .send)
+    }
+
+    @Test func aDiscountThatTakesTheTotalToNothingOrBelowIsNotReady() throws {
+        let next = try self.next(try draft([LineItem(title: "Design", rate: Money(dollars: 600)),
+                                            LineItem(title: "Discount", rate: Money(dollars: -600))]))
+        #expect(next.sentence == "Next: give the work a price.")
+        #expect(next.action == nil)
+    }
+
+    @Test func theClientStillComesBeforeTheWorkAndThePrice() throws {
+        #expect(try self.next(try draft([.blank(hourlyRate: nil)], client: false)).sentence == "Next: choose the client.")
+        #expect(try self.next(try draft([LineItem(title: "Design", rate: .zero)], client: false)).sentence
+                == "Next: choose the client.")
+        #expect(try self.next(try draft([], client: false)).sentence == "Next: choose the client.")
+    }
+
+    @Test func theHintMovesOnAsTheLineIsFilledIn() throws {
+        var made = try draft([.blank(hourlyRate: nil)])
+        var quote = try #require(made.library.quote(made.quote))
+        #expect(try self.next(made).sentence == "Next: add the work, one line each.")
+        quote.lines[0].title = "Design"
+        try made.library.update(quote)
+        #expect(try self.next(made).sentence == "Next: give the work a price.")
+        quote.lines[0].rate = Money(dollars: 600)
+        try made.library.update(quote)
+        #expect(try self.next(made).sentence == notYetReady)
+        #expect(try self.next(made).action == .send)
+    }
+
     @Test func aSentQuoteWaitsForTheClientAndNamesNoButton() throws {
         let next = try self.next(try sent(try library()))
         #expect(states(next) == [.done, .current, .todo, .todo, .todo])
@@ -269,6 +363,60 @@ import QuotePilotCore
         let second = try self.next(invoice: noLines.invoice, in: noLines.library)
         #expect(second.sentence == "Next: add the work, one line each.")
         #expect(second.action == nil)
+    }
+
+    /// A library with one draft invoice holding exactly `lines`, with a client unless asked otherwise.
+    func invoiceDraft(_ lines: [LineItem], client: Bool = true,
+                      taxed: Bool = false) throws -> (library: Library, invoice: UUID) {
+        var library = Library()
+        let sample = Client(name: "Sample Client Pty Ltd")
+        library.addClient(sample)
+        var invoice = library.newInvoice(on: today, clientID: client ? sample.id : nil)
+        invoice.taxed = taxed
+        invoice.lines = lines
+        try library.update(invoice)
+        return (library, invoice.id)
+    }
+
+    @Test func aDraftInvoiceWithOnlyABlankLineStillSaysToAddTheWork() throws {
+        let blank = try invoiceDraft([.blank(hourlyRate: nil)])
+        let first = try self.next(invoice: blank.invoice, in: blank.library)
+        #expect(states(first) == [.current, .todo, .todo])
+        #expect(first.sentence == "Next: add the work, one line each.")
+        #expect(first.action == nil)
+        // A price with no title is not the work either, nor is a title of spaces.
+        for title in ["", "  "] {
+            let untitled = try invoiceDraft([LineItem(title: title, rate: Money(dollars: 150))])
+            let next = try self.next(invoice: untitled.invoice, in: untitled.library)
+            #expect(next.sentence == "Next: add the work, one line each.", "title \"\(title)\"")
+            #expect(next.action == nil)
+        }
+    }
+
+    @Test func aDraftInvoiceWithATitledLineAtNothingSaysToGiveItAPrice() throws {
+        let made = try invoiceDraft([LineItem(title: "Monthly care", rate: .zero), .blank(hourlyRate: nil)])
+        let next = try self.next(invoice: made.invoice, in: made.library)
+        #expect(states(next) == [.current, .todo, .todo])
+        #expect(next.sentence == "Next: give the work a price.")
+        #expect(next.action == nil)
+    }
+
+    @Test func aDraftInvoiceWithATitleAndATotalAboveNothingIsReady() throws {
+        let made = try invoiceDraft([LineItem(title: "Monthly care", rate: Money(cents: 1))])
+        let next = try self.next(invoice: made.invoice, in: made.library)
+        #expect(next.sentence == "Next: check it, then Send by Mail…")
+        #expect(next.action == .send)
+        let taxed = try invoiceDraft([LineItem(title: "Monthly care", rate: Money(dollars: 150))], taxed: true)
+        #expect(try self.next(invoice: taxed.invoice, in: taxed.library).action == .send)
+    }
+
+    @Test func aDraftInvoiceNeedsItsClientBeforeTheWorkAndThePrice() throws {
+        for lines in [[LineItem](), [.blank(hourlyRate: nil)], [LineItem(title: "Monthly care", rate: .zero)]] {
+            let made = try invoiceDraft(lines, client: false)
+            let next = try self.next(invoice: made.invoice, in: made.library)
+            #expect(next.sentence == "Next: choose the client.")
+            #expect(next.action == nil)
+        }
     }
 
     @Test func aSentInvoiceWithMoneyOwingWaitsForThePayment() throws {

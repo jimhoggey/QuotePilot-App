@@ -16,12 +16,46 @@ import Testing
         #expect(line.quantity == 1)
     }
 
-    /// Add Line starts in units today, so a new line has no rate to fill in until it is put in hours.
-    @Test func aNewLineStartsInUnitsAtNothing() {
-        #expect(LineItem.newLineUnit == .units)
+    /// With an hourly rate set, Add Line starts the line in hours at that rate.
+    @Test func addLineWithAnHourlyRateStartsInHoursAtThatRate() {
+        #expect(LineItem.startingUnit(hourlyRate: hourly) == .hours)
         let line = LineItem.blank(hourlyRate: hourly)
-        #expect(line.unit == .units)
-        #expect(line.rate == .zero)
+        #expect(line.unit == .hours)
+        #expect(line.rate == hourly)
+        #expect(line.title.isEmpty)
+        #expect(line.detail.isEmpty)
+        #expect(line.quantity == 1)
+        #expect(line.decision == nil)
+    }
+
+    /// With no hourly rate, Add Line is what it always was: a line in units at $0. Blank or $0 on Brand
+    /// is no rate at all.
+    @Test func addLineWithNoHourlyRateStartsInUnitsAtNothing() {
+        for noRate in [Money?.none, .some(.zero)] {
+            #expect(LineItem.startingUnit(hourlyRate: noRate) == .units)
+            let line = LineItem.blank(hourlyRate: noRate)
+            #expect(line == LineItem(id: line.id, title: "", unit: .units, rate: .zero))
+        }
+    }
+
+    /// Asking for a unit by name still gets that unit; only the hourly rate follows hours.
+    @Test func aUnitAskedForByNameIsKept() {
+        let inUnits = LineItem.blank(unit: .units, hourlyRate: hourly)
+        #expect(inUnits.unit == .units)
+        #expect(inUnits.rate == .zero)
+        #expect(LineItem.blank(unit: .days, hourlyRate: hourly).unit == .days)
+    }
+
+    /// A rate that is typed into the new line afterwards is the line's own, and a unit change keeps it.
+    @Test func aTypedRateIsNotOverwrittenOnALineThatStartedInHours() {
+        var line = LineItem.blank(hourlyRate: hourly)
+        line.rate = Money(dollars: 120)
+        #expect(line.withHourlyRate(hourly, after: line).rate == Money(dollars: 120))
+        var inUnits = line
+        inUnits.unit = .units
+        var backInHours = inUnits
+        backInHours.unit = .hours
+        #expect(backInHours.withHourlyRate(hourly, after: inUnits).rate == Money(dollars: 120))
     }
 
     @Test func aNewLineInDaysOrUnitsIsLeftAlone() {
