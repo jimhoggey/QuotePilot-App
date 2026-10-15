@@ -12,5 +12,8 @@ build/
 *.app
 *.zip
 
+# Work-in-progress checkouts of a branch
+.worktrees/
+
 # macOS
 .DS_Store
