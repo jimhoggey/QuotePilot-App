@@ -34,6 +34,30 @@ import Testing
         #expect(quote.nextLineCode() == "04")
     }
 
+    @Test func storingADraftRenumbersItsLinesInTheNewOrder() throws {
+        var (library, id) = Fixture.libraryWithQuote(stage: .draft)
+        var quote = library.quote(id)!
+        quote.lines.swapAt(0, 2)   // reordered, and not renumbered by the caller
+        #expect(quote.lineCodes == ["03", "02", "01"])
+        try library.update(quote)
+        let stored = library.quote(id)!
+        #expect(stored.lines.map(\.title) == ["Extra screens", "Build", "Discovery"])
+        #expect(stored.lineCodes == ["01", "02", "03"])
+        // What is stored is what sending freezes.
+        try library.markSent(quote: id)
+        #expect(library.quote(id)!.lineCodes == ["01", "02", "03"])
+    }
+
+    @Test func storingASentQuoteKeepsItsFrozenLineIDs() throws {
+        var (library, id) = Fixture.libraryWithQuote()
+        var quote = library.quote(id)!
+        quote.lines.swapAt(0, 2)
+        try library.update(quote)
+        let stored = library.quote(id)!
+        #expect(stored.lines.map(\.title) == ["Extra screens", "Build", "Discovery"])
+        #expect(stored.lineCodes == ["03", "02", "01"])
+    }
+
     @Test func aSentQuoteNeverReusesALineID() {
         let (library, id) = Fixture.libraryWithQuote()
         var quote = library.quote(id)!

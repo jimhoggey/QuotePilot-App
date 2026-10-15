@@ -51,6 +51,46 @@ import QuotePilotCore
         #expect(Sample.quote().proposal(from: form, today: Sample.today).accepted == ["01", "02", "03"])
     }
 
+    /// A draft whose last line was moved to the top without renumbering, so it still carries "03".
+    @Test func aDraftIsRenderedWithTheLineIDsSendingWillFreeze() throws {
+        var draft = Sample.quote()
+        draft.lines.insert(draft.lines.removeLast(), at: 0)
+        #expect(draft.lineCodes == ["03", "01", "02"])
+
+        // What sending freezes, on a library holding that same quote.
+        var library = Library()
+        library.quotes.append(draft)
+        try library.markSent(quote: draft.id)
+        let frozen = try #require(library.quote(draft.id))
+        #expect(frozen.lines.map(\.title) == ["Extra screens", "Discovery", "Build"])
+        #expect(frozen.lineCodes == ["01", "02", "03"])
+
+        let content = DocumentContent.quote(draft, client: Sample.client, brand: Sample.brand)
+        #expect(content.rows.map { "\($0.code) \($0.title)" } == frozen.lines.map { "\($0.code) \($0.title)" })
+
+        let data = DocumentRenderer.render(content, style: PDFStyle())
+        let form = try ReturnedQuoteReader.read(data)
+        #expect(form.ticked == [])
+        #expect(form.unticked == frozen.lineCodes)
+
+        // Down the page, each tick box sits on the row of the title that carries its ID.
+        let page = try #require(PDFDocument(data: data)?.page(at: 0))
+        let boxes = page.annotations
+            .compactMap { widget -> (code: String, bounds: CGRect)? in
+                guard case .line(let code)? = widget.fieldName.flatMap({ QuoteFormFields.parse($0) })?.part else { return nil }
+                return (code, widget.bounds)
+            }
+            .sorted { $0.bounds.minY > $1.bounds.minY }
+        #expect(boxes.map(\.code) == frozen.lineCodes)
+        for (box, line) in zip(boxes, frozen.lines) {
+            let row = CGRect(x: 0, y: box.bounds.minY - 1, width: page.bounds(for: .mediaBox).width,
+                             height: box.bounds.height + 2)
+            let text = page.selection(for: row)?.string ?? ""
+            #expect(text.contains(line.title), "\(line.title) isn't on the row of tick box \(box.code): \(text)")
+            #expect(text.hasPrefix(box.code), "tick box \(box.code) isn't beside its ID: \(text)")
+        }
+    }
+
     @Test func aFlattenedPDFHasNoForm() {
         // Drawing the page into a new PDF drops the form, the way printing to PDF does.
         let document = PDFDocument(data: quotePDF())!

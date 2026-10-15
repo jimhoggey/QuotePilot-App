@@ -52,6 +52,10 @@ public struct DocumentContent: Equatable {
 
 extension DocumentContent {
     public static func quote(_ quote: Quote, client: Client?, brand: Brand) -> DocumentContent {
+        // A draft's IDs follow its line order, and sending renumbers it. Show those IDs now, so a PDF
+        // never carries a code that sending would change.
+        var quote = quote
+        quote.renumberLinesIfDraft()
         let currency = brand.currencyCode
         let totals = quote.totals
         var totalLines: [TotalLine] = []
