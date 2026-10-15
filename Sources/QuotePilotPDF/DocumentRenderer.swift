@@ -21,13 +21,20 @@ public enum DocumentRenderer {
         layout.drawAll()
         writer.finish()
         guard content.formQuoteNumber != nil else { return data as Data }
-        return addForm(layout.fields, to: data as Data, content: content)
+        let withWidgets = addForm(layout.fields, to: data as Data, content: content)
+        // PDFKit leaves the catalog without an AcroForm, which other viewers need to fill the form.
+        if let standard = AcroFormWriter.addingAcroForm(to: withWidgets) { return standard }
+        assertionFailure("Couldn't add an AcroForm to the quote PDF; it will only be fillable in Apple's apps")
+        return withWidgets
     }
 
     /// Adds the form widgets PDFKit-side, where the drawing recorded them.
     static func addForm(_ fields: [PlacedField], to data: Data, content: DocumentContent) -> Data {
         guard let document = PDFDocument(data: data) else { return data }
         let ink = NSColor(cgColor: PDFStyle.ink) ?? .black
+        // A standard font, so each widget's default appearance names something every PDF viewer has.
+        // The system font's name (".AppleSystemUIFont") only Apple's apps can resolve.
+        let fieldFont = NSFont(name: "Helvetica", size: 10) ?? NSFont.systemFont(ofSize: 10)
         for field in fields {
             guard let page = document.page(at: field.page) else { continue }
             let widget = PDFAnnotation(bounds: field.rect, forType: .widget, withProperties: nil)
@@ -36,6 +43,7 @@ public enum DocumentRenderer {
                 widget.widgetFieldType = .button
                 widget.widgetControlType = .checkBoxControl
                 widget.buttonWidgetState = .offState
+                widget.font = fieldFont
                 widget.backgroundColor = .white
                 let border = PDFBorder()
                 border.lineWidth = 1
@@ -44,7 +52,7 @@ public enum DocumentRenderer {
             case .text:
                 widget.widgetFieldType = .text
                 widget.backgroundColor = NSColor(white: 0.96, alpha: 1)
-                widget.font = NSFont.systemFont(ofSize: 10)
+                widget.font = fieldFont
                 widget.fontColor = ink
             }
             // Named after the field type is set: setting the type resets the name, and PDFKit then
