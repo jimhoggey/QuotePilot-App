@@ -1385,6 +1385,10 @@ In `QuotePilotCommands.body`, inside `CommandGroup(replacing: .printItem)` befor
             .keyboardShortcut("s")
 ```
 
+In `BrandView.swift`'s `EmailsTab`, the banner says Mail drafts arrive in the next build. Change it to:
+"Quote Pilot fills in {client}, {contact}, {number}, {amount}, {due} and {business}. Send by Mail opens a
+draft with the PDF attached, and you always press Send yourself."
+
 In `QuoteEditorView.header(_:)`, add before the Duplicate button:
 
 ```swift
@@ -4070,6 +4074,13 @@ glance.
   Quote Pilot won't save over it and offers the latest backup instead. Every mailed PDF is also kept
   in `~/Documents/Quote Pilot/<year>/`.
 ```
+
+Two lines in `## Built and tested so far` are stale now that the app exists. Change them:
+- The intro sentence ("Today you can try the quote, invoice and receipt PDFs with the `qp` tool;
+  everything else runs once the app's screens arrive.") becomes "Everything below runs in the Mac
+  app; the `qp` tool can also make sample PDFs and read a returned quote from the terminal."
+- The `qp` bullet ("a small command-line tool for trying the PDFs before the app exists") becomes
+  "a small command-line tool for trying the PDFs and a sample library from the terminal."
 
 - [ ] **Step 6: Everything, every snapshot, and the build**
 
