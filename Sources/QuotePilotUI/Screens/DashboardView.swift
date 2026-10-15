@@ -1,8 +1,9 @@
 import QuotePilotCore
 import SwiftUI
 
-/// The main screen: four big readouts, then what's owed, quotes waiting on a reply and what's still
-/// to invoice. Double-click a row to open it.
+/// The main screen: the Getting started box while the library is new, four big readouts, then three
+/// lists in the order the work happens (quotes waiting on a reply, what's still to invoice, what's
+/// waiting to be paid). Double-click a row to open it.
 struct DashboardView: View {
     let model: AppModel
     @State private var selectedInvoice: UUID?
@@ -13,6 +14,7 @@ struct DashboardView: View {
         let dashboard = model.dashboard
         let liveQuotes = dashboard.openQuotes.filter { !$0.expired }.count
         VStack(alignment: .leading, spacing: 8) {
+            GettingStartedBox(model: model)
             HStack(alignment: .top, spacing: 8) {
                 Readout(title: "Waiting to be paid", value: model.money(dashboard.waitingTotal),
                         note: Self.count(dashboard.waiting.count, "invoice", "invoices"))
@@ -23,27 +25,29 @@ struct DashboardView: View {
                 Readout(title: "Quotes out", value: model.money(dashboard.openQuotesTotal),
                         note: Self.count(liveQuotes, "quote", "quotes") + " waiting on a reply")
             }
-            GroupBox("Waiting to be paid") {
-                DetailsList(dashboard.waiting, id: \.invoiceID, columns: owingColumns, selection: $selectedInvoice,
-                            emptyText: "Nothing waiting. Every sent invoice is paid.",
-                            onOpen: { model.openInvoice($0) })
-            }
-            .frame(maxHeight: .infinity)
+            // The lists in the order the work happens: a quote goes out, is accepted and invoiced,
+            // then waits to be paid.
             HStack(alignment: .top, spacing: Self.gap) {
                 let quoteColumns = Self.quoteColumns(currencyCode: model.currencyCode)
                 let jobColumns = Self.jobColumns(currencyCode: model.currencyCode)
-                GroupBox("Quotes waiting on a reply") {
+                GroupBox(Self.listTitles[0]) {
                     DetailsList(dashboard.openQuotes, id: \.quoteID, columns: quoteColumns, selection: $selectedQuote,
                                 emptyText: "No quotes out.", onOpen: { model.openQuote($0) })
                 }
                 .frame(minWidth: Self.boxWidth(quoteColumns, scroller: DetailsLayout.legacyScrollerWidth))
-                GroupBox("Still to invoice") {
+                GroupBox(Self.listTitles[1]) {
                     DetailsList(dashboard.toInvoice, id: \.quoteID, columns: jobColumns, selection: $selectedJob,
                                 emptyText: "Every accepted job is fully invoiced.", onOpen: { model.openQuote($0) })
                 }
                 .frame(minWidth: Self.boxWidth(jobColumns, scroller: DetailsLayout.legacyScrollerWidth))
             }
-            .frame(maxHeight: .infinity)
+            .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
+            GroupBox(Self.listTitles[2]) {
+                DetailsList(dashboard.waiting, id: \.invoiceID, columns: owingColumns, selection: $selectedInvoice,
+                            emptyText: "Nothing waiting. Every sent invoice is paid.",
+                            onOpen: { model.openInvoice($0) })
+            }
+            .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
             Text("Invoiced \(dashboard.financialYear.label): \(model.money(dashboard.invoicedThisYear))")
                 .font(Win95.body)
                 .foregroundStyle(Win95.text)
@@ -52,8 +56,16 @@ struct DashboardView: View {
         .groupBoxStyle(.win95)
     }
 
-    /// The screen's padding, and the gap between the two lists along the bottom.
+    /// The screen's padding, and the gap between the two lists side by side.
     static let gap: CGFloat = 8
+
+    /// The three lists, numbered in the order the work happens.
+    static let listTitles = ["1 · Quotes waiting on a reply", "2 · Still to invoice", "3 · Waiting to be paid"]
+
+    /// The least height a row of lists gets: its title and padding (26), the column header and two
+    /// rows. With the Getting started box showing, this keeps the lists from being squeezed away in the
+    /// smallest window (980 x 620), where the Dashboard has 492 points.
+    static let listMinHeight: CGFloat = 90
 
     private var owingColumns: [DetailsColumn<Dashboard.Owing>] {
         [
@@ -67,7 +79,7 @@ struct DashboardView: View {
         ]
     }
 
-    // The two lists along the bottom share the window's width, so their columns are narrow: the
+    // The two lists that share a row (quotes and jobs) share the window's width, so their columns are narrow: the
     // client column gives way first, and `boxWidth` keeps the rest whole down to the smallest window.
     // Status (80) just holds the icon and "Expired"; Invoiced (76) its header and sort arrow.
     static func quoteColumns(currencyCode: String) -> [DetailsColumn<Dashboard.OpenQuote>] {
@@ -108,7 +120,7 @@ struct DashboardView: View {
         return columnsWidth + 24 + scroller
     }
 
-    /// The least width the screen needs for the two bottom lists to sit side by side with every
+    /// The least width the screen needs for the two lists of the shared row to sit side by side with every
     /// column whole: both group boxes at their narrowest, the gap between them and the padding
     /// either side. It has to fit in the 778 points the smallest window (980 wide) leaves beside
     /// the section tree, with a classic scroller in each list.
