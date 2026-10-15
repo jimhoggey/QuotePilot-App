@@ -54,6 +54,36 @@ import QuotePilotCore
         #expect(model.message != nil)
     }
 
+    @Test func aFailedSaveOpensNothing() throws {
+        let (library, quoteID) = try UIFixture.invoicedLibrary()
+        let model = try UIFixture.model(library)
+        #expect(model.loadState == .ready)
+        // The file is damaged after the app has loaded it, so the next save is refused.
+        let damaged = Data("damaged".utf8)
+        try damaged.write(to: model.store.libraryURL)
+
+        model.newQuote()
+        #expect(model.openQuoteID == nil)
+        #expect(model.selectedQuoteID == nil)
+        #expect(model.section == .dashboard)
+        #expect(model.library.quotes.map(\.id) == [quoteID])
+        #expect(model.message?.text == LibraryStore.StoreError.wouldOverwriteUnreadableLibrary.message)
+        #expect(try Data(contentsOf: model.store.libraryURL) == damaged)
+    }
+
+    @Test func aFailedSaveOpensNoDuplicate() throws {
+        let (library, quoteID) = try UIFixture.invoicedLibrary()
+        let model = try UIFixture.model(library)
+        try Data("damaged".utf8).write(to: model.store.libraryURL)
+
+        model.duplicateQuote(quoteID)
+        #expect(model.openQuoteID == nil)
+        #expect(model.selectedQuoteID == nil)
+        #expect(model.section == .dashboard)
+        #expect(model.library.quotes.map(\.id) == [quoteID])
+        #expect(model.message?.text == LibraryStore.StoreError.wouldOverwriteUnreadableLibrary.message)
+    }
+
     @Test func restoringTheLatestBackupRecovers() throws {
         let (library, quoteID) = try UIFixture.invoicedLibrary()
         let folder = UIFixture.makeFolder()

@@ -144,10 +144,11 @@ public final class AppModel {
 
     public func newQuote(for clientID: UUID? = nil) {
         var created: UUID?
-        change("Couldn't start a new quote") { library in
+        // Open the new quote only when it was saved and kept: a failed save leaves nothing to open.
+        guard change("Couldn't start a new quote", { library in
             created = library.newQuote(on: today, clientID: clientID).id
-        }
-        if let created { openQuote(created) }
+        }), let created else { return }
+        openQuote(created)
     }
 
     public func updateQuote(_ quote: Quote) {
@@ -164,10 +165,10 @@ public final class AppModel {
 
     public func duplicateQuote(_ id: UUID) {
         var created: UUID?
-        change("Couldn't duplicate the quote") { library in
+        guard change("Couldn't duplicate the quote", { library in
             created = try library.duplicateQuote(id, on: today).id
-        }
-        if let created { openQuote(created) }
+        }), let created else { return }
+        openQuote(created)
     }
 
     public func deleteDraftQuote(_ id: UUID) {
@@ -344,7 +345,12 @@ public final class AppModel {
         }
         loadState = .ready
         lastSaved = now()
-        change("Couldn't note the restore in Activity") { $0.log("Restored the backup \(backup.lastPathComponent)") }
+        // The backup is back whatever happens next. When only the Activity note fails, its message
+        // box stays up (with a line saying the restore worked) instead of being replaced.
+        guard change("Couldn't note the restore in Activity", { $0.log("Restored the backup \(backup.lastPathComponent)") }) else {
+            message?.text += " The backup itself was restored."
+            return
+        }
         show(title: "Backup Restored",
              text: "Quote Pilot restored \(backup.lastPathComponent). The file it couldn't read is kept in the same folder, named library-replaced-….json.")
     }
