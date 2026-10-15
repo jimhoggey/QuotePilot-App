@@ -7,6 +7,8 @@ import SwiftUI
 /// command but Close waits (`whenFree`).
 public struct QuotePilotCommands: Commands {
     let model: AppModel
+    /// View → Show Steps: the step bar under a quote's or invoice's header. On unless turned off.
+    @AppStorage(StepPreferences.showStepsKey) private var showSteps = true
 
     public init(model: AppModel) {
         self.model = model
@@ -60,6 +62,11 @@ public struct QuotePilotCommands: Commands {
         }
         // Send by Mail… and Save PDF… moved up with the others, so Print has nothing of ours to hold.
         CommandGroup(replacing: .printItem) {}
+        // A checkmark in the View menu. Like the other commands it waits while a message box is up.
+        CommandGroup(after: .toolbar) {
+            Toggle("Show Steps", isOn: $showSteps)
+                .disabled(model.isBusy)
+        }
         CommandMenu("Go") {
             ForEach(AppSection.allCases) { section in
                 Button(section.title) { model.whenFree { model.go(to: section) } }

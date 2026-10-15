@@ -42,6 +42,38 @@ public extension ButtonStyle where Self == Win95ButtonStyle {
     static var win95Default: Win95ButtonStyle { Win95ButtonStyle(isDefault: true) }
 }
 
+/// A small plain bevelled button for a quiet strip or a box title: the small font, 18 high, no
+/// minimum width, and never the default one.
+public struct Win95SmallButtonStyle: ButtonStyle {
+    public init() {}
+
+    public func makeBody(configuration: Configuration) -> some View {
+        Win95SmallButtonBody(configuration: configuration)
+    }
+}
+
+struct Win95SmallButtonBody: View {
+    let configuration: ButtonStyleConfiguration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        configuration.label
+            .font(Win95.small)
+            .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .frame(height: 18)
+            .offset(x: configuration.isPressed ? 1 : 0, y: configuration.isPressed ? 1 : 0)
+            .background(Win95.face)
+            .overlay(Bevel(configuration.isPressed ? .pressed : .raised))
+            .contentShape(Rectangle())
+    }
+}
+
+public extension ButtonStyle where Self == Win95SmallButtonStyle {
+    static var win95Small: Win95SmallButtonStyle { Win95SmallButtonStyle() }
+}
+
 /// The square toolbar button: an icon above a short label.
 public struct Win95ToolbarButtonStyle: ButtonStyle {
     public init() {}

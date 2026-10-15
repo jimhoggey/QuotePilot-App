@@ -13,6 +13,7 @@ struct QuoteEditorView: View {
         let current = quote.wrappedValue
         VStack(spacing: 0) {
             header(current)
+            StepBar(model: model, document: .quote(quoteID))
             HStack(alignment: .top, spacing: 8) {
                 ScrollView {
                     form(quote)

@@ -11,6 +11,7 @@ struct InvoiceEditorView: View {
         let invoice = model.invoiceBinding(invoiceID)
         VStack(spacing: 0) {
             header(invoice.wrappedValue)
+            StepBar(model: model, document: .invoice(invoiceID))
             // Same widths as plan 2a's QuoteEditorView after its 980-pt fix (form 500…640 with
             // layoutPriority(1), preview at least 220), so the editor fits the minimum window.
             HStack(alignment: .top, spacing: 8) {
