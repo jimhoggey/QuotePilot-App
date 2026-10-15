@@ -190,8 +190,8 @@ QuotePilotApp depends on the other two; QuotePilotPDF depends on QuotePilotCore;
   - Below the totals: **Name** and **Date** fields for the client to type into.
   - The payment plan is spelled out ("50% when accepted, 50% on completion").
 - **Form field names** carry the quote number, so a returned PDF identifies itself:
-  `quotepilot.Q-0007.all`, `quotepilot.Q-0007.line.03`, `quotepilot.Q-0007.name`, `quotepilot.Q-0007.date`. The PDF's
-  title and keywords also carry the number.
+  `quotepilot_Q-0007_all`, `quotepilot_Q-0007_line_03`, `quotepilot_Q-0007_name`, `quotepilot_Q-0007_date`
+  (underscores, because PDF reserves '.' for field hierarchy). The PDF's title and keywords also carry the number.
 - **Reading a returned PDF:**
   - **Accept all ticked:** every line is accepted.
   - **Otherwise:** ticked lines are accepted and unticked lines declined.

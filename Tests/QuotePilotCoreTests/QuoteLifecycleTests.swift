@@ -1,0 +1,228 @@
+import Foundation
+import Testing
+@testable import QuotePilotCore
+
+@Suite struct QuoteLifecycleTests {
+    let today = Fixture.today
+
+    @Test func statusFollowsStageAndDates() {
+        let (library, id) = Fixture.libraryWithQuote(stage: .draft)
+        var quote = library.quote(id)!
+        #expect(quote.status(on: today) == .draft)
+        quote.stage = .sent
+        #expect(quote.status(on: quote.validUntil) == .sent)
+        #expect(quote.status(on: quote.validUntil.adding(days: 1)) == .expired)
+        quote.stage = .accepted
+        quote.lines[2].decision = .declined
+        #expect(quote.status(on: today) == .accepted(partly: true))
+        #expect(QuoteStatus.accepted(partly: true).label == "Accepted, partly")
+        quote.stage = .declined
+        #expect(quote.status(on: today) == .declined)
+    }
+
+    @Test func lineIDsFollowTheOrderOnlyWhileDraft() {
+        let (library, id) = Fixture.libraryWithQuote(stage: .draft)
+        var quote = library.quote(id)!
+        quote.lines.swapAt(0, 2)
+        quote.renumberLinesIfDraft()
+        #expect(quote.lines.map(\.title) == ["Extra screens", "Build", "Discovery"])
+        #expect(quote.lineCodes == ["01", "02", "03"])
+        quote.stage = .sent
+        quote.lines.swapAt(0, 2)
+        quote.renumberLinesIfDraft()
+        #expect(quote.lineCodes == ["03", "02", "01"])
+        #expect(quote.nextLineCode() == "04")
+    }
+
+    @Test func storingADraftRenumbersItsLinesInTheNewOrder() throws {
+        var (library, id) = Fixture.libraryWithQuote(stage: .draft)
+        var quote = library.quote(id)!
+        quote.lines.swapAt(0, 2)   // reordered, and not renumbered by the caller
+        #expect(quote.lineCodes == ["03", "02", "01"])
+        try library.update(quote)
+        let stored = library.quote(id)!
+        #expect(stored.lines.map(\.title) == ["Extra screens", "Build", "Discovery"])
+        #expect(stored.lineCodes == ["01", "02", "03"])
+        // What is stored is what sending freezes.
+        try library.markSent(quote: id)
+        #expect(library.quote(id)!.lineCodes == ["01", "02", "03"])
+    }
+
+    @Test func storingASentQuoteKeepsItsFrozenLineIDs() throws {
+        var (library, id) = Fixture.libraryWithQuote()
+        var quote = library.quote(id)!
+        quote.lines.swapAt(0, 2)
+        try library.update(quote)
+        let stored = library.quote(id)!
+        #expect(stored.lines.map(\.title) == ["Extra screens", "Build", "Discovery"])
+        #expect(stored.lineCodes == ["03", "02", "01"])
+    }
+
+    @Test func aSentQuoteNeverReusesALineID() {
+        let (library, id) = Fixture.libraryWithQuote()
+        var quote = library.quote(id)!
+        quote.lines.remove(at: 2)
+        quote.addLine(LineItem(title: "Training session", rate: Money(dollars: 200)))
+        #expect(quote.lineCodes == ["01", "02", "04"])
+    }
+
+    @Test func markingSentRecordsTheTimeAndLogs() throws {
+        var (library, id) = Fixture.libraryWithQuote(stage: .draft)
+        let moment = Date(timeIntervalSince1970: 1_792_000_000)
+        try library.markSent(quote: id, at: moment)
+        let quote = library.quote(id)!
+        #expect(quote.stage == .sent)
+        #expect(quote.sentAt == moment)
+        #expect(library.activity.first?.message == "Marked quote Q-0001 as sent")
+    }
+
+    @Test func acceptAllAcceptsEveryLine() {
+        let (library, id) = Fixture.libraryWithQuote()
+        let form = ReturnedForm(quoteNumber: "Q-0001", acceptAll: true, ticked: [], unticked: ["01", "02", "03"])
+        let proposal = library.quote(id)!.proposal(from: form, today: today)
+        #expect(proposal.accepted == ["01", "02", "03"])
+        #expect(proposal.declined == [])
+        #expect(proposal.problems == [])
+    }
+
+    @Test func acceptAllCoversOnlyTheLinesTheClientSaw() {
+        // The client's PDF had 01–03. Line 04 was added to the sent quote afterwards.
+        let (library, id) = Fixture.libraryWithQuote()
+        var quote = library.quote(id)!
+        quote.addLine(LineItem(title: "Training session", rate: Money(dollars: 200)))
+        let form = ReturnedForm(quoteNumber: "Q-0001", acceptAll: true, ticked: [], unticked: ["01", "02", "03"])
+        let proposal = quote.proposal(from: form, today: today)
+        #expect(proposal.accepted == ["01", "02", "03"])
+        #expect(proposal.declined == ["04"])
+        #expect(proposal.problems == [.missingLines(["04"])])
+    }
+
+    @Test func tickedLinesAreAcceptedAndTheRestDeclined() {
+        let (library, id) = Fixture.libraryWithQuote()
+        let form = ReturnedForm(quoteNumber: "q-0001", acceptAll: false, ticked: ["01", "03"], unticked: ["02"],
+                                clientName: "Sam Example", clientDate: "16/10/2026")
+        let proposal = library.quote(id)!.proposal(from: form, today: today)
+        #expect(proposal.accepted == ["01", "03"])
+        #expect(proposal.declined == ["02"])
+        #expect(proposal.clientName == "Sam Example")
+        #expect(proposal.clientDate == "16/10/2026")
+        #expect(proposal.problems == [])
+    }
+
+    @Test func nothingTickedIsFlagged() {
+        let (library, id) = Fixture.libraryWithQuote()
+        let form = ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: [], unticked: ["01", "02", "03"])
+        let proposal = library.quote(id)!.proposal(from: form, today: today)
+        #expect(proposal.accepted == [])
+        #expect(proposal.declined == ["01", "02", "03"])
+        #expect(proposal.problems == [.nothingTicked])
+    }
+
+    @Test func proposalFlagsLinesTheClientNeverSaw() {
+        // The client's PDF had 01–03. Since then 03 was removed and 04 added.
+        let (library, id) = Fixture.libraryWithQuote()
+        var quote = library.quote(id)!
+        quote.lines.remove(at: 2)
+        quote.addLine(LineItem(title: "Training session", rate: Money(dollars: 200)))
+        let form = ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: ["01", "03"], unticked: ["02"])
+        let proposal = quote.proposal(from: form, today: today)
+        #expect(proposal.accepted == ["01"])
+        #expect(proposal.declined == ["02", "04"])
+        #expect(proposal.problems == [.unknownLines(["03"]), .missingLines(["04"])])
+        #expect(AcceptanceProblem.missingLines(["04"]).message
+                == "Line 04 wasn't on the PDF the client saw, so it's marked declined.")
+    }
+
+    @Test func wrongQuoteAndExpiryAreFlagged() {
+        let (library, id) = Fixture.libraryWithQuote()
+        let quote = library.quote(id)!
+        let form = ReturnedForm(quoteNumber: "Q-0009", acceptAll: true, ticked: [], unticked: quote.lineCodes)
+        let proposal = quote.proposal(from: form, today: quote.validUntil.adding(days: 3))
+        #expect(proposal.problems == [.wrongQuote(found: "Q-0009", expected: "Q-0001"),
+                                      .expired(validUntil: quote.validUntil)])
+        #expect(AcceptanceProblem.wrongQuote(found: "Q-0009", expected: "Q-0001").message
+                == "This PDF is for quote Q-0009, not Q-0001.")
+    }
+
+    @Test func onlyAWrongQuoteOrUnknownLinesBlockConfirming() {
+        // Spec §7: a number that matches no quote, or line IDs that don't exist, change nothing.
+        #expect(AcceptanceProblem.wrongQuote(found: "Q-0009", expected: "Q-0001").isBlocking)
+        #expect(AcceptanceProblem.unknownLines(["03"]).isBlocking)
+        #expect(!AcceptanceProblem.missingLines(["04"]).isBlocking)
+        #expect(!AcceptanceProblem.nothingTicked.isBlocking)
+        #expect(!AcceptanceProblem.expired(validUntil: today).isBlocking)
+    }
+
+    @Test func aProposalCanBeConfirmedUnlessAProblemBlocksIt() {
+        let (library, id) = Fixture.libraryWithQuote()
+        let quote = library.quote(id)!
+        let codes = quote.lineCodes
+
+        let clean = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: ["01"], unticked: ["02", "03"]),
+                                   today: today)
+        #expect(clean.problems == [])
+        #expect(clean.canBeConfirmed)
+
+        let wrongQuote = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0009", acceptAll: true, ticked: [], unticked: codes),
+                                        today: today)
+        #expect(wrongQuote.problems == [.wrongQuote(found: "Q-0009", expected: "Q-0001")])
+        #expect(!wrongQuote.canBeConfirmed)
+
+        let unknown = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: ["07"], unticked: codes),
+                                     today: today)
+        #expect(unknown.problems == [.unknownLines(["07"])])
+        #expect(!unknown.canBeConfirmed)
+
+        // Warnings the user can read and still confirm.
+        let nothing = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: [], unticked: codes),
+                                     today: today)
+        #expect(nothing.problems == [.nothingTicked])
+        #expect(nothing.canBeConfirmed)
+
+        let missing = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: false, ticked: ["01"], unticked: ["02"]),
+                                     today: today)
+        #expect(missing.problems == [.missingLines(["03"])])
+        #expect(missing.canBeConfirmed)
+
+        let expired = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0001", acceptAll: true, ticked: [], unticked: codes),
+                                     today: quote.validUntil.adding(days: 3))
+        #expect(expired.problems == [.expired(validUntil: quote.validUntil)])
+        #expect(expired.canBeConfirmed)
+
+        // One blocking problem among warnings still blocks.
+        let both = quote.proposal(from: ReturnedForm(quoteNumber: "Q-0009", acceptAll: true, ticked: [], unticked: codes),
+                                  today: quote.validUntil.adding(days: 3))
+        #expect(both.problems.count == 2)
+        #expect(!both.canBeConfirmed)
+    }
+
+    @Test func recordingAcceptanceSetsDecisionsAndLogs() throws {
+        var (library, id) = Fixture.libraryWithQuote()
+        try library.recordAcceptance(Acceptance(source: .returnedPDF, fileName: "Q-0001 signed.pdf",
+                                                clientName: "Sam Example", accepted: ["01", "02"], declined: ["03"]),
+                                     forQuote: id)
+        let quote = library.quote(id)!
+        #expect(quote.stage == .accepted)
+        #expect(quote.lines.map(\.decision) == [.accepted, .accepted, .declined])
+        #expect(quote.acceptedTotals.total == Money(dollars: 1080))
+        #expect(quote.acceptance?.clientName == "Sam Example")
+        #expect(library.activity.first?.message
+                == "Recorded acceptance of Q-0001 from Q-0001 signed.pdf: accepted lines 01, 02; declined line 03")
+    }
+
+    @Test func decliningEverythingDeclinesTheQuote() throws {
+        var (library, id) = Fixture.libraryWithQuote()
+        try library.recordAcceptance(Acceptance(source: .byHand, accepted: [], declined: ["01", "02", "03"]), forQuote: id)
+        #expect(library.quote(id)!.stage == .declined)
+        #expect(library.activity.first?.message == "Recorded acceptance of Q-0001 by hand: all lines declined")
+    }
+
+    @Test func unknownLineIDsChangeNothing() {
+        var (library, id) = Fixture.libraryWithQuote()
+        #expect(throws: LibraryError.unknownLineCodes(["09"])) {
+            try library.recordAcceptance(Acceptance(source: .byHand, accepted: ["09"], declined: []), forQuote: id)
+        }
+        #expect(library.quote(id)!.stage == .sent)
+        #expect(library.quote(id)!.lines.allSatisfy { $0.decision == nil })
+    }
+}

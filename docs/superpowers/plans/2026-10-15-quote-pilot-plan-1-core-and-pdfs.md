@@ -29,8 +29,9 @@ Core Graphics, PDFKit, AppKit (fonts and colours only). No third-party packages.
   even after a draft is deleted.
 - Line IDs (`code`) are `"01"`, `"02"`, … They follow line order while a quote is a draft and are frozen
   once it's sent.
-- Form field names: `quotepilot.<quote number>.all`, `quotepilot.<quote number>.line.<code>`,
-  `quotepilot.<quote number>.name`, `quotepilot.<quote number>.date`. Every tick box starts **off**.
+- Form field names: `quotepilot_<quote number>_all`, `quotepilot_<quote number>_line_<code>`,
+  `quotepilot_<quote number>_name`, `quotepilot_<quote number>_date` (underscores, because PDF reserves
+  '.' for field hierarchy). Every tick box starts **off**.
 - PDFs: A4 (595.28 × 841.89 pt), 46 pt margins, ink `#1F2A44`, default accent `#0B6B66`, heading font
   from the brand's font file (system semibold if none), body in the system font.
 - GST is off by default (`Brand.gstRegistered = false`). When a document is taxed: 10% on top, invoice
@@ -3298,29 +3299,33 @@ import Foundation
 
 /// Names of the form fields on a quote PDF. Every name carries the quote number, so a returned PDF
 /// says which quote it answers.
+///
+/// The names use underscores, such as `quotepilot_Q-0007_line_03`. ISO 32000 reserves "." as the
+/// separator in a field's place in the form hierarchy, and Adobe Acrobat may restructure a dotted name
+/// when a client saves, which would make the returned quote unreadable.
 public enum QuoteFormFields {
-    static let prefix = "quotepilot."
+    static let prefix = "quotepilot_"
 
     public enum Part: Equatable {
         case all, name, date
         case line(String)
     }
 
-    public static func acceptAll(_ quote: String) -> String { "\(prefix)\(quote).all" }
-    public static func line(_ quote: String, _ code: String) -> String { "\(prefix)\(quote).line.\(code)" }
-    public static func name(_ quote: String) -> String { "\(prefix)\(quote).name" }
-    public static func date(_ quote: String) -> String { "\(prefix)\(quote).date" }
+    public static func acceptAll(_ quote: String) -> String { "\(prefix)\(quote)_all" }
+    public static func line(_ quote: String, _ code: String) -> String { "\(prefix)\(quote)_line_\(code)" }
+    public static func name(_ quote: String) -> String { "\(prefix)\(quote)_name" }
+    public static func date(_ quote: String) -> String { "\(prefix)\(quote)_date" }
 
     /// Splits a field name into its quote number and part; nil for fields that aren't Quote Pilot's.
     public static func parse(_ field: String) -> (quote: String, part: Part)? {
         guard field.hasPrefix(prefix) else { return nil }
         let rest = String(field.dropFirst(prefix.count))
-        if let range = rest.range(of: ".line.", options: .backwards) {
+        if let range = rest.range(of: "_line_", options: .backwards) {
             let quote = String(rest[..<range.lowerBound])
             let code = String(rest[range.upperBound...])
             return quote.isEmpty || code.isEmpty ? nil : (quote, .line(code))
         }
-        let endings: [(String, Part)] = [(".all", .all), (".name", .name), (".date", .date)]
+        let endings: [(String, Part)] = [("_all", .all), ("_name", .name), ("_date", .date)]
         for (ending, part) in endings where rest.hasSuffix(ending) {
             let quote = String(rest.dropLast(ending.count))
             return quote.isEmpty ? nil : (quote, part)
@@ -3968,11 +3973,13 @@ import QuotePilotCore
     }
 
     @Test func fieldNamesRoundTrip() {
-        #expect(QuoteFormFields.line("Q-0007", "03") == "quotepilot.Q-0007.line.03")
-        #expect(QuoteFormFields.parse("quotepilot.Q-0007.line.03")! == ("Q-0007", .line("03")))
-        #expect(QuoteFormFields.parse("quotepilot.Q-0007.all")! == ("Q-0007", .all))
-        #expect(QuoteFormFields.parse("quotepilot.Q-0007.name")! == ("Q-0007", .name))
+        #expect(QuoteFormFields.line("Q-0007", "03") == "quotepilot_Q-0007_line_03")
+        #expect(QuoteFormFields.parse("quotepilot_Q-0007_line_03")! == ("Q-0007", .line("03")))
+        #expect(QuoteFormFields.parse("quotepilot_Q-0007_all")! == ("Q-0007", .all))
+        #expect(QuoteFormFields.parse("quotepilot_Q-0007_name")! == ("Q-0007", .name))
         #expect(QuoteFormFields.parse("Check Box 1") == nil)
+        // The old dotted form is no longer ours.
+        #expect(QuoteFormFields.parse("quotepilot.Q-0007.all") == nil)
     }
 
     @Test func longQuoteKeepsEachTickBoxWithItsLine() throws {
