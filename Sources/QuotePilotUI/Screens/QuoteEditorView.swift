@@ -7,13 +7,14 @@ import SwiftUI
 struct QuoteEditorView: View {
     let model: AppModel
     let quoteID: UUID
+    /// Where View → Show Steps is kept. Tests give it their own, so none touches the real one.
+    var stepDefaults: UserDefaults = .standard
 
     var body: some View {
         let quote = model.quoteBinding(quoteID)
         let current = quote.wrappedValue
         VStack(spacing: 0) {
             header(current)
-            StepBar(model: model, document: .quote(quoteID))
             HStack(alignment: .top, spacing: 8) {
                 ScrollView {
                     form(quote)
@@ -34,40 +35,12 @@ struct QuoteEditorView: View {
         .groupBoxStyle(.win95)
     }
 
-    /// Two rows: the quote's name, status and total above; the actions below, where a long set of
-    /// buttons has the whole width to itself. (Not private: a test measures it at the smallest window.)
+    /// Two rows: the quote's name, status and total above, with the step bar in the space between
+    /// them; the actions below, where a long set of buttons has the whole width to itself. (Not
+    /// private: a test measures it at the smallest window.)
     func header(_ quote: Quote) -> some View {
         VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 10) {
-                Button("All Quotes") { model.openQuoteID = nil }
-                    .buttonStyle(.win95)
-                    .help("Back to the list of quotes")
-                PixelIconView(.quote, size: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Quote \(quote.number)")
-                        .font(Win95.title)
-                        .foregroundStyle(Win95.text)
-                    HStack(spacing: 8) {
-                        StatusLabel.cell(quote.status(on: model.today), selected: false)
-                        if let done = quote.completedOn {
-                            Text("Job completed \(done.short)")
-                                .font(Win95.body)
-                                .foregroundStyle(Win95.text)
-                        }
-                    }
-                }
-                Spacer()
-                Text(model.money(quote.totals.total))
-                    .font(Win95.readout)
-                    .foregroundStyle(Win95.text)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .frame(minWidth: 190, alignment: .trailing)
-                    .win95Sunken()
-                    .accessibilityLabel("Total \(model.money(quote.totals.total))")
-            }
-            .padding(8)
+            titleRow(quote)
             HStack(spacing: 6) {
                 Button("Send by Mail…") { model.send(.quote(quoteID)) }
                     .buttonStyle(.win95Default)
@@ -100,6 +73,41 @@ struct QuoteEditorView: View {
         }
         .background(Win95.face)
         .overlay(alignment: .bottom) { EtchedLine() }
+    }
+
+    /// The header's first row. The step bar sits between the title block and the total, where the
+    /// spacer was; with View → Show Steps off it is that spacer. (Not private: a test measures it.)
+    func titleRow(_ quote: Quote) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Button("All Quotes") { model.openQuoteID = nil }
+                .buttonStyle(.win95)
+                .help("Back to the list of quotes")
+            PixelIconView(.quote, size: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Quote \(quote.number)")
+                    .font(Win95.title)
+                    .foregroundStyle(Win95.text)
+                HStack(spacing: 8) {
+                    StatusLabel.cell(quote.status(on: model.today), selected: false)
+                    if let done = quote.completedOn {
+                        Text("Job completed \(done.short)")
+                            .font(Win95.body)
+                            .foregroundStyle(Win95.text)
+                    }
+                }
+            }
+            StepBar(model: model, document: .quote(quoteID), defaults: stepDefaults)
+            Text(model.money(quote.totals.total))
+                .font(Win95.readout)
+                .foregroundStyle(Win95.text)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .frame(minWidth: 190, alignment: .trailing)
+                .win95Sunken()
+                .accessibilityLabel("Total \(model.money(quote.totals.total))")
+        }
+        .padding(8)
     }
 
     private func form(_ quote: Binding<Quote>) -> some View {

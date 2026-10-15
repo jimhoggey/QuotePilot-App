@@ -6,12 +6,13 @@ import SwiftUI
 struct InvoiceEditorView: View {
     let model: AppModel
     let invoiceID: UUID
+    /// Where View → Show Steps is kept. Tests give it their own, so none touches the real one.
+    var stepDefaults: UserDefaults = .standard
 
     var body: some View {
         let invoice = model.invoiceBinding(invoiceID)
         VStack(spacing: 0) {
             header(invoice.wrappedValue)
-            StepBar(model: model, document: .invoice(invoiceID))
             // Same widths as plan 2a's QuoteEditorView after its 980-pt fix (form 500…640 with
             // layoutPriority(1), preview at least 220), so the editor fits the minimum window.
             HStack(alignment: .top, spacing: 8) {
@@ -37,45 +38,12 @@ struct InvoiceEditorView: View {
         model.invoiceRules(invoice.id) ?? InvoiceRules(invoice: invoice, finalDeducting: nil)
     }
 
-    /// (Not private: a test measures it at the smallest window.)
+    /// Two rows, like the quote's: the name, status and amount above, with the step bar in the space
+    /// between them; the actions below. (Not private: a test measures it at the smallest window.)
     func header(_ invoice: Invoice) -> some View {
-        let status = invoice.status(on: model.today)
-        let showOwing = invoice.stage == .sent
         let rules = rulesFor(invoice)
-        let figure = model.money(showOwing ? invoice.owing : invoice.amount)
         return VStack(spacing: 0) {
-            HStack(alignment: .center, spacing: 10) {
-                Button("All Invoices") { model.openInvoiceID = nil }
-                    .buttonStyle(.win95)
-                    .help("Back to the list of invoices")
-                PixelIconView(.invoice, size: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Invoice \(invoice.number)")
-                        .font(Win95.title)
-                        .foregroundStyle(Win95.text)
-                    HStack(spacing: 8) {
-                        StatusLabel.cell(status, selected: false)
-                        Text(invoice.kind.columnLabel)
-                            .font(Win95.body)
-                            .foregroundStyle(Win95.text)
-                    }
-                }
-                Spacer()
-                Text(showOwing ? "Owing" : "Amount")
-                    .font(Win95.label)
-                    .foregroundStyle(Win95.text)
-                    .accessibilityHidden(true)
-                Text(figure)
-                    .font(Win95.readout)
-                    .foregroundStyle(status.isAlert ? Win95.overdue : Win95.text)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .frame(minWidth: 190, alignment: .trailing)
-                    .win95Sunken()
-                    .accessibilityLabel("\(showOwing ? "Owing" : "Amount") \(figure)")
-            }
-            .padding(8)
+            titleRow(invoice)
             HStack(spacing: 6) {
                 if invoice.stage != .void {
                     Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
@@ -107,6 +75,46 @@ struct InvoiceEditorView: View {
         }
         .background(Win95.face)
         .overlay(alignment: .bottom) { EtchedLine() }
+    }
+
+    /// The header's first row. The step bar sits between the title block and the amount, where the
+    /// spacer was; with View → Show Steps off it is that spacer. (Not private: a test measures it.)
+    func titleRow(_ invoice: Invoice) -> some View {
+        let status = invoice.status(on: model.today)
+        let showOwing = invoice.stage == .sent
+        let figure = model.money(showOwing ? invoice.owing : invoice.amount)
+        return HStack(alignment: .center, spacing: 10) {
+            Button("All Invoices") { model.openInvoiceID = nil }
+                .buttonStyle(.win95)
+                .help("Back to the list of invoices")
+            PixelIconView(.invoice, size: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Invoice \(invoice.number)")
+                    .font(Win95.title)
+                    .foregroundStyle(Win95.text)
+                HStack(spacing: 8) {
+                    StatusLabel.cell(status, selected: false)
+                    Text(invoice.kind.columnLabel)
+                        .font(Win95.body)
+                        .foregroundStyle(Win95.text)
+                }
+            }
+            StepBar(model: model, document: .invoice(invoiceID), defaults: stepDefaults)
+            Text(showOwing ? "Owing" : "Amount")
+                .font(Win95.label)
+                .foregroundStyle(Win95.text)
+                .accessibilityHidden(true)
+            Text(figure)
+                .font(Win95.readout)
+                .foregroundStyle(status.isAlert ? Win95.overdue : Win95.text)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .frame(minWidth: 190, alignment: .trailing)
+                .win95Sunken()
+                .accessibilityLabel("\(showOwing ? "Owing" : "Amount") \(figure)")
+        }
+        .padding(8)
     }
 
     private func form(_ invoice: Binding<Invoice>) -> some View {
