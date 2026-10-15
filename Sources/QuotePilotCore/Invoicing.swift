@@ -94,6 +94,16 @@ extension Library {
         return draftInvoice(closing, for: found, on: day)
     }
 
+    /// The live final invoice that still subtracts this deposit, if any. Voiding or deleting the
+    /// deposit while one exists would leave the final deducting an invoice that is gone.
+    func liveFinalDeducting(_ invoice: Invoice) -> Invoice? {
+        guard invoice.kind == .deposit else { return nil }
+        return invoices.first {
+            $0.quoteID == invoice.quoteID && $0.kind == .final && $0.stage != .void
+                && $0.deductions.contains { $0.invoiceNumber == invoice.number }
+        }
+    }
+
     private func acceptedQuote(_ id: UUID) throws -> Quote {
         guard let found = quote(id) else { throw LibraryError.notFound }
         guard found.stage == .accepted else { throw LibraryError.notAccepted }
@@ -163,6 +173,7 @@ extension Library {
         case .sent: break
         }
         guard invoices[index].payments.isEmpty else { throw LibraryError.hasPayments }
+        if let final = liveFinalDeducting(invoices[index]) { throw LibraryError.deductedByFinal(final.number) }
         invoices[index].stage = .void
         log("Voided invoice \(invoices[index].number)", number: invoices[index].number)
     }

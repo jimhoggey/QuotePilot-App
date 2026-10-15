@@ -16,6 +16,8 @@ public enum LibraryError: Error, Equatable, Sendable {
     case alreadyInvoiced
     case isVoid
     case hasPayments
+    /// A deposit invoice a live final invoice (its number) still subtracts.
+    case deductedByFinal(String)
     case unknownLineCodes([String])
 }
 
@@ -135,6 +137,7 @@ public struct Library: Codable, Sendable {
     public mutating func deleteDraft(invoice id: UUID) throws {
         let index = try invoiceIndex(id)
         guard invoices[index].stage == .draft else { throw LibraryError.notDraft }
+        if let final = liveFinalDeducting(invoices[index]) { throw LibraryError.deductedByFinal(final.number) }
         let number = invoices.remove(at: index).number
         log("Deleted draft invoice \(number)", number: number)
     }

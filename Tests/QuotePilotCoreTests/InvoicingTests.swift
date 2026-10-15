@@ -88,6 +88,35 @@ import Testing
         #expect(again.number == "INV-0002")
     }
 
+    @Test func aDepositTheFinalDeductsCantBeVoided() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        let deposit = try library.draftNextInvoice(forQuote: id, on: today)
+        try library.markSent(invoice: deposit.id)
+        try library.draftNextInvoice(forQuote: id, on: today)
+        #expect(throws: LibraryError.deductedByFinal("INV-0002")) { try library.voidInvoice(deposit.id) }
+        #expect(library.invoice(deposit.id)!.stage == .sent)
+    }
+
+    @Test func aDraftDepositTheFinalDeductsCantBeDeleted() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        let deposit = try library.draftNextInvoice(forQuote: id, on: today)
+        try library.draftNextInvoice(forQuote: id, on: today)
+        #expect(throws: LibraryError.deductedByFinal("INV-0002")) { try library.deleteDraft(invoice: deposit.id) }
+        #expect(library.invoice(deposit.id) != nil)
+    }
+
+    @Test func onceTheFinalIsGoneTheDepositCanBeVoided() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        let deposit = try library.draftNextInvoice(forQuote: id, on: today)
+        try library.markSent(invoice: deposit.id)
+        let closing = try library.draftNextInvoice(forQuote: id, on: today)
+        try library.markSent(invoice: closing.id)
+        try library.voidInvoice(closing.id)
+        try library.voidInvoice(deposit.id)
+        #expect(library.invoice(deposit.id)!.stage == .void)
+        #expect(library.nextInvoiceKind(forQuote: id) == .deposit)
+    }
+
     @Test func overdueStartsTheDayAfterDue() throws {
         var (library, id) = Fixture.acceptedLibrary()
         let deposit = try library.draftNextInvoice(forQuote: id, on: today)
