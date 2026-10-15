@@ -77,5 +77,11 @@ public struct QuotePilotCommands: Commands {
             Button("Find…") { model.whenFree { model.find() } }
                 .keyboardShortcut("f")
         }
+        // The version, as a greyed-out line at the top of our part of the Help menu. (The standard
+        // About box shows it too, from the same Info.plist.)
+        CommandGroup(after: .help) {
+            Button("Quote Pilot \(AppVersion.current)") {}
+                .disabled(true)
+        }
     }
 }
