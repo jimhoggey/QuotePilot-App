@@ -62,7 +62,10 @@ enum UIFixture {
     static func model(_ library: Library? = nil, folder: URL = makeFolder(), mail: FakeMail = FakeMail()) throws -> AppModel {
         let store = LibraryStore(folder: folder)
         if let library { try store.save(library) }
-        return AppModel(store: store, now: { today.date() }, mail: mail, sentFolder: makeFolder())
+        let model = AppModel(store: store, now: { today.date() }, mail: mail, sentFolder: makeFolder())
+        // Nothing in a test reaches GitHub, the real settings or the real log.
+        model.updates = UpdateFixture.offline()
+        return model
     }
 
     /// A model holding the made-up sample business, on its own temporary folder.

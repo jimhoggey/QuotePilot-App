@@ -30,6 +30,10 @@ struct QuotePilotApp: App {
     var body: some Scene {
         Window("Quote Pilot", id: "main") {
             RootView(model: model)
+                // Once the window is up: the automatic check for updates (and, after an update, the
+                // note saying how it went). The tests build RootView without this, so they never
+                // reach the network.
+                .task { await model.start() }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1240, height: 800)
