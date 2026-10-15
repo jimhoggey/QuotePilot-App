@@ -47,7 +47,7 @@ public struct RootView: View {
         }
     }
 
-    private var boxIsUp: Bool { model.message != nil }
+    private var boxIsUp: Bool { model.message != nil || model.dialog != nil }
 
     private var windowTitle: String {
         if case .unreadable = model.loadState { return "Quote Pilot" }
@@ -75,13 +75,19 @@ public struct RootView: View {
         }
     }
 
+    /// The dialog, if one is open, with any message box above it.
     @ViewBuilder
     private var messageOverlay: some View {
-        if let box = model.message {
-            ZStack {
-                // As with a Windows 95 message box, the window behind stays visible but can't be clicked.
-                Color.white.opacity(0.001)
-                MessageBoxView(box: box) { model.respond($0) }
+        ZStack {
+            if let dialog = model.dialog {
+                DialogOverlay(model: model, dialog: dialog)
+            }
+            if let box = model.message {
+                ZStack {
+                    // As with a Windows 95 message box, the window behind stays visible but can't be clicked.
+                    Color.white.opacity(0.001)
+                    MessageBoxView(box: box) { model.respond($0) }
+                }
             }
         }
     }
@@ -99,7 +105,10 @@ struct Win95Toolbar: View {
                 tool("New Quote", .quote, help: "Start a new quote (⌘N)") { model.newQuote() }
                 tool("New Invoice", .invoice, help: later, enabled: false) {}
                 ToolbarSeparator()
-                tool("Send", .mail, help: later, enabled: false) {}
+                tool("Send", .mail, help: "Open a Mail draft of the open quote or invoice (⌘S)",
+                     enabled: model.sendableDocument != nil) {
+                    if let document = model.sendableDocument { model.send(document) }
+                }
                 tool("Read Reply", .folder, help: later, enabled: false) {}
                 tool("Payment", .payment, help: later, enabled: false) {}
                 ToolbarSeparator()
@@ -204,8 +213,8 @@ struct SectionTree: View {
     }
 
     private func step(_ delta: Int) -> KeyPress.Result {
-        // A message box owns the keyboard; the tree is disabled behind it, this is a second guard.
-        guard model.message == nil else { return .ignored }
+        // A message box or dialog owns the keyboard; the tree is disabled behind it, this is a second guard.
+        guard model.message == nil, model.dialog == nil else { return .ignored }
         let all = AppSection.allCases
         let index = all.firstIndex(of: model.section) ?? 0
         model.go(to: all[min(max(index + delta, 0), all.count - 1)])

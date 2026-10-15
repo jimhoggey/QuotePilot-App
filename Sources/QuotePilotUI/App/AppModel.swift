@@ -36,15 +36,24 @@ public final class AppModel {
     public var selectedClientID: UUID?
     public var message: MessageBox?
     public var pendingExport: PDFExport?
+    /// The dialog panel showing over the window, if any (the email prompt, the acceptance review…).
+    public var dialog: Dialog?
+    /// Opens Mail drafts; tests use a fake.
+    @ObservationIgnored public let mail: any MailComposer
+    /// Where copies of mailed PDFs go: `~/Documents/Quote Pilot`, or a temporary folder in tests.
+    @ObservationIgnored public let sentFolder: URL
 
-    private let now: () -> Date
+    let now: () -> Date
     /// What `whenFree` does when a message box is up. Tests swap it for a counter.
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
     @ObservationIgnored private var lastBackupDay: Day?
 
-    public init(store: LibraryStore, now: @escaping () -> Date = Date.init) {
+    public init(store: LibraryStore, now: @escaping () -> Date = Date.init,
+                mail: any MailComposer = SystemMailComposer(), sentFolder: URL = SentArchive.defaultFolder) {
         self.store = store
         self.now = now
+        self.mail = mail
+        self.sentFolder = sentFolder
         var loadedExisting = false
         switch store.load() {
         case .loaded(let library):
@@ -130,11 +139,11 @@ public final class AppModel {
         choice.action()
     }
 
-    /// Runs `action` only when no message box is up, and beeps otherwise. A message box is modal to
-    /// the keyboard and the menus as well as the mouse, as in Windows 95: every menu command goes
-    /// through here, so a second command can't replace an error that hasn't been read.
+    /// Runs `action` only when no message box or dialog is up, and beeps otherwise. A message box or
+    /// dialog is modal to the keyboard and the menus as well as the mouse, as in Windows 95: every
+    /// menu command goes through here, so a second command can't replace an error that hasn't been read.
     public func whenFree(_ action: () -> Void) {
-        guard message == nil else {
+        guard message == nil, dialog == nil else {
             beep()
             return
         }

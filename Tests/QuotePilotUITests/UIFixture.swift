@@ -3,6 +3,30 @@ import Foundation
 import QuotePilotCore
 @testable import QuotePilotUI
 
+/// Stands in for Mail: records each draft, and can pretend Mail isn't available.
+final class FakeMail: MailComposer {
+    struct Draft: Equatable {
+        var to: String
+        var subject: String
+        var body: String
+        var attachment: URL
+    }
+
+    var available = true
+    var drafts: [Draft] = []
+    var setAside: [(message: String, attachment: URL)] = []
+
+    func compose(to: String, subject: String, body: String, attachment: URL) -> Bool {
+        guard available else { return false }
+        drafts.append(Draft(to: to, subject: subject, body: body, attachment: attachment))
+        return true
+    }
+
+    func setAside(message: String, attachment: URL) {
+        setAside.append((message, attachment))
+    }
+}
+
 /// Made-up data for the UI tests. Never real clients: this repo is public.
 enum UIFixture {
     static let today = Day(year: 2026, month: 10, day: 15)
@@ -30,18 +54,19 @@ enum UIFixture {
         return (library, quote.id)
     }
 
-    /// A model on its own temporary folder, starting from `library` when one is given.
+    /// A model on its own temporary folder, starting from `library` when one is given. Mail is a fake
+    /// and mailed PDFs go to a temporary folder.
     @MainActor
-    static func model(_ library: Library? = nil, folder: URL = makeFolder()) throws -> AppModel {
+    static func model(_ library: Library? = nil, folder: URL = makeFolder(), mail: FakeMail = FakeMail()) throws -> AppModel {
         let store = LibraryStore(folder: folder)
         if let library { try store.save(library) }
-        return AppModel(store: store, now: { today.date() })
+        return AppModel(store: store, now: { today.date() }, mail: mail, sentFolder: makeFolder())
     }
 
     /// A model holding the made-up sample business, on its own temporary folder.
     @MainActor
-    static func sampleModel() throws -> AppModel {
-        try model(SampleLibrary.make(today: today, now: today.date()))
+    static func sampleModel(mail: FakeMail = FakeMail()) throws -> AppModel {
+        try model(SampleLibrary.make(today: today, now: today.date()), mail: mail)
     }
 
     /// A real 2×2 PNG.

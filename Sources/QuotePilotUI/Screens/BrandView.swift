@@ -264,7 +264,7 @@ struct EmailsTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            NoteBanner("Quote Pilot fills in {client}, {contact}, {number}, {amount}, {due} and {business}. Mail drafts arrive in the next build, and you always press Send yourself.")
+            NoteBanner("Quote Pilot fills in {client}, {contact}, {number}, {amount}, {due} and {business}. Send by Mail opens a draft with the PDF attached, and you always press Send yourself.")
             template("Quote email", $brand.emails.quote)
             template("Invoice email", $brand.emails.invoice)
             template("Receipt email", $brand.emails.receipt)

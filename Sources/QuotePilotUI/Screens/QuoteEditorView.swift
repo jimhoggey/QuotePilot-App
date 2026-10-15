@@ -46,6 +46,9 @@ struct QuoteEditorView: View {
                 StatusLabel.cell(quote.status(on: model.today), selected: false)
             }
             Spacer()
+            Button("Send by Mail…") { model.send(.quote(quoteID)) }
+                .buttonStyle(.win95Default)
+                .help("Open a Mail draft with this quote attached (⌘S)")
             Button("Duplicate") { model.duplicateQuote(quoteID) }
                 .buttonStyle(.win95)
             if quote.stage == .draft {

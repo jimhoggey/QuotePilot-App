@@ -20,6 +20,8 @@
     <string>14.0</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.business</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Quote Pilot keeps a copy of every PDF you send by Mail in Documents › Quote Pilot, so you have a record of exactly what each client received.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>

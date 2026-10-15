@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The menu bar. Each command checks for itself whether it applies, and says so in a message box
-/// when it doesn't. While a message box is up every command waits (`whenFree`).
+/// when it doesn't. While a message box or dialog is up every command waits (`whenFree`).
 public struct QuotePilotCommands: Commands {
     let model: AppModel
 
@@ -19,6 +19,16 @@ public struct QuotePilotCommands: Commands {
         // Every change saves itself, so there's no Save.
         CommandGroup(replacing: .saveItem) {}
         CommandGroup(replacing: .printItem) {
+            Button("Send by Mail…") {
+                model.whenFree {
+                    if let document = model.sendableDocument {
+                        model.send(document)
+                    } else {
+                        model.show(title: "Send by Mail", text: "Open a quote or select an invoice first.")
+                    }
+                }
+            }
+            .keyboardShortcut("s")
             Button("Save PDF…") { model.whenFree { model.exportPDF() } }
                 .keyboardShortcut("p")
         }
