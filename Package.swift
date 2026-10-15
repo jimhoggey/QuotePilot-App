@@ -1,0 +1,23 @@
+// swift-tools-version: 6.0
+import Foundation
+import PackageDescription
+
+// Command Line Tools 27.0 install the Swift Testing macro plugin in a folder SwiftPM's build system
+// doesn't search. Point the compiler at it when it's there; Xcode users don't need this.
+let testingPlugins = "/Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing"
+let testSettings: [SwiftSetting] = FileManager.default.fileExists(atPath: testingPlugins)
+    ? [.unsafeFlags(["-plugin-path", testingPlugins])]
+    : []
+
+let package = Package(
+    name: "QuotePilot",
+    platforms: [.macOS(.v14)],
+    products: [
+        .library(name: "QuotePilotCore", targets: ["QuotePilotCore"]),
+    ],
+    targets: [
+        .target(name: "QuotePilotCore"),
+        .testTarget(name: "QuotePilotCoreTests", dependencies: ["QuotePilotCore"],
+                    swiftSettings: testSettings),
+    ]
+)
