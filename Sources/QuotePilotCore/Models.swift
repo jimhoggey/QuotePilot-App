@@ -1,0 +1,326 @@
+import Foundation
+
+// MARK: - Brand
+
+public struct EmailTemplate: Codable, Hashable, Sendable {
+    public var subject: String
+    public var body: String
+
+    public init(subject: String, body: String) {
+        self.subject = subject
+        self.body = body
+    }
+
+    /// Replaces `{key}` placeholders: client, contact, number, amount, due, business.
+    public func filled(_ values: [String: String]) -> (subject: String, body: String) {
+        func fill(_ text: String) -> String {
+            values.reduce(text) { $0.replacingOccurrences(of: "{\($1.key)}", with: $1.value) }
+        }
+        return (fill(subject), fill(body))
+    }
+}
+
+public struct EmailTemplates: Codable, Hashable, Sendable {
+    public var quote: EmailTemplate
+    public var invoice: EmailTemplate
+    public var receipt: EmailTemplate
+
+    public static let standard = EmailTemplates(
+        quote: EmailTemplate(
+            subject: "Quote {number} from {business}",
+            body: """
+            Hi {contact},
+
+            Attached is quote {number}. Tick the lines you'd like to go ahead with, or tick Accept all, \
+            add your name and the date, then save the PDF and send it back to me.
+
+            Thanks,
+            {business}
+            """),
+        invoice: EmailTemplate(
+            subject: "Invoice {number} from {business}",
+            body: """
+            Hi {contact},
+
+            Attached is invoice {number} for {amount}, due {due}. Payment details are on the invoice.
+
+            Thanks,
+            {business}
+            """),
+        receipt: EmailTemplate(
+            subject: "Receipt for invoice {number}",
+            body: """
+            Hi {contact},
+
+            Thanks for your payment. Attached is your receipt for invoice {number}.
+
+            Thanks,
+            {business}
+            """)
+    )
+}
+
+/// The one business identity on every document.
+public struct Brand: Codable, Hashable, Sendable {
+    public var businessName = ""
+    /// Address, email, phone, website: one per line, printed under the business name.
+    public var details = ""
+    /// Printed on tax invoices.
+    public var abn = ""
+    /// Bank, BSB and account, or PayID.
+    public var paymentDetails = ""
+    public var accentHex = "#0B6B66"
+    /// File names inside the library's Assets folder.
+    public var logoFile: String?
+    public var headingFontFile: String?
+    public var quoteTerms = "Prices are fixed for the work listed. Work starts once this quote is accepted."
+    public var invoiceTerms = "Please use the invoice number as your payment reference."
+    public var emails = EmailTemplates.standard
+    public var gstRegistered = false
+    public var currencyCode = "AUD"
+    public var paymentDueDays = 14
+    public var quoteValidDays = 30
+
+    public init() {}
+}
+
+// MARK: - Clients
+
+public struct Client: Codable, Hashable, Identifiable, Sendable {
+    public var id: UUID
+    public var name: String
+    public var contactName: String
+    public var email: String
+    public var phone: String
+    public var address: String
+    public var notes: String
+
+    public init(id: UUID = UUID(), name: String, contactName: String = "", email: String = "",
+                phone: String = "", address: String = "", notes: String = "") {
+        self.id = id
+        self.name = name
+        self.contactName = contactName
+        self.email = email
+        self.phone = phone
+        self.address = address
+        self.notes = notes
+    }
+
+    /// Who "Hi …" is addressed to: the contact's first name, or the business name.
+    public var greetingName: String {
+        let first = contactName.split(separator: " ").first.map(String.init) ?? ""
+        return first.isEmpty ? name : first
+    }
+}
+
+// MARK: - Quotes
+
+public enum PaymentPlan: String, Codable, CaseIterable, Sendable {
+    case fiftyFifty, fullAmount
+
+    public var depositPercent: Int? { self == .fiftyFifty ? 50 : nil }
+
+    public var summary: String {
+        switch self {
+        case .fiftyFifty: return "50% when the quote is accepted, 50% on completion"
+        case .fullAmount: return "Full amount on completion"
+        }
+    }
+}
+
+public enum QuoteStage: String, Codable, Sendable {
+    case draft, sent, accepted, declined
+}
+
+public enum AcceptanceSource: String, Codable, Sendable {
+    case returnedPDF, byHand
+}
+
+/// What the client decided, and how Quote Pilot learned it.
+public struct Acceptance: Codable, Hashable, Sendable {
+    public var recordedAt: Date
+    public var source: AcceptanceSource
+    public var fileName: String?
+    public var clientName: String
+    public var clientDate: String
+    public var accepted: [String]
+    public var declined: [String]
+
+    public init(recordedAt: Date = Date(), source: AcceptanceSource, fileName: String? = nil,
+                clientName: String = "", clientDate: String = "", accepted: [String], declined: [String]) {
+        self.recordedAt = recordedAt
+        self.source = source
+        self.fileName = fileName
+        self.clientName = clientName
+        self.clientDate = clientDate
+        self.accepted = accepted
+        self.declined = declined
+    }
+}
+
+public struct Quote: Codable, Hashable, Identifiable, Sendable {
+    public var id: UUID
+    public var number: String
+    public var clientID: UUID?
+    /// Shown as the reference, e.g. "Website rebuild, phase 1".
+    public var title: String
+    public var issued: Day
+    public var validUntil: Day
+    public var plan: PaymentPlan
+    public var taxed: Bool
+    public var lines: [LineItem]
+    /// The highest line number ever given out on this quote, so a sent quote never reuses a line ID.
+    public var lastLineNumber: Int
+    /// Plain text; lines starting with "- " print as dot points.
+    public var summary: String
+    public var terms: String
+    public var stage: QuoteStage
+    public var sentAt: Date?
+    public var acceptance: Acceptance?
+    public var completedOn: Day?
+
+    public init(id: UUID = UUID(), number: String, clientID: UUID? = nil, title: String = "",
+                issued: Day, validUntil: Day, plan: PaymentPlan = .fiftyFifty, taxed: Bool = false,
+                lines: [LineItem] = [], summary: String = "", terms: String = "", stage: QuoteStage = .draft) {
+        self.id = id
+        self.number = number
+        self.clientID = clientID
+        self.title = title
+        self.issued = issued
+        self.validUntil = validUntil
+        self.plan = plan
+        self.taxed = taxed
+        self.lines = lines
+        self.lastLineNumber = lines.compactMap { Int($0.code) }.max() ?? 0
+        self.summary = summary
+        self.terms = terms
+        self.stage = stage
+    }
+
+    public var totals: Totals { Totals(subtotal: lines.subtotal, taxed: taxed) }
+    public var acceptedLines: [LineItem] { lines.filter { $0.decision == .accepted } }
+    public var acceptedTotals: Totals { Totals(subtotal: acceptedLines.subtotal, taxed: taxed) }
+}
+
+// MARK: - Invoices
+
+public enum InvoiceKind: String, Codable, Sendable {
+    case deposit, final, full, standalone
+}
+
+public enum InvoiceStage: String, Codable, Sendable {
+    case draft, sent, void
+}
+
+public enum PaymentMethod: String, Codable, CaseIterable, Sendable {
+    case bankTransfer, cash, card, other
+
+    public var label: String {
+        switch self {
+        case .bankTransfer: return "Bank transfer"
+        case .cash: return "Cash"
+        case .card: return "Card"
+        case .other: return "Other"
+        }
+    }
+}
+
+public struct Payment: Codable, Hashable, Identifiable, Sendable {
+    public var id: UUID
+    public var date: Day
+    public var amount: Money
+    public var method: PaymentMethod
+    public var note: String
+
+    public init(id: UUID = UUID(), date: Day, amount: Money, method: PaymentMethod = .bankTransfer, note: String = "") {
+        self.id = id
+        self.date = date
+        self.amount = amount
+        self.method = method
+        self.note = note
+    }
+}
+
+/// An earlier invoice that a final invoice subtracts: "Less deposit, INV-0004".
+public struct Deduction: Codable, Hashable, Sendable {
+    public var label: String
+    public var invoiceNumber: String
+    public var amount: Money
+
+    public init(label: String, invoiceNumber: String, amount: Money) {
+        self.label = label
+        self.invoiceNumber = invoiceNumber
+        self.amount = amount
+    }
+}
+
+public struct Invoice: Codable, Hashable, Identifiable, Sendable {
+    public var id: UUID
+    public var number: String
+    public var clientID: UUID?
+    public var quoteID: UUID?
+    public var kind: InvoiceKind
+    public var title: String
+    public var issued: Day
+    public var due: Day
+    public var taxed: Bool
+    public var lines: [LineItem]
+    /// Deposit invoices bill this percentage of the lines' total.
+    public var depositPercent: Int?
+    public var deductions: [Deduction]
+    public var terms: String
+    public var stage: InvoiceStage
+    public var sentAt: Date?
+    public var payments: [Payment]
+    public var receiptSentAt: Date?
+
+    public init(id: UUID = UUID(), number: String, clientID: UUID? = nil, quoteID: UUID? = nil,
+                kind: InvoiceKind, title: String = "", issued: Day, due: Day, taxed: Bool = false,
+                lines: [LineItem] = [], terms: String = "", stage: InvoiceStage = .draft) {
+        self.id = id
+        self.number = number
+        self.clientID = clientID
+        self.quoteID = quoteID
+        self.kind = kind
+        self.title = title
+        self.issued = issued
+        self.due = due
+        self.taxed = taxed
+        self.lines = lines
+        self.depositPercent = nil
+        self.deductions = []
+        self.terms = terms
+        self.stage = stage
+        self.payments = []
+    }
+
+    /// The lines' totals, before any deposit share or deduction.
+    public var lineTotals: Totals { Totals(subtotal: lines.subtotal, taxed: taxed) }
+
+    /// What this invoice asks the client to pay altogether.
+    public var amount: Money {
+        let base = lineTotals.total
+        if let percent = depositPercent { return base.percent(percent) }
+        return deductions.reduce(base) { $0 - $1.amount }
+    }
+
+    public var paid: Money { payments.reduce(.zero) { $0 + $1.amount } }
+    public var owing: Money { amount - paid }
+}
+
+// MARK: - Activity
+
+public struct ActivityEntry: Codable, Hashable, Identifiable, Sendable {
+    public var id: UUID
+    public var at: Date
+    /// The quote or invoice number it's about, if any.
+    public var number: String?
+    public var message: String
+
+    public init(id: UUID = UUID(), at: Date, number: String?, message: String) {
+        self.id = id
+        self.at = at
+        self.number = number
+        self.message = message
+    }
+}
