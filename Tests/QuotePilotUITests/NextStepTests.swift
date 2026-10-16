@@ -178,7 +178,7 @@ import QuotePilotCore
     @Test func aSentQuoteWaitsForTheClientAndNamesNoButton() throws {
         let next = try self.next(try sent(try library()))
         #expect(states(next) == [.done, .current, .todo, .todo, .todo])
-        #expect(next.sentence == "Next: wait for the client to tick the PDF. Then drop it on this window, or use Record Acceptance… if they told you.")
+        #expect(next.sentence == "Next: when the client's ticked PDF comes back, drop it here.")
         #expect(next.action == nil)
     }
 

@@ -254,6 +254,9 @@ import QuotePilotCore
                 let line = ink(rep, xs: columns, ys: line1Rows)
                 if section == Self.wideSection {
                     #expect(expectFull, "\(item.name) should show the whole row at 1240 (needs \(full) of \(room))")
+                    // The sentence fits on one line too, so it doesn't crowd the buttons under it.
+                    let sentence = size(Text(item.next.sentence).font(Win95.small).fixedSize()).width
+                    #expect(sentence <= room, "\(item.name)'s sentence needs \(sentence) of \(room) at 1240")
                 }
                 if !expectShown {
                     #expect(line == nil, "\(item.name) at \(label): no room, so no bar")
