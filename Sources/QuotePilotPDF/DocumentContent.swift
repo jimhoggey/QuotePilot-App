@@ -124,7 +124,9 @@ extension DocumentContent {
         var meta = [Meta(label: "Invoice no.", value: invoice.number),
                     Meta(label: "Issued", value: invoice.issued.long),
                     Meta(label: "Due", value: invoice.due.long)]
-        if let quoteNumber { meta.append(Meta(label: "Quote", value: quoteNumber)) }
+        // Quotes and invoices are numbered separately, so an invoice from a quote names it: this is
+        // how the client connects the two. A one-off invoice has no quote line.
+        if let quoteNumber { meta.append(Meta(label: "Quote no.", value: quoteNumber)) }
         if !invoice.title.trimmed.isEmpty { meta.append(Meta(label: "Reference", value: invoice.title)) }
 
         var sections: [Section] = []
@@ -139,7 +141,7 @@ extension DocumentContent {
             meta: meta,
             amountLabel: paidUp ? "Paid in full" : "Amount due (\(currency))",
             amount: money(paidUp ? invoice.amount : invoice.owing),
-            amountNote: paidUp ? "Thank you" : "Due \(invoice.due.long)",
+            amountNote: paidUp ? "Thank you." : "Due \(invoice.due.long)",
             showCodes: false,
             rows: invoice.lines.map { row($0, currency) },
             totals: totals,
@@ -154,14 +156,14 @@ extension DocumentContent {
 
         var totals = [TotalLine(label: "Invoice total", value: money(invoice.amount), strong: false)]
         for payment in invoice.payments.sorted(by: { $0.date < $1.date }) {
-            totals.append(TotalLine(label: "Paid \(payment.date.short), \(payment.method.label.lowercased())",
+            totals.append(TotalLine(label: "Paid \(payment.date.long), \(payment.method.label.lowercased())",
                                     value: money(payment.amount), strong: false))
         }
         let owing = max(invoice.owing, .zero)
         totals.append(TotalLine(label: owing > .zero ? "Still owing (\(currency))" : "Balance (\(currency))",
                                 value: money(owing), strong: true))
 
-        var meta = [Meta(label: "Receipt for", value: invoice.number)]
+        var meta = [Meta(label: "Invoice no.", value: invoice.number)]
         if let latest = invoice.payments.map(\.date).max() { meta.append(Meta(label: "Date", value: latest.long)) }
         meta.append(Meta(label: "Invoice issued", value: invoice.issued.long))
 

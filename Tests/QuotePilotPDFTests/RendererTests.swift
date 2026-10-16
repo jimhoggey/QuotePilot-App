@@ -135,7 +135,37 @@ import QuotePilotCore
         #expect(content.title == "Receipt")
         #expect(content.amountNote == "Paid in full. Thank you.")
         #expect(content.fileName == "Receipt INV-0001 Sample Client Pty Ltd.pdf")
-        #expect(Sample.text(Sample.pdf(content)).contains("Paid 17 Oct 2026, bank transfer"))
+        // Dates are written out in full, as everywhere else on the documents.
+        #expect(Sample.text(Sample.pdf(content)).contains("Paid 17 October 2026, bank transfer"))
+        #expect(content.meta.map(\.label) == ["Invoice no.", "Date", "Invoice issued"])
+    }
+
+    /// Quote and invoice numbers are separate sequences, so an invoice from a quote names the quote
+    /// in its details, beside its own number and dates. A one-off invoice doesn't.
+    @Test func anInvoiceFromAQuoteNamesTheQuote() throws {
+        let fromQuote = DocumentContent.invoice(Sample.invoice(.deposit), client: Sample.client, brand: Sample.brand,
+                                                quoteNumber: "Q-0008")
+        #expect(fromQuote.meta.map(\.label) == ["Invoice no.", "Issued", "Due", "Quote no."])
+        let document = Sample.pdf(fromQuote)
+        let label = try #require(LayoutTests.bounds(of: "Quote no.", in: document).first)
+        let number = try #require(LayoutTests.bounds(of: "Q-0008", in: document).first)
+        let invoiceNo = try #require(LayoutTests.bounds(of: "Invoice no.", in: document).first)
+        #expect(abs(label.midY - number.midY) < 3, "the quote number isn't beside its label")
+        #expect(number.minX > label.maxX)
+        #expect(abs(label.minX - invoiceNo.minX) < 0.5, "not in the details block")
+
+        let oneOff = DocumentContent.invoice(Sample.invoice(.standalone), client: Sample.client, brand: Sample.brand, quoteNumber: nil)
+        let text = Sample.text(Sample.pdf(oneOff))
+        #expect(!text.contains("Quote no."))
+        #expect(!text.contains("Q-0"))
+    }
+
+    @Test func aPaidInvoiceThanksTheClient() {
+        var invoice = Sample.invoice(.standalone)
+        invoice.payments = [Payment(date: Sample.today, amount: invoice.amount)]
+        let content = DocumentContent.invoice(invoice, client: Sample.client, brand: Sample.brand, quoteNumber: nil)
+        #expect(content.amountLabel == "Paid in full")
+        #expect(content.amountNote == "Thank you.")
     }
 
     @Test func invoicesHaveNoForm() {
