@@ -73,8 +73,9 @@ struct DashboardView: View {
             ? "Nothing waiting. Every sent invoice is paid." : "Nothing waiting to be paid."
     }
 
-    /// The three lists, numbered in the order the work happens.
-    static let listTitles = ["1 · Quotes waiting on a reply", "2 · Still to invoice", "3 · Waiting to be paid"]
+    /// The three lists, in the order the work happens. No numbers: "1 · Quotes waiting" read as
+    /// a count ("one quote waiting"), as the step bar's numbers did.
+    static let listTitles = ["Quotes waiting on a reply", "Still to invoice", "Waiting to be paid"]
 
     /// The least height a row of lists gets: its title and padding (26), the column header and two
     /// rows. With the Getting started box showing, this keeps the lists from being squeezed away in the
