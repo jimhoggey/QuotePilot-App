@@ -17,6 +17,8 @@ public enum Win95 {
     public static let field = Color(hex: 0xFFFFFF)
     public static let text = Color(hex: 0x000000)
     public static let tooltip = Color(hex: 0xFFFFE1)
+    /// A small grey aside on the window's face, dark enough to read (5.7:1 on `face`).
+    public static let note = Color(hex: 0x404040)
 
     // Meaning, always paired with a word or an icon
     public static let overdue = Color(hex: 0xC00000)

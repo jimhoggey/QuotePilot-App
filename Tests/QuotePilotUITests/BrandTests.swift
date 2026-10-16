@@ -109,6 +109,171 @@ import QuotePilotPDF
         #expect(HourlyRateField.stored(Money(dollars: 95)) == Money(dollars: 95))
     }
 
+    // MARK: When the sample quote redraws
+
+    /// Typing saves as it goes but leaves the sample quote alone; ending the edit brings it up to date.
+    @Test func typingWaitsForTheEditToEndBeforeTheSampleRedraws() throws {
+        let model = try UIFixture.sampleModel()
+        let before = model.library.brand
+        let sample = model.sampleContent()
+        let typing = model.brandTypingBinding
+        typing.wrappedValue.businessName = "Sample Studio T"
+        typing.wrappedValue.businessName = "Sample Studio Two"
+        typing.wrappedValue.hourlyRate = Money(dollars: 9)
+        typing.wrappedValue.hourlyRate = Money(dollars: 95)
+        // Saved at once...
+        #expect(model.library.brand.businessName == "Sample Studio Two")
+        #expect(model.library.brand.hourlyRate == Money(dollars: 95))
+        guard case .loaded(let saved) = model.store.load() else {
+            Issue.record("Not saved")
+            return
+        }
+        #expect(saved.brand.businessName == "Sample Studio Two")
+        // ...but the sample is drawn as it was.
+        #expect(model.previewBrand == before)
+        #expect(model.sampleContent() == sample)
+
+        model.brandEditEnded()
+        #expect(model.previewBrand == model.library.brand)
+        #expect(model.previewBrand.businessName == "Sample Studio Two")
+        #expect(model.sampleContent() != sample)
+
+        // The next edit holds it again, at what it now shows.
+        typing.wrappedValue.abn = "12 345 678 901"
+        #expect(model.previewBrand.businessName == "Sample Studio Two")
+        #expect(model.previewBrand.abn == before.abn)
+        model.brandEditEnded()
+        #expect(model.previewBrand.abn == "12 345 678 901")
+    }
+
+    /// A checkbox, a colour swatch or a logo changes in one action, so the sample redraws at once,
+    /// with whatever was typed before it.
+    @Test func aCheckboxColourOrLogoRedrawsTheSampleAtOnce() throws {
+        let model = try UIFixture.sampleModel()
+        let gst = model.library.brand.gstRegistered
+        model.brandTypingBinding.wrappedValue.businessName = "Sample Studio Two"
+        model.brandBinding.wrappedValue.gstRegistered.toggle()
+        #expect(model.previewBrand.gstRegistered == !gst)
+        #expect(model.previewBrand.businessName == "Sample Studio Two")
+        #expect(model.previewBrand == model.library.brand)
+
+        let colour = model.library.brand.accentHex == "#7A1F2B" ? "#2E6B30" : "#7A1F2B"
+        model.brandTypingBinding.wrappedValue.details = "1 Sample Street"
+        model.brandBinding.wrappedValue.accentHex = colour
+        #expect(model.previewBrand.accentHex == colour)
+        #expect(model.previewBrand == model.library.brand)
+
+        model.brandTypingBinding.wrappedValue.abn = "12 345 678 901"
+        model.choosingFile = .logo
+        model.fileChosen(.success(try UIFixture.file("my logo.pdf", model.pdf(model.sampleContent()))))
+        #expect(model.library.brand.logoFile != nil)
+        #expect(model.previewBrand == model.library.brand)
+    }
+
+    // MARK: Where a field lands on the sample
+
+    /// How many pixels of page 1 are the highlight's yellow (#FFF3A0 at 60% on white).
+    private func highlightPixels(_ pdf: Data) throws -> Int {
+        let page = try #require(PDFDocument(data: pdf)?.page(at: 0))
+        let box = page.bounds(for: .mediaBox)
+        let width = Int(box.width), height = Int(box.height)
+        var bytes = [UInt8](repeating: 255, count: width * height * 4)
+        bytes.withUnsafeMutableBytes { buffer in
+            let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                                    bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            page.draw(with: .mediaBox, to: context)
+        }
+        var count = 0
+        for i in stride(from: 0, to: bytes.count, by: 4)
+        where bytes[i] >= 250 && bytes[i + 1] >= 238 && bytes[i + 1] <= 252 && bytes[i + 2] >= 180 && bytes[i + 2] <= 215 {
+            count += 1
+        }
+        return count
+    }
+
+    /// The highlight follows the focused field: a field losing focus after the next one gained it
+    /// leaves the new one's highlight, and with nothing focused there is none.
+    @Test func theHighlightFollowsTheFocusedField() throws {
+        let model = try UIFixture.sampleModel()
+        #expect(model.brandHighlight == nil)
+        model.brandFocus(.businessName, focused: true)
+        #expect(model.brandHighlight == .businessName)
+        // Tabbing to the ABN: the ABN may report gaining focus before the name reports losing it.
+        model.brandFocus(.abn, focused: true)
+        model.brandFocus(.businessName, focused: false)
+        #expect(model.brandHighlight == .abn)
+        model.brandFocus(.abn, focused: false)
+        #expect(model.brandHighlight == nil)
+
+        // The logo, fonts and colour have no text field: the pointer over their group, or their file
+        // panel, highlights them; a focused field still wins.
+        model.brandHover(.logo, hovering: true)
+        #expect(model.brandHighlight == .logo)
+        model.brandFocus(.hourlyRate, focused: true)
+        #expect(model.brandHighlight == .hourlyRate)
+        model.brandFocus(.hourlyRate, focused: false)
+        model.brandHover(.logo, hovering: false)
+        #expect(model.brandHighlight == nil)
+        model.choosingFile = .headingFont
+        #expect(model.brandHighlight == .headingFont)
+        model.choosingFile = nil
+
+        // Leaving the screen clears it.
+        model.brandFocus(.details, focused: true)
+        model.clearBrandHighlight()
+        #expect(model.brandHighlight == nil)
+    }
+
+    /// The sample quote carries the highlight; the PDFs of real documents never do.
+    @Test func onlyTheSampleIsHighlighted() throws {
+        let model = try UIFixture.sampleModel()
+        model.brandFocus(.businessName, focused: true)
+        let sample = model.pdf(model.sampleContent(), brand: model.previewBrand, highlight: model.brandHighlight)
+        #expect(try highlightPixels(sample) > 300)
+        #expect(try highlightPixels(model.pdf(model.sampleContent(), brand: model.previewBrand)) == 0)
+        // A real quote, with a Brand field focused all the while.
+        let quote = try #require(model.library.quotes.first)
+        let content = try #require(model.quoteContent(quote.id))
+        #expect(try highlightPixels(model.pdf(content)) == 0)
+        if let invoice = model.library.invoices.first, let invoiceContent = model.invoiceContent(invoice.id) {
+            #expect(try highlightPixels(model.pdf(invoiceContent)) == 0)
+        }
+    }
+
+    /// What isn't on the sample quote says where it prints instead.
+    @Test func fieldsTheSampleDoesNotShowSayWhereTheyPrint() {
+        var brand = Brand()
+        brand.businessName = "Sample Studio"
+        brand.abn = "12 345 678 901"
+        #expect(BrandElement.paymentDetails.placementNote(on: brand) == "Prints on invoices only.")
+        #expect(BrandElement.invoiceTerms.placementNote(on: brand) == "Prints on invoices only.")
+        #expect(BrandElement.paymentDueDays.placementNote(on: brand) == "Sets the due date, which prints on invoices only.")
+        #expect(BrandElement.emails.placementNote(on: brand) == "Goes in the Mail draft, not on the PDF.")
+        #expect(BrandElement.logo.placementNote(on: brand) == "Once chosen, it prints at the top left of every document.")
+        // What the sample shows has no note.
+        for element: BrandElement in [.businessName, .abn, .headingFont, .bodyFont, .accentColour, .hourlyRate,
+                                      .quoteValidDays, .quoteTerms] {
+            #expect(element.placementNote(on: brand) == nil, "\(element)")
+        }
+        // Empty, it isn't on the sample yet.
+        brand.abn = " "
+        #expect(BrandElement.abn.placementNote(on: brand) == "Prints under your details on every quote, invoice and receipt once filled in.")
+        brand.quoteTerms = ""
+        #expect(BrandElement.quoteTerms.placementNote(on: brand) == "Prints on quotes once filled in.")
+    }
+
+    /// The Business tab draws with a note showing.
+    @Test func theBusinessTabDrawsWithANote() throws {
+        let model = try UIFixture.sampleModel()
+        model.brandFocus(.paymentDetails, focused: true)
+        let rep = Snapshot.render(BrandView(model: model, tab: .business).background(Win95.face),
+                                  size: CGSize(width: 980, height: 620), name: "brand-business-note")
+        #expect(rep != nil)
+    }
+
     // MARK: One file picker for the whole app
 
     /// A font file that ships with macOS, or nil when this Mac has none of the usual ones.

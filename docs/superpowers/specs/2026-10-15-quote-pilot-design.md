@@ -126,7 +126,10 @@ QuotePilotApp depends on the other two; QuotePilotPDF depends on QuotePilotCore;
 - **Full amount:** one invoice for the accepted total.
 - **Standalone:** the total of its own lines.
 - **GST (if ever switched on):** 10% on top of quotes and invoices; "accepted total" and the 50/50
-  split then include it. The invoice title becomes "Tax invoice", with the ABN shown.
+  split then include it. The invoice title becomes "Tax invoice".
+- **ABN:** printed with the business details ("ABN 12 345 678 901") on every quote, invoice and
+  receipt whenever the brand has one, GST or not; business clients expect it, and may withhold tax
+  without it.
 - **Amount owing** on an invoice = total − payments recorded.
 
 ### Statuses

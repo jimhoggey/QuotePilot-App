@@ -19,7 +19,8 @@ import QuotePilotCore
                          "50% when the quote is accepted"] {
             #expect(text.contains(expected), "missing \(expected)")
         }
-        #expect(!text.contains("ABN"))
+        // The brand has an ABN, so the quote carries it, though it has no GST.
+        #expect(text.contains("ABN 00 000 000 000"))
     }
 
     @Test func aDepositInvoiceBillsTheShare() {
@@ -63,6 +64,70 @@ import QuotePilotCore
         #expect(Sample.text(Sample.pdf(content)).contains("ABN 00 000 000 000"))
     }
 
+    // MARK: The ABN
+
+    /// GST off: still an "Invoice", with no GST lines, but the ABN prints with the business details.
+    @Test func anInvoiceWithoutGSTStillShowsTheABN() {
+        var brand = Sample.brand
+        brand.abn = "12345678901"
+        let content = DocumentContent.invoice(Sample.invoice(.standalone), client: Sample.client, brand: brand, quoteNumber: nil)
+        #expect(content.title == "Invoice")
+        #expect(content.totals.map(\.label) == ["Total (AUD)"])
+        #expect(content.fromDetails == "hello@example.com\n0400 000 000\nABN 12 345 678 901")
+        let text = Sample.text(Sample.pdf(content))
+        #expect(text.contains("ABN 12 345 678 901"))
+        #expect(!text.contains("Tax invoice"))
+        #expect(!text.contains("GST"))
+    }
+
+    /// Quotes and receipts carry it too, whether or not the document has GST.
+    @Test func quotesAndReceiptsShowTheABNWithOrWithoutGST() {
+        var brand = Sample.brand
+        brand.abn = "12 345 678 901"
+        var receipted = Sample.invoice(.standalone)
+        receipted.payments = [Payment(date: Sample.today, amount: Money(dollars: 100))]
+        var taxedQuote = Sample.quote()
+        taxedQuote.taxed = true
+        let documents: [DocumentContent] = [
+            .quote(Sample.quote(), client: Sample.client, brand: brand),
+            .quote(taxedQuote, client: Sample.client, brand: brand),
+            .receipt(receipted, client: Sample.client, brand: brand),
+        ]
+        for content in documents {
+            #expect(content.fromDetails.hasSuffix("\nABN 12 345 678 901"), "\(content.title)")
+            #expect(Sample.text(Sample.pdf(content)).contains("ABN 12 345 678 901"), "\(content.title)")
+        }
+    }
+
+    /// No ABN on the brand: no "ABN" line anywhere, taxed or not.
+    @Test func anEmptyABNPrintsNothing() {
+        var brand = Sample.brand
+        brand.abn = "   "
+        var receipted = Sample.invoice(.standalone, taxed: true)
+        receipted.payments = [Payment(date: Sample.today, amount: Money(dollars: 100))]
+        let documents: [DocumentContent] = [
+            .quote(Sample.quote(), client: Sample.client, brand: brand),
+            .invoice(Sample.invoice(.standalone), client: Sample.client, brand: brand, quoteNumber: nil),
+            .invoice(Sample.invoice(.standalone, taxed: true), client: Sample.client, brand: brand, quoteNumber: nil),
+            .receipt(receipted, client: Sample.client, brand: brand),
+        ]
+        for content in documents {
+            #expect(content.fromDetails == "hello@example.com\n0400 000 000", "\(content.title)")
+            #expect(!Sample.text(Sample.pdf(content)).contains("ABN"), "\(content.title)")
+        }
+    }
+
+    @Test func anABNOfElevenDigitsIsGroupedTwoThreeThreeThree() {
+        #expect(DocumentContent.formattedABN("12345678901") == "12 345 678 901")
+        #expect(DocumentContent.formattedABN(" 12 345 678 901 ") == "12 345 678 901")
+        #expect(DocumentContent.formattedABN("123 456 789 01") == "12 345 678 901")
+        // Anything else prints as typed.
+        #expect(DocumentContent.formattedABN("1234567890") == "1234567890")
+        #expect(DocumentContent.formattedABN("123456789012") == "123456789012")
+        #expect(DocumentContent.formattedABN("12-345-678-901") == "12-345-678-901")
+        #expect(DocumentContent.formattedABN("Applied for") == "Applied for")
+    }
+
     @Test func aReceiptListsThePayments() {
         var invoice = Sample.invoice(.standalone)
         invoice.payments = [Payment(date: Sample.today.adding(days: 2), amount: Money(dollars: 1080))]
@@ -70,7 +135,37 @@ import QuotePilotCore
         #expect(content.title == "Receipt")
         #expect(content.amountNote == "Paid in full. Thank you.")
         #expect(content.fileName == "Receipt INV-0001 Sample Client Pty Ltd.pdf")
-        #expect(Sample.text(Sample.pdf(content)).contains("Paid 17 Oct 2026, bank transfer"))
+        // Dates are written out in full, as everywhere else on the documents.
+        #expect(Sample.text(Sample.pdf(content)).contains("Paid 17 October 2026, bank transfer"))
+        #expect(content.meta.map(\.label) == ["Invoice no.", "Date", "Invoice issued"])
+    }
+
+    /// Quote and invoice numbers are separate sequences, so an invoice from a quote names the quote
+    /// in its details, beside its own number and dates. A one-off invoice doesn't.
+    @Test func anInvoiceFromAQuoteNamesTheQuote() throws {
+        let fromQuote = DocumentContent.invoice(Sample.invoice(.deposit), client: Sample.client, brand: Sample.brand,
+                                                quoteNumber: "Q-0008")
+        #expect(fromQuote.meta.map(\.label) == ["Invoice no.", "Issued", "Due", "Quote no."])
+        let document = Sample.pdf(fromQuote)
+        let label = try #require(LayoutTests.bounds(of: "Quote no.", in: document).first)
+        let number = try #require(LayoutTests.bounds(of: "Q-0008", in: document).first)
+        let invoiceNo = try #require(LayoutTests.bounds(of: "Invoice no.", in: document).first)
+        #expect(abs(label.midY - number.midY) < 3, "the quote number isn't beside its label")
+        #expect(number.minX > label.maxX)
+        #expect(abs(label.minX - invoiceNo.minX) < 0.5, "not in the details block")
+
+        let oneOff = DocumentContent.invoice(Sample.invoice(.standalone), client: Sample.client, brand: Sample.brand, quoteNumber: nil)
+        let text = Sample.text(Sample.pdf(oneOff))
+        #expect(!text.contains("Quote no."))
+        #expect(!text.contains("Q-0"))
+    }
+
+    @Test func aPaidInvoiceThanksTheClient() {
+        var invoice = Sample.invoice(.standalone)
+        invoice.payments = [Payment(date: Sample.today, amount: invoice.amount)]
+        let content = DocumentContent.invoice(invoice, client: Sample.client, brand: Sample.brand, quoteNumber: nil)
+        #expect(content.amountLabel == "Paid in full")
+        #expect(content.amountNote == "Thank you.")
     }
 
     @Test func invoicesHaveNoForm() {

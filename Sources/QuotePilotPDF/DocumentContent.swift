@@ -6,6 +6,8 @@ public struct DocumentContent: Equatable {
     public struct Meta: Equatable {
         public var label: String
         public var value: String
+        /// The brand setting this comes from, if any, for the Brand screen's highlight.
+        public var source: BrandElement? = nil
     }
 
     public struct Row: Equatable {
@@ -15,6 +17,8 @@ public struct DocumentContent: Equatable {
         public var quantity: String
         public var rate: String
         public var amount: String
+        /// The brand setting the rate comes from, if any: a line in hours starts at the hourly rate.
+        public var rateSource: BrandElement? = nil
     }
 
     public struct TotalLine: Equatable {
@@ -27,6 +31,8 @@ public struct DocumentContent: Equatable {
         public var heading: String
         /// Lines starting with "- " print as dot points.
         public var text: String
+        /// The brand setting this comes from, if any, for the Brand screen's highlight.
+        public var source: BrandElement? = nil
     }
 
     public var title: String
@@ -67,18 +73,18 @@ extension DocumentContent {
 
         var meta = [Meta(label: "Quote no.", value: quote.number),
                     Meta(label: "Issued", value: quote.issued.long),
-                    Meta(label: "Valid until", value: quote.validUntil.long)]
+                    Meta(label: "Valid until", value: quote.validUntil.long, source: .quoteValidDays)]
         if !quote.title.trimmed.isEmpty { meta.append(Meta(label: "Reference", value: quote.title)) }
 
         var sections: [Section] = []
         if !quote.summary.trimmed.isEmpty { sections.append(Section(heading: "Work summary", text: quote.summary)) }
         sections.append(Section(heading: "Payment plan",
                                 text: "\(quote.plan.summary). You're only invoiced for the lines you accept."))
-        if !quote.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: quote.terms)) }
+        if !quote.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: quote.terms, source: .quoteTerms)) }
 
         return DocumentContent(
             title: "Quote", number: quote.number,
-            fromName: brand.businessName, fromDetails: fromDetails(brand, taxed: quote.taxed),
+            fromName: brand.businessName, fromDetails: fromDetails(brand),
             toLabel: "Prepared for", toName: client?.name ?? "", toDetails: clientDetails(client),
             meta: meta,
             amountLabel: "Quote total (\(currency))",
@@ -123,23 +129,27 @@ extension DocumentContent {
 
         var meta = [Meta(label: "Invoice no.", value: invoice.number),
                     Meta(label: "Issued", value: invoice.issued.long),
-                    Meta(label: "Due", value: invoice.due.long)]
-        if let quoteNumber { meta.append(Meta(label: "Quote", value: quoteNumber)) }
+                    Meta(label: "Due", value: invoice.due.long, source: .paymentDueDays)]
+        // Quotes and invoices are numbered separately, so an invoice from a quote names it: this is
+        // how the client connects the two. A one-off invoice has no quote line.
+        if let quoteNumber { meta.append(Meta(label: "Quote no.", value: quoteNumber)) }
         if !invoice.title.trimmed.isEmpty { meta.append(Meta(label: "Reference", value: invoice.title)) }
 
         var sections: [Section] = []
-        if !brand.paymentDetails.trimmed.isEmpty { sections.append(Section(heading: "Payment details", text: brand.paymentDetails)) }
-        if !invoice.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: invoice.terms)) }
+        if !brand.paymentDetails.trimmed.isEmpty {
+            sections.append(Section(heading: "Payment details", text: brand.paymentDetails, source: .paymentDetails))
+        }
+        if !invoice.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: invoice.terms, source: .invoiceTerms)) }
 
         let paidUp = invoice.paid > .zero && invoice.owing <= .zero
         return DocumentContent(
             title: invoice.taxed ? "Tax invoice" : "Invoice", number: invoice.number,
-            fromName: brand.businessName, fromDetails: fromDetails(brand, taxed: invoice.taxed),
+            fromName: brand.businessName, fromDetails: fromDetails(brand),
             toLabel: "Billed to", toName: client?.name ?? "", toDetails: clientDetails(client),
             meta: meta,
             amountLabel: paidUp ? "Paid in full" : "Amount due (\(currency))",
             amount: money(paidUp ? invoice.amount : invoice.owing),
-            amountNote: paidUp ? "Thank you" : "Due \(invoice.due.long)",
+            amountNote: paidUp ? "Thank you." : "Due \(invoice.due.long)",
             showCodes: false,
             rows: invoice.lines.map { row($0, currency) },
             totals: totals,
@@ -154,20 +164,20 @@ extension DocumentContent {
 
         var totals = [TotalLine(label: "Invoice total", value: money(invoice.amount), strong: false)]
         for payment in invoice.payments.sorted(by: { $0.date < $1.date }) {
-            totals.append(TotalLine(label: "Paid \(payment.date.short), \(payment.method.label.lowercased())",
+            totals.append(TotalLine(label: "Paid \(payment.date.long), \(payment.method.label.lowercased())",
                                     value: money(payment.amount), strong: false))
         }
         let owing = max(invoice.owing, .zero)
         totals.append(TotalLine(label: owing > .zero ? "Still owing (\(currency))" : "Balance (\(currency))",
                                 value: money(owing), strong: true))
 
-        var meta = [Meta(label: "Receipt for", value: invoice.number)]
+        var meta = [Meta(label: "Invoice no.", value: invoice.number)]
         if let latest = invoice.payments.map(\.date).max() { meta.append(Meta(label: "Date", value: latest.long)) }
         meta.append(Meta(label: "Invoice issued", value: invoice.issued.long))
 
         return DocumentContent(
             title: "Receipt", number: invoice.number,
-            fromName: brand.businessName, fromDetails: fromDetails(brand, taxed: invoice.taxed),
+            fromName: brand.businessName, fromDetails: fromDetails(brand),
             toLabel: "Received from", toName: client?.name ?? "", toDetails: clientDetails(client),
             meta: meta,
             amountLabel: "Total paid (\(currency))",
@@ -185,13 +195,31 @@ extension DocumentContent {
         Row(code: line.code, title: line.title, detail: line.detail,
             quantity: line.unit.describe(line.quantity),
             rate: line.rate.formatted(currencyCode: currency),
-            amount: line.amount.formatted(currencyCode: currency))
+            amount: line.amount.formatted(currencyCode: currency),
+            rateSource: line.unit == .hours ? .hourlyRate : nil)
     }
 
-    static func fromDetails(_ brand: Brand, taxed: Bool) -> String {
+    /// The business's details, then its ABN whenever it has one. Every quote, invoice and receipt
+    /// carries the ABN, GST or not: business clients expect one, and may withhold tax without it.
+    static func fromDetails(_ brand: Brand) -> String {
         var parts = [brand.details.trimmed].filter { !$0.isEmpty }
-        if taxed && !brand.abn.trimmed.isEmpty { parts.append("ABN \(brand.abn.trimmed)") }
+        if !brand.abn.trimmed.isEmpty { parts.append("ABN \(formattedABN(brand.abn))") }
         return parts.joined(separator: "\n")
+    }
+
+    /// An ABN as it prints: eleven digits grouped 2-3-3-3 ("12 345 678 901"), however they were
+    /// spaced when typed; anything else exactly as typed.
+    public static func formattedABN(_ abn: String) -> String {
+        let typed = abn.trimmed
+        let digits = typed.filter { !$0.isWhitespace }
+        guard digits.count == 11, digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return typed }
+        var groups: [Substring] = []
+        var rest = Substring(digits)
+        for size in [2, 3, 3, 3] {
+            groups.append(rest.prefix(size))
+            rest = rest.dropFirst(size)
+        }
+        return groups.joined(separator: " ")
     }
 
     static func clientDetails(_ client: Client?) -> String {

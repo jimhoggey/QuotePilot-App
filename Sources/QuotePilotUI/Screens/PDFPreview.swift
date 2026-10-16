@@ -55,24 +55,34 @@ struct PDFPreview: NSViewRepresentable {
 struct PreviewKey: Equatable {
     var content: DocumentContent?
     var brand: Brand
+    var highlight: BrandElement? = nil
 }
 
 /// A preview that redraws itself shortly after the document or the brand changes.
 struct LivePDFPreview: View {
     let model: AppModel
     let content: DocumentContent?
+    /// The brand to draw in: the library's when nil. The Brand screen passes its `previewBrand`.
+    var brand: Brand?
+    /// The Brand screen's sample only: what to highlight, the part of the brand being edited.
+    var highlight: BrandElement?
     @State private var pdf: Data?
+    @State private var shownKey: PreviewKey?
 
     var body: some View {
+        let key = PreviewKey(content: content, brand: brand ?? model.library.brand, highlight: highlight)
         PDFPreview(data: pdf)
             .overlay(Bevel(.sunken))
-            .task(id: PreviewKey(content: content, brand: model.library.brand)) {
-                // Wait for a pause in typing before redrawing, except the first time.
-                if pdf != nil {
+            .task(id: key) {
+                // Wait for a pause in typing before redrawing, except the first time and when only
+                // the highlight moved, which follows focus at once.
+                let onlyHighlight = shownKey.map { $0.content == key.content && $0.brand == key.brand } ?? false
+                if pdf != nil && !onlyHighlight {
                     try? await Task.sleep(for: .milliseconds(300))
                     if Task.isCancelled { return }
                 }
-                pdf = content.map(model.pdf)
+                pdf = content.map { model.pdf($0, brand: brand, highlight: highlight) }
+                shownKey = key
             }
     }
 }

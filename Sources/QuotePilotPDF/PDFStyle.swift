@@ -69,6 +69,15 @@ public struct PDFStyle {
         }
         return NSFont.systemFont(ofSize: size, weight: weight) as CTFont
     }
+
+    /// The body font with tabular (equal-width) figures, for quantities and money, so the digits of
+    /// a column line up under each other. A font without tabular figures draws as `body` does.
+    func numbers(_ size: CGFloat, weight: NSFont.Weight = .regular) -> CTFont {
+        let tabular: [CFString: Any] = [kCTFontFeatureTypeIdentifierKey: kNumberSpacingType,
+                                        kCTFontFeatureSelectorIdentifierKey: kMonospacedNumbersSelector]
+        let descriptor = CTFontDescriptorCreateWithAttributes([kCTFontFeatureSettingsAttribute: [tabular]] as CFDictionary)
+        return CTFontCreateCopyWithAttributes(body(size, weight: weight), 0, nil, descriptor)
+    }
 }
 
 /// A logo from a PNG or JPG (bitmap) or a PDF (stays sharp at any size). An SVG logo is a PDF by the
@@ -95,12 +104,20 @@ public enum Logo {
         }
     }
 
-    /// Draws inside `rect` (PDF coordinates), keeping its shape, against the left edge.
+    /// The size it draws at to fit `bounds`, keeping its shape; zero for an empty image.
+    func fitted(in bounds: CGSize) -> CGSize {
+        guard size.width > 0, size.height > 0 else { return .zero }
+        let scale = min(bounds.width / size.width, bounds.height / size.height)
+        return CGSize(width: size.width * scale, height: size.height * scale)
+    }
+
+    /// Draws inside `rect` (PDF coordinates), keeping its shape, in the top-left corner, so the text
+    /// under it follows the logo itself rather than the space it was allowed.
     func draw(in rect: CGRect, context: CGContext) {
-        guard size.width > 0, size.height > 0 else { return }
-        let scale = min(rect.width / size.width, rect.height / size.height)
-        let drawn = CGRect(x: rect.minX, y: rect.minY + (rect.height - size.height * scale) / 2,
-                           width: size.width * scale, height: size.height * scale)
+        let fitted = fitted(in: rect.size)
+        guard fitted.width > 0, fitted.height > 0 else { return }
+        let scale = fitted.width / size.width
+        let drawn = CGRect(x: rect.minX, y: rect.maxY - fitted.height, width: fitted.width, height: fitted.height)
         switch self {
         case .bitmap(let image):
             context.draw(image, in: drawn)

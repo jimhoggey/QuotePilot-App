@@ -102,6 +102,32 @@ struct Win95ToolbarButtonBody: View {
 
 // MARK: Text
 
+/// What a text field does when an edit in it ends: Return, or focus leaving it. Nothing unless a
+/// screen asks; the Brand screen redraws its sample quote then, not on every keystroke.
+private struct TextEditEndedKey: EnvironmentKey {
+    static let defaultValue: @MainActor () -> Void = {}
+}
+
+extension EnvironmentValues {
+    var textEditEnded: @MainActor () -> Void {
+        get { self[TextEditEndedKey.self] }
+        set { self[TextEditEndedKey.self] = newValue }
+    }
+}
+
+/// What a text field does when it gains (true) or loses (false) focus. Nothing unless a screen
+/// asks; the Brand screen highlights where the focused field lands on its sample quote.
+private struct TextFocusChangedKey: EnvironmentKey {
+    static let defaultValue: @MainActor (Bool) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    var textFocusChanged: @MainActor (Bool) -> Void {
+        get { self[TextFocusChangedKey.self] }
+        set { self[TextFocusChangedKey.self] = newValue }
+    }
+}
+
 /// A sunken white text field with the dotted focus rectangle. Disabled, it is the window's grey with
 /// grey text, as a locked field is in Windows 95, so a record that can't be edited doesn't look as
 /// if it can.
@@ -111,6 +137,8 @@ public struct Win95TextField: View {
     let prompt: String
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.textEditEnded) private var editEnded
+    @Environment(\.textFocusChanged) private var focusChanged
 
     public init(_ label: String, text: Binding<String>, prompt: String = "") {
         self.label = label
@@ -126,6 +154,11 @@ public struct Win95TextField: View {
             .font(Win95.body)
             .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
             .focused($focused)
+            .onSubmit { editEnded() }
+            .onChange(of: focused) { _, isFocused in
+                focusChanged(isFocused)
+                if !isFocused { editEnded() }
+            }
             .padding(.horizontal, 5)
             .padding(.vertical, 4)
             .background(isEnabled ? Win95.field : Win95.face)
@@ -143,6 +176,8 @@ public struct Win95TextEditor: View {
     @Binding var text: String
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.textEditEnded) private var editEnded
+    @Environment(\.textFocusChanged) private var focusChanged
 
     public init(_ label: String = "", text: Binding<String>) {
         self.label = label
@@ -155,6 +190,11 @@ public struct Win95TextEditor: View {
             .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
             .scrollContentBackground(.hidden)
             .focused($focused)
+            // Return starts a new line here, so the edit ends only when focus leaves.
+            .onChange(of: focused) { _, isFocused in
+                focusChanged(isFocused)
+                if !isFocused { editEnded() }
+            }
             .padding(4)
             .background(isEnabled ? Win95.field : Win95.face)
             .overlay(Bevel(.sunken))

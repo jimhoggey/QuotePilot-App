@@ -78,7 +78,10 @@ public final class AppModel {
     }
 
     public let store: LibraryStore
-    public private(set) var library: Library
+    public private(set) var library: Library {
+        // Any change but a typed one (`typeBrand` holds it again) redraws the Brand screen's sample.
+        didSet { heldPreviewBrand = nil }
+    }
     public private(set) var loadState: LoadState
     public private(set) var lastSaved: Date?
 
@@ -492,6 +495,74 @@ public final class AppModel {
         Binding(get: { self.library.brand }, set: { self.updateBrand($0) })
     }
 
+    /// The brand the Brand screen's sample quote is drawn from. Typing in one of its text fields saves
+    /// at once but leaves this where it was, so the sample doesn't redraw on every keystroke; it
+    /// catches up when the edit ends (`brandEditEnded`) or anything else changes the library, such as
+    /// the GST checkbox, a colour swatch, a font or a logo.
+    public var previewBrand: Brand { heldPreviewBrand ?? library.brand }
+    /// What the sample showed when typing began; nil while it follows the library.
+    private var heldPreviewBrand: Brand?
+
+    /// Saves a brand typed into a text field, holding the sample quote where it was.
+    public func typeBrand(_ brand: Brand) {
+        let shown = previewBrand
+        updateBrand(brand)
+        heldPreviewBrand = shown
+    }
+
+    /// Return, leaving a text field or the window no longer being key: the sample quote catches up.
+    public func brandEditEnded() {
+        if heldPreviewBrand != nil { heldPreviewBrand = nil }
+    }
+
+    /// `brandBinding` for the Brand screen's text fields: it saves as you type, through `typeBrand`.
+    public var brandTypingBinding: Binding<Brand> {
+        Binding(get: { self.library.brand }, set: { self.typeBrand($0) })
+    }
+
+    /// The part of the brand the Brand screen's sample quote highlights: the one whose field has
+    /// focus, else the one whose group the pointer is over (the logo, a font, the colour), else the
+    /// one a file panel is choosing; nil when none. Only the sample carries it, never a real document.
+    public var brandHighlight: BrandElement? {
+        focusedBrandElement ?? hoveredBrandElement ?? choosingFile.flatMap(Self.element(choosing:))
+    }
+    private var focusedBrandElement: BrandElement?
+    private var hoveredBrandElement: BrandElement?
+
+    /// A Brand field gained or lost focus. Losing it clears the highlight only if it was that
+    /// field's, since the next field may report gaining focus first.
+    public func brandFocus(_ element: BrandElement, focused: Bool) {
+        if focused {
+            focusedBrandElement = element
+        } else if focusedBrandElement == element {
+            focusedBrandElement = nil
+        }
+    }
+
+    /// The pointer went over, or left, a Brand group that has no text field of its own.
+    public func brandHover(_ element: BrandElement, hovering: Bool) {
+        if hovering {
+            hoveredBrandElement = element
+        } else if hoveredBrandElement == element {
+            hoveredBrandElement = nil
+        }
+    }
+
+    /// Leaving the Brand screen: nothing is highlighted any more.
+    public func clearBrandHighlight() {
+        focusedBrandElement = nil
+        hoveredBrandElement = nil
+    }
+
+    private static func element(choosing file: FileChoice) -> BrandElement? {
+        switch file {
+        case .logo: return .logo
+        case .headingFont: return .headingFont
+        case .bodyFont: return .bodyFont
+        default: return nil
+        }
+    }
+
     public var logoURL: URL? {
         library.brand.logoFile.map { store.assetsFolder.appendingPathComponent($0) }
     }
@@ -640,9 +711,9 @@ public final class AppModel {
 
     /// A made-up quote in the current brand, for the Brand screen's preview. Its hours line is at the
     /// brand's hourly rate when there is one ($0 is none), so changing the rate shows in the amount
-    /// and the total; otherwise at $90.
+    /// and the total; otherwise at $90. Drawn in `previewBrand`.
     public func sampleContent() -> DocumentContent {
-        let brand = library.brand
+        let brand = previewBrand
         let hourlyRate = brand.hourlyRate.flatMap { $0 > .zero ? $0 : nil } ?? Money(dollars: 90)
         var quote = Quote(number: "Q-0000", title: "Sample job", issued: today,
                           validUntil: today.adding(days: brand.quoteValidDays), taxed: brand.gstRegistered,
@@ -654,8 +725,11 @@ public final class AppModel {
         return .quote(quote, client: client, brand: brand)
     }
 
-    public func pdf(_ content: DocumentContent) -> Data {
-        DocumentRenderer.render(content, style: PDFStyle(brand: library.brand, assetsFolder: store.assetsFolder))
+    /// The PDF for `content`, styled by `brand` (the library's when nil). `highlight` is for the
+    /// Brand screen's sample only.
+    public func pdf(_ content: DocumentContent, brand: Brand? = nil, highlight: BrandElement? = nil) -> Data {
+        DocumentRenderer.render(content, style: PDFStyle(brand: brand ?? library.brand, assetsFolder: store.assetsFolder),
+                                highlight: highlight)
     }
 
     /// What ⌘P saves: the open or selected quote on Quotes, the open or selected invoice on Invoices.

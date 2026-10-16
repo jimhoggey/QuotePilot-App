@@ -4,7 +4,9 @@ import QuotePilotPDF
 import SwiftUI
 
 /// Brand: everything documents carry about the business, on four tabs, beside a sample quote that
-/// redraws as you change things.
+/// redraws as you change things. Text fields save as you type through `brandTypingBinding`, but the
+/// sample waits for the edit to end: Return, leaving the field, another tab, or the window no longer
+/// being key. Checkboxes, swatches, pickers and files redraw it at once.
 struct BrandView: View {
     enum Tab: Hashable {
         case business, look, documents, emails
@@ -20,16 +22,18 @@ struct BrandView: View {
 
     var body: some View {
         let brand = model.brandBinding
+        let typing = model.brandTypingBinding
         HStack(alignment: .top, spacing: 8) {
             PropertyTabs(selection: $tab, tabs: [(.business, "Business"), (.look, "Look"),
                                                  (.documents, "Documents"), (.emails, "Emails")]) {
                 ScrollView {
                     Group {
                         switch tab {
-                        case .business: BusinessTab(brand: brand)
+                        case .business: BusinessTab(model: model, brand: brand, typing: typing)
                         case .look: LookTab(model: model, brand: brand)
-                        case .documents: DocumentsTab(brand: brand)
-                        case .emails: EmailsTab(brand: brand)
+                        // Only text and day fields on these two.
+                        case .documents: DocumentsTab(model: model, brand: typing)
+                        case .emails: EmailsTab(model: model, brand: typing)
                         }
                     }
                     .padding(.trailing, 6)
@@ -37,42 +41,115 @@ struct BrandView: View {
             }
             .frame(minWidth: 460, idealWidth: 520, maxWidth: 600)
             GroupBox("Sample quote") {
-                LivePDFPreview(model: model, content: model.sampleContent())
+                LivePDFPreview(model: model, content: model.sampleContent(), brand: model.previewBrand,
+                               highlight: model.brandHighlight)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(8)
         .groupBoxStyle(.win95)
+        .environment(\.textEditEnded) { model.brandEditEnded() }
+        // A field taken away by another tab, or by leaving the screen, reports no end of its own.
+        .onChange(of: tab) { model.brandEditEnded() }
+        .onDisappear {
+            model.brandEditEnded()
+            model.clearBrandHighlight()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
+            model.brandEditEnded()
+        }
+    }
+}
+
+extension View {
+    /// Tells the model when this Brand field gains or loses focus, so the sample quote highlights
+    /// where `element` lands.
+    func brandField(_ element: BrandElement, model: AppModel) -> some View {
+        environment(\.textFocusChanged) { focused in model.brandFocus(element, focused: focused) }
+    }
+
+    /// For a Brand group with no text field of its own (the logo, a font): the sample highlights
+    /// `element` while the pointer is over it.
+    func brandGroup(_ element: BrandElement, model: AppModel) -> some View {
+        onHover { model.brandHover(element, hovering: $0) }
+    }
+}
+
+extension BrandElement {
+    /// Where this part of the brand prints, when the Brand screen's sample quote doesn't show it
+    /// (so it has nothing to highlight); nil when the sample shows it.
+    func placementNote(on brand: Brand) -> String? {
+        func empty(_ text: String) -> Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        switch self {
+        case .paymentDetails, .invoiceTerms: return "Prints on invoices only."
+        case .paymentDueDays: return "Sets the due date, which prints on invoices only."
+        case .emails: return "Goes in the Mail draft, not on the PDF."
+        case .logo: return brand.logoFile == nil ? "Once chosen, it prints at the top left of every document." : nil
+        case .businessName where empty(brand.businessName), .details where empty(brand.details):
+            return "Prints at the top of every document once filled in."
+        case .abn where empty(brand.abn):
+            return "Prints under your details on every quote, invoice and receipt once filled in."
+        case .quoteTerms where empty(brand.quoteTerms): return "Prints on quotes once filled in."
+        default: return nil
+        }
+    }
+}
+
+/// A small grey note under a Brand field, while it's the one being edited, saying where it prints
+/// when the sample quote doesn't show it.
+struct BrandPlacementNote: View {
+    let model: AppModel
+    let element: BrandElement
+
+    var body: some View {
+        if model.brandHighlight == element, let note = element.placementNote(on: model.previewBrand) {
+            Text(note)
+                .font(Win95.small)
+                .foregroundStyle(Win95.note)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 
 struct BusinessTab: View {
+    let model: AppModel
     @Binding var brand: Brand
+    /// The same brand, for the text fields: the sample quote waits for their edits to end.
+    @Binding var typing: Brand
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             GroupBox("Business") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Win95FieldRow("Name:") { Win95TextField("Business name", text: $brand.businessName) }
-                    Win95FieldRow("Details:") { Win95TextEditor(text: $brand.details).frame(height: 70) }
+                    Win95FieldRow("Name:") {
+                        Win95TextField("Business name", text: $typing.businessName).brandField(.businessName, model: model)
+                    }
+                    BrandPlacementNote(model: model, element: .businessName)
+                    Win95FieldRow("Details:") {
+                        Win95TextEditor(text: $typing.details).frame(height: 70).brandField(.details, model: model)
+                    }
                     Text("Address, email, phone and website, one per line. They print under your name.")
                         .font(Win95.small)
-                    Win95FieldRow("ABN:") { Win95TextField("ABN", text: $brand.abn) }
+                    BrandPlacementNote(model: model, element: .details)
+                    Win95FieldRow("ABN:") { Win95TextField("ABN", text: $typing.abn).brandField(.abn, model: model) }
+                    BrandPlacementNote(model: model, element: .abn)
                 }
             }
             GroupBox("Payment details") {
                 VStack(alignment: .leading, spacing: 4) {
-                    Win95TextEditor(text: $brand.paymentDetails)
+                    Win95TextEditor(text: $typing.paymentDetails)
                         .frame(height: 54)
+                        .brandField(.paymentDetails, model: model)
                     Text("Bank, BSB and account, or PayID. Printed on invoices.")
                         .font(Win95.small)
+                    BrandPlacementNote(model: model, element: .paymentDetails)
                 }
             }
             GroupBox("GST") {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Registered for GST", isOn: $brand.gstRegistered)
                         .toggleStyle(.win95)
-                    Text("Off: no GST anywhere. On: new quotes add 10% GST, and invoices say Tax invoice and show your ABN.")
+                    Text("Off: no GST anywhere. On: new quotes add 10% GST, and invoices say Tax invoice.")
                         .font(Win95.small)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -111,25 +188,32 @@ struct LookTab: View {
                         }
                         Text(Self.logoHint)
                             .font(Win95.small)
+                        BrandPlacementNote(model: model, element: .logo)
                     }
                 }
             }
+            .brandGroup(.logo, model: model)
             GroupBox("Hourly rate") {
-                HourlyRateField(rate: $brand.hourlyRate, currencyCode: brand.currencyCode)
+                HourlyRateField(rate: model.brandTypingBinding.hourlyRate, currencyCode: brand.currencyCode)
+                    .brandField(.hourlyRate, model: model)
             }
             FontGroup(title: "Heading font", fontName: model.headingFontName,
                       none: "The system font (no heading font chosen).", hint: Self.headingFontHint,
                       fontURL: model.headingFontURL, hasFont: brand.headingFontFile != nil,
                       choose: { model.choosingFile = .headingFont }, remove: { model.removeHeadingFont() },
                       style: $brand.headingFontStyle)
+                .brandGroup(.headingFont, model: model)
             FontGroup(title: "Body font", fontName: model.bodyFontName,
                       none: "The standard Mac font (no body font chosen).", hint: Self.bodyFontHint,
                       fontURL: model.bodyFontURL, hasFont: brand.bodyFontFile != nil,
                       choose: { model.choosingFile = .bodyFont }, remove: { model.removeBodyFont() },
                       style: $brand.bodyFontStyle)
+                .brandGroup(.bodyFont, model: model)
             GroupBox("Accent colour") {
-                AccentPicker(hex: $brand.accentHex)
+                AccentPicker(hex: $brand.accentHex, typedHex: model.brandTypingBinding.accentHex)
+                    .brandField(.accentColour, model: model)
             }
+            .brandGroup(.accentColour, model: model)
         }
         .foregroundStyle(Win95.text)
     }
@@ -227,7 +311,10 @@ struct LogoWell: View {
 
 /// The documents' accent colour: a hex field, its swatch, and a few ready-made choices.
 struct AccentPicker: View {
+    /// Set by the swatches.
     @Binding var hex: String
+    /// Set by the hex field, which may hold the sample quote until its edit ends.
+    @Binding var typedHex: String
     /// Document colours, not window colours: these go on the client's PDFs.
     private static let presets = ["#0B6B66", "#1F2A44", "#7A1F2B", "#2E6B30", "#5B3F8C", "#B85C00"]
 
@@ -237,7 +324,7 @@ struct AccentPicker: View {
                 Swatch(hex: hex)
                     .frame(width: 28, height: 22)
                 CommitField(label: "Accent colour", value: hex, format: { $0 }, parse: FieldParser.hex,
-                            alignment: .leading) { hex = $0 }
+                            alignment: .leading) { typedHex = $0 }
                     .frame(width: 100)
                 Text("Six hex digits, like #0B6B66.")
                     .font(Win95.small)
@@ -269,6 +356,7 @@ struct Swatch: View {
 }
 
 struct DocumentsTab: View {
+    let model: AppModel
     @Binding var brand: Brand
 
     var body: some View {
@@ -280,12 +368,15 @@ struct DocumentsTab: View {
                             CommitField(label: "Quotes are valid for, in days", value: brand.quoteValidDays,
                                         format: { String($0) }, parse: FieldParser.days) { brand.quoteValidDays = $0 }
                                 .frame(width: 60)
+                                .brandField(.quoteValidDays, model: model)
                             Text("days")
                         }
                     }
                     Text("Terms printed on quotes:")
                     Win95TextEditor(text: $brand.quoteTerms)
                         .frame(height: 60)
+                        .brandField(.quoteTerms, model: model)
+                    BrandPlacementNote(model: model, element: .quoteTerms)
                 }
             }
             GroupBox("Invoices") {
@@ -295,12 +386,16 @@ struct DocumentsTab: View {
                             CommitField(label: "Payment is due after, in days", value: brand.paymentDueDays,
                                         format: { String($0) }, parse: FieldParser.days) { brand.paymentDueDays = $0 }
                                 .frame(width: 60)
+                                .brandField(.paymentDueDays, model: model)
                             Text("days")
                         }
                     }
+                    BrandPlacementNote(model: model, element: .paymentDueDays)
                     Text("Terms printed on invoices:")
                     Win95TextEditor(text: $brand.invoiceTerms)
                         .frame(height: 60)
+                        .brandField(.invoiceTerms, model: model)
+                    BrandPlacementNote(model: model, element: .invoiceTerms)
                 }
             }
             GroupBox("Currency") {
@@ -313,7 +408,10 @@ struct DocumentsTab: View {
 }
 
 struct EmailsTab: View {
+    let model: AppModel
     @Binding var brand: Brand
+    /// Which template's field has focus, so only its group shows the note.
+    @State private var focusedTemplate: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -332,6 +430,17 @@ struct EmailsTab: View {
                 }
                 Win95TextEditor(text: template.body)
                     .frame(height: 110)
+                if focusedTemplate == title {
+                    BrandPlacementNote(model: model, element: .emails)
+                }
+            }
+            .environment(\.textFocusChanged) { focused in
+                model.brandFocus(.emails, focused: focused)
+                if focused {
+                    focusedTemplate = title
+                } else if focusedTemplate == title {
+                    focusedTemplate = nil
+                }
             }
         }
     }
