@@ -40,6 +40,10 @@ extension LibraryError: LocalizedError {
         case .clientInUse(let name):
             let who = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "This client" : name
             return "\(who) has quotes or invoices, so it can't be deleted."
+        case .depositStillDeducted(let final):
+            return "\(final) deducts this deposit. Delete \(final) first."
+        case .quoteHasInvoices(let quote, let invoices):
+            return "\(quote) has invoices (\(invoices.joined(separator: ", "))), so they have to be deleted with it."
         }
     }
 }
