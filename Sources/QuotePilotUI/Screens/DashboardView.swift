@@ -12,7 +12,6 @@ struct DashboardView: View {
 
     var body: some View {
         let dashboard = model.dashboard
-        let liveQuotes = dashboard.openQuotes.filter { !$0.expired }.count
         VStack(alignment: .leading, spacing: 8) {
             GettingStartedBox(model: model)
             HStack(alignment: .top, spacing: 8) {
@@ -23,7 +22,7 @@ struct DashboardView: View {
                 Readout(title: "Received \(dashboard.financialYear.label)", value: model.money(dashboard.receivedThisYear),
                         note: "This month: \(model.money(dashboard.receivedThisMonth))")
                 Readout(title: "Quotes out", value: model.money(dashboard.openQuotesTotal),
-                        note: Self.count(liveQuotes, "quote", "quotes") + " waiting on a reply")
+                        note: Self.quotesOutNote(dashboard))
             }
             // The lists in the order the work happens: a quote goes out, is accepted and invoiced,
             // then waits to be paid.
@@ -149,6 +148,16 @@ struct DashboardView: View {
         let late = dashboard.waiting.filter { $0.daysLate > 0 }
         guard let oldest = late.map(\.daysLate).max() else { return "Nothing overdue" }
         return count(late.count, "invoice", "invoices") + ", " + count(oldest, "day", "days") + " late"
+    }
+
+    /// "1 quote waiting on a reply", or "1 waiting on a reply · 2 expired" once some have expired. The
+    /// list under it shows expired quotes too, so the note counts them rather than leaving them out.
+    /// (Its total counts only the live ones: an expired quote is no longer money on offer.)
+    static func quotesOutNote(_ dashboard: Dashboard) -> String {
+        let expired = dashboard.openQuotes.filter(\.expired).count
+        let live = dashboard.openQuotes.count - expired
+        guard expired > 0 else { return count(live, "quote", "quotes") + " waiting on a reply" }
+        return "\(live) waiting on a reply · \(expired) expired"
     }
 
     static func count(_ number: Int, _ one: String, _ many: String) -> String {
