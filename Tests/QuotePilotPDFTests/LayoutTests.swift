@@ -138,6 +138,47 @@ import QuotePilotCore
         #expect(footerLines.count == 1, "footers at \(footerLines)")
     }
 
+    /// The text drawn below `rect` on `page`, down to the bottom margin (so not the footer).
+    static func textBelow(_ rect: CGRect, on page: PDFPage) -> String {
+        let area = CGRect(x: 0, y: PageWriter.margin, width: PageWriter.pageSize.width, height: rect.minY - 1 - PageWriter.margin)
+        guard area.height > 0 else { return "" }
+        return (page.selection(for: area)?.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// However the lines fall, no page ends on a heading: the table's column labels always have a
+    /// line under them, and a section's heading the start of its text.
+    @Test func noPageEndsOnAHeading() throws {
+        let headings = ["Work summary", "Payment plan", "Terms", "Accepted by"]
+        var pagesChecked = 0
+        // Each address line moves everything after it down about 10 pt, each extra line 60 pt or so,
+        // so between them the headings land all over the bottom of a page.
+        for extra in 0...8 {
+            for addressLines in 0...6 {
+                var quote = Sample.quote(extraLines: extra)
+                quote.summary = String(repeating: "The first paragraph of the work summary runs on for a while. ", count: 6)
+                    + "\n- A dot point\n- Another dot point"
+                quote.terms = String(repeating: "Prices are fixed for the work listed and the deposit is due on acceptance. ", count: 3)
+                var client = Sample.client
+                client.address = (0..<addressLines).map { "Address line \($0 + 1)" }.joined(separator: "\n")
+                let document = Sample.pdf(.quote(quote, client: client, brand: Sample.brand))
+                let label = "\(extra) extra lines, \(addressLines) address lines"
+                for index in 0..<document.pageCount {
+                    let page = try #require(document.page(at: index))
+                    pagesChecked += 1
+                    for header in Self.bounds(of: "Description", in: document, page: index) {
+                        #expect(!Self.textBelow(header, on: page).isEmpty, "\(label): page \(index + 1) ends on the table header")
+                    }
+                    for heading in headings {
+                        for found in Self.bounds(of: heading, in: document, page: index) {
+                            #expect(!Self.textBelow(found, on: page).isEmpty, "\(label): page \(index + 1) ends on \(heading)")
+                        }
+                    }
+                }
+            }
+        }
+        #expect(pagesChecked > 100)
+    }
+
     // MARK: The logo
 
     /// A made-up logo: a solid magenta PNG of `width` x `height` pixels.

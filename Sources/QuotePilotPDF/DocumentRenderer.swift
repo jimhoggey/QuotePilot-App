@@ -273,20 +273,33 @@ final class Layout {
         writer.y += 4
     }
 
+    /// How tall the column labels and their rule are.
+    private static let tableHeaderHeight: CGFloat = 17
+
     private func drawTable() {
-        writer.ensureSpace(60)
+        // The column labels never end a page: they go over with the first line if it won't fit.
+        writer.ensureSpace(Self.tableHeaderHeight + (content.rows.first.map(rowHeight) ?? 0))
         drawTableHeader()
         inTable = true
         for row in content.rows { drawRow(row) }
         inTable = false
     }
 
-    private func drawRow(_ row: DocumentContent.Row) {
-        let title = PageWriter.text(row.title, style.body(9.5, weight: .medium), PDFStyle.ink)
-        let detail = PageWriter.text(row.detail, style.body(8.5), PDFStyle.muted)
-        let titleHeight = PageWriter.height(of: title, width: descWidth)
+    private func rowTexts(_ row: DocumentContent.Row) -> (title: NSAttributedString, detail: NSAttributedString) {
+        (PageWriter.text(row.title, style.body(9.5, weight: .medium), PDFStyle.ink),
+         PageWriter.text(row.detail, style.body(8.5), PDFStyle.muted))
+    }
+
+    private func rowHeight(_ row: DocumentContent.Row) -> CGFloat {
+        let (title, detail) = rowTexts(row)
         let detailHeight = row.detail.isEmpty ? 0 : PageWriter.height(of: detail, width: descWidth) + 2
-        let rowHeight = max(titleHeight + detailHeight, 14) + 14
+        return max(PageWriter.height(of: title, width: descWidth) + detailHeight, 14) + 14
+    }
+
+    private func drawRow(_ row: DocumentContent.Row) {
+        let (title, detail) = rowTexts(row)
+        let titleHeight = PageWriter.height(of: title, width: descWidth)
+        let rowHeight = rowHeight(row)
         writer.ensureSpace(rowHeight)
 
         let top = writer.y + 7
@@ -369,27 +382,55 @@ final class Layout {
         writer.y = top + 43
     }
 
+    /// One paragraph of a section: its text, and whether it's a dot point.
+    private struct Paragraph {
+        var text: String
+        var isBullet: Bool
+    }
+
+    /// A section's paragraphs, one per line of its text; nil for a blank line.
+    private func paragraphs(_ text: String) -> [Paragraph?] {
+        text.components(separatedBy: "\n").map { paragraph in
+            let line = paragraph.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { return nil }
+            let isBullet = line.hasPrefix("- ") || line.hasPrefix("• ")
+            return Paragraph(text: isBullet ? String(line.dropFirst(2)) : line, isBullet: isBullet)
+        }
+    }
+
+    private static let bulletIndent: CGFloat = 12
+
+    private func paragraphText(_ paragraph: Paragraph) -> NSAttributedString {
+        PageWriter.text(paragraph.text, style.body(9), PDFStyle.ink)
+    }
+
+    private func paragraphHeight(_ paragraph: Paragraph) -> CGFloat {
+        PageWriter.height(of: paragraphText(paragraph), width: writer.width - (paragraph.isBullet ? Self.bulletIndent : 0))
+    }
+
     private func drawSections() {
         for section in content.sections {
-            writer.ensureSpace(40)
+            let heading = PageWriter.text(section.heading, style.body(10, weight: .semibold), PDFStyle.ink)
+            let headingHeight = PageWriter.height(of: heading, width: writer.width)
+            let parts = paragraphs(section.text)
+            // A heading never ends a page: it goes over with its first paragraph if that won't fit.
+            let first = parts.lazy.compactMap { $0 }.first.map(paragraphHeight) ?? 0
+            writer.ensureSpace(6 + headingHeight + 4 + first)
             writer.y += 6
-            writer.y += writer.draw(PageWriter.text(section.heading, style.body(10, weight: .semibold), PDFStyle.ink),
-                                    x: writer.left, top: writer.y, width: writer.width) + 4
-            for paragraph in section.text.components(separatedBy: "\n") {
-                let line = paragraph.trimmingCharacters(in: .whitespaces)
-                if line.isEmpty {
+            writer.draw(heading, x: writer.left, top: writer.y, width: writer.width)
+            writer.y += headingHeight + 4
+            for part in parts {
+                guard let paragraph = part else {
                     writer.y += 5
                     continue
                 }
-                let isBullet = line.hasPrefix("- ") || line.hasPrefix("• ")
-                let text = PageWriter.text(isBullet ? String(line.dropFirst(2)) : line, style.body(9), PDFStyle.ink)
-                let indent: CGFloat = isBullet ? 12 : 0
-                let height = PageWriter.height(of: text, width: writer.width - indent)
+                let indent: CGFloat = paragraph.isBullet ? Self.bulletIndent : 0
+                let height = paragraphHeight(paragraph)
                 writer.ensureSpace(height)
-                if isBullet {
+                if paragraph.isBullet {
                     writer.draw(PageWriter.text("•", style.body(9), style.accent), x: writer.left + 2, top: writer.y, width: 10)
                 }
-                writer.draw(text, x: writer.left + indent, top: writer.y, width: writer.width - indent)
+                writer.draw(paragraphText(paragraph), x: writer.left + indent, top: writer.y, width: writer.width - indent)
                 writer.y += height + 2
             }
             writer.y += 10
