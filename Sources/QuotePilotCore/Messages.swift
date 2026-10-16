@@ -37,6 +37,9 @@ extension LibraryError: LocalizedError {
             return "A payment has to be more than $0.00."
         case .paymentMoreThanOwing(let owing):
             return "That's more than the \(owing.formatted()) still owing on this invoice."
+        case .clientInUse(let name):
+            let who = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "This client" : name
+            return "\(who) has quotes or invoices, so it can't be deleted."
         }
     }
 }

@@ -421,6 +421,51 @@ public final class AppModel {
         Binding(get: { self.library.client(id) ?? Client(id: id, name: "") }, set: { self.updateClient($0) })
     }
 
+    /// The client Delete Client would remove: the selected one, when the list shows them. A search that
+    /// hides the selected client (a rename that stops matching, or New Client under a search) leaves
+    /// their form open, but the button leaves them alone, as the quote and invoice buttons do for a
+    /// row the list doesn't show; clearing the search brings the row, and the button, back.
+    var clientToDelete: Client? {
+        guard let id = selectedClientID, let client = library.client(id),
+              ClientsView.visibleClients(self).contains(where: { $0.id == id })
+        else { return nil }
+        return client
+    }
+
+    /// Whether Delete Client can run; the button is greyed out when it can't. A client with any quote
+    /// or invoice stays (`Library.canDeleteClient`), so no document loses the person it was written to.
+    public var canDeleteClient: Bool {
+        guard loadState == .ready, let client = clientToDelete else { return false }
+        return library.canDeleteClient(client.id)
+    }
+
+    /// The button's tooltip: why it is greyed out, or what it does.
+    public var deleteClientHelp: String {
+        guard let client = clientToDelete else {
+            return selectedClientID.flatMap { library.client($0) } == nil
+                ? "Select a client first" : "Clear the search to delete this client"
+        }
+        return library.canDeleteClient(client.id)
+            ? "Delete the selected client" : "Clients with quotes or invoices can't be deleted"
+    }
+
+    /// Delete Client: asks once, then removes the selected client, clears the selection and so closes
+    /// their form. Nothing is asked or done when the button would be greyed out.
+    public func deleteSelectedClient() {
+        whenFree {
+            guard canDeleteClient, let client = clientToDelete else { return beep() }
+            let id = client.id
+            let name = client.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            confirm(title: "Delete Client", text: "Delete \(name.isEmpty ? "this client" : client.name)? This can't be undone.",
+                    confirm: "Delete") { [weak self] in
+                guard let self,
+                      change("Couldn't delete \(name.isEmpty ? "the client" : client.name)", { try $0.deleteClient(id) })
+                else { return }
+                if selectedClientID == id { selectedClientID = nil }
+            }
+        }
+    }
+
     // MARK: Brand
 
     /// Saves the brand, with its day counts kept within 0 to 365 (beyond that a due date could land

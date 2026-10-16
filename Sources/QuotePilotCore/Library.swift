@@ -25,6 +25,8 @@ public enum LibraryError: Error, Equatable, Sendable {
     case paymentNotPositive
     /// More than the amount still owing (given).
     case paymentMoreThanOwing(Money)
+    /// A client (its name) that a quote or invoice, of any stage, still names.
+    case clientInUse(String)
 }
 
 /// Everything Quote Pilot knows, saved as one file.
@@ -115,6 +117,22 @@ public struct Library: Codable, Sendable {
     public mutating func addClient(_ client: Client) {
         clients.append(client)
         log("Added client \(client.name)")
+    }
+
+    /// Whether `deleteClient` would work: the client exists and no quote or invoice names them. Drafts
+    /// and void invoices count too, as each still shows the client on screen and in its PDF.
+    public func canDeleteClient(_ id: UUID) -> Bool {
+        client(id) != nil && !quotes.contains { $0.clientID == id } && !invoices.contains { $0.clientID == id }
+    }
+
+    /// Removes a client nobody has been quoted or invoiced under (a stray "New client", say). A client
+    /// with any quote or invoice stays, so no document ever loses the person it was written to.
+    public mutating func deleteClient(_ id: UUID) throws {
+        guard let index = clients.firstIndex(where: { $0.id == id }) else { throw LibraryError.notFound }
+        guard canDeleteClient(id) else { throw LibraryError.clientInUse(clients[index].name) }
+        let name = clients.remove(at: index).name
+        // A client with no name yet shows as "(no name)" in the list, so Activity does too.
+        log("Deleted client \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(no name)" : name)")
     }
 
     @discardableResult
