@@ -196,6 +196,7 @@ struct CommitField<Value: Equatable>: View {
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.textEditEnded) private var editEnded
+    @Environment(\.textFocusChanged) private var focusChanged
 
     /// While typing: the value to commit now, or nil when the text is half-typed, nonsense, or no
     /// change from what's stored.
@@ -238,6 +239,7 @@ struct CommitField<Value: Equatable>: View {
                 commit(parsed)
             }
             .onChange(of: focused) { _, isFocused in
+                focusChanged(isFocused)
                 if !isFocused { apply() }
             }
             .onChange(of: value) { _, newValue in

@@ -520,6 +520,49 @@ public final class AppModel {
         Binding(get: { self.library.brand }, set: { self.typeBrand($0) })
     }
 
+    /// The part of the brand the Brand screen's sample quote highlights: the one whose field has
+    /// focus, else the one whose group the pointer is over (the logo, a font, the colour), else the
+    /// one a file panel is choosing; nil when none. Only the sample carries it, never a real document.
+    public var brandHighlight: BrandElement? {
+        focusedBrandElement ?? hoveredBrandElement ?? choosingFile.flatMap(Self.element(choosing:))
+    }
+    private var focusedBrandElement: BrandElement?
+    private var hoveredBrandElement: BrandElement?
+
+    /// A Brand field gained or lost focus. Losing it clears the highlight only if it was that
+    /// field's, since the next field may report gaining focus first.
+    public func brandFocus(_ element: BrandElement, focused: Bool) {
+        if focused {
+            focusedBrandElement = element
+        } else if focusedBrandElement == element {
+            focusedBrandElement = nil
+        }
+    }
+
+    /// The pointer went over, or left, a Brand group that has no text field of its own.
+    public func brandHover(_ element: BrandElement, hovering: Bool) {
+        if hovering {
+            hoveredBrandElement = element
+        } else if hoveredBrandElement == element {
+            hoveredBrandElement = nil
+        }
+    }
+
+    /// Leaving the Brand screen: nothing is highlighted any more.
+    public func clearBrandHighlight() {
+        focusedBrandElement = nil
+        hoveredBrandElement = nil
+    }
+
+    private static func element(choosing file: FileChoice) -> BrandElement? {
+        switch file {
+        case .logo: return .logo
+        case .headingFont: return .headingFont
+        case .bodyFont: return .bodyFont
+        default: return nil
+        }
+    }
+
     public var logoURL: URL? {
         library.brand.logoFile.map { store.assetsFolder.appendingPathComponent($0) }
     }
@@ -682,9 +725,11 @@ public final class AppModel {
         return .quote(quote, client: client, brand: brand)
     }
 
-    /// The PDF for `content`, styled by `brand` (the library's when nil).
-    public func pdf(_ content: DocumentContent, brand: Brand? = nil) -> Data {
-        DocumentRenderer.render(content, style: PDFStyle(brand: brand ?? library.brand, assetsFolder: store.assetsFolder))
+    /// The PDF for `content`, styled by `brand` (the library's when nil). `highlight` is for the
+    /// Brand screen's sample only.
+    public func pdf(_ content: DocumentContent, brand: Brand? = nil, highlight: BrandElement? = nil) -> Data {
+        DocumentRenderer.render(content, style: PDFStyle(brand: brand ?? library.brand, assetsFolder: store.assetsFolder),
+                                highlight: highlight)
     }
 
     /// What ⌘P saves: the open or selected quote on Quotes, the open or selected invoice on Invoices.

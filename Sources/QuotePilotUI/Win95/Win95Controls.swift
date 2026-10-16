@@ -115,6 +115,19 @@ extension EnvironmentValues {
     }
 }
 
+/// What a text field does when it gains (true) or loses (false) focus. Nothing unless a screen
+/// asks; the Brand screen highlights where the focused field lands on its sample quote.
+private struct TextFocusChangedKey: EnvironmentKey {
+    static let defaultValue: @MainActor (Bool) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    var textFocusChanged: @MainActor (Bool) -> Void {
+        get { self[TextFocusChangedKey.self] }
+        set { self[TextFocusChangedKey.self] = newValue }
+    }
+}
+
 /// A sunken white text field with the dotted focus rectangle. Disabled, it is the window's grey with
 /// grey text, as a locked field is in Windows 95, so a record that can't be edited doesn't look as
 /// if it can.
@@ -125,6 +138,7 @@ public struct Win95TextField: View {
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.textEditEnded) private var editEnded
+    @Environment(\.textFocusChanged) private var focusChanged
 
     public init(_ label: String, text: Binding<String>, prompt: String = "") {
         self.label = label
@@ -142,6 +156,7 @@ public struct Win95TextField: View {
             .focused($focused)
             .onSubmit { editEnded() }
             .onChange(of: focused) { _, isFocused in
+                focusChanged(isFocused)
                 if !isFocused { editEnded() }
             }
             .padding(.horizontal, 5)
@@ -162,6 +177,7 @@ public struct Win95TextEditor: View {
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.textEditEnded) private var editEnded
+    @Environment(\.textFocusChanged) private var focusChanged
 
     public init(_ label: String = "", text: Binding<String>) {
         self.label = label
@@ -176,6 +192,7 @@ public struct Win95TextEditor: View {
             .focused($focused)
             // Return starts a new line here, so the edit ends only when focus leaves.
             .onChange(of: focused) { _, isFocused in
+                focusChanged(isFocused)
                 if !isFocused { editEnded() }
             }
             .padding(4)

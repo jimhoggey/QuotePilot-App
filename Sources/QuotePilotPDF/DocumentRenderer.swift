@@ -5,11 +5,16 @@ import QuotePilotCore
 
 public enum DocumentRenderer {
     /// Draws a document as PDF data. Quotes also get the tick-box form.
-    public static func render(_ content: DocumentContent, style: PDFStyle) -> Data {
-        // Drawn twice: the first time only to count the pages, for the footer's "Page 1 of 2". The
-        // footer sits in the bottom margin, so it never moves anything else.
-        let pageCount = draw(content, style: style, pageCount: nil).layout.writer.pageIndex + 1
-        let (data, layout) = draw(content, style: style, pageCount: pageCount)
+    ///
+    /// `highlight` is for the Brand screen's sample only: a soft yellow behind wherever that part of
+    /// the brand lands, while it's being edited. Real documents never pass one.
+    public static func render(_ content: DocumentContent, style: PDFStyle, highlight: BrandElement? = nil) -> Data {
+        // Drawn twice: the first time to count the pages, for the footer's "Page 1 of 2", and to
+        // find where the highlighted element lands, so the second can draw the highlight behind it.
+        // The footer sits in the bottom margin, so it never moves anything else.
+        let first = draw(content, style: style, pageCount: nil, highlights: [:]).layout
+        let highlights = highlight.map { first.frames(of: $0) } ?? [:]
+        let (data, layout) = draw(content, style: style, pageCount: first.writer.pageIndex + 1, highlights: highlights)
         guard content.formQuoteNumber != nil else { return data }
         let withWidgets = addForm(layout.fields, to: data, content: content)
         // PDFKit leaves the catalog without an AcroForm, which other viewers need to fill the form.
@@ -19,7 +24,8 @@ public enum DocumentRenderer {
     }
 
     /// The document's pages, without the form, and the layout that drew them.
-    private static func draw(_ content: DocumentContent, style: PDFStyle, pageCount: Int?) -> (data: Data, layout: Layout) {
+    private static func draw(_ content: DocumentContent, style: PDFStyle, pageCount: Int?,
+                             highlights: [Int: [CGRect]]) -> (data: Data, layout: Layout) {
         let data = NSMutableData()
         var mediaBox = CGRect(origin: .zero, size: PageWriter.pageSize)
         let info: [CFString: Any] = [
@@ -33,6 +39,7 @@ public enum DocumentRenderer {
         let writer = PageWriter(context: context)
         let layout = Layout(content: content, style: style, writer: writer)
         layout.pageCount = pageCount
+        layout.highlights = highlights
         layout.drawAll()
         writer.finish()
         return (data as Data, layout)
@@ -142,7 +149,39 @@ final class Layout {
     /// How many pages the document has, for the footer; nil while that's still being found out.
     var pageCount: Int?
 
+    /// Rectangles to highlight behind the page's text, by page, measured from the top left.
+    var highlights: [Int: [CGRect]] = [:]
+    /// Where each part of the brand was drawn: by page, rectangles measured from the top left.
+    private var elementFrames: [BrandElement: [Int: [CGRect]]] = [:]
+
+    /// Where `element` was drawn, by page; empty when the document doesn't show it.
+    func frames(of element: BrandElement) -> [Int: [CGRect]] { elementFrames[element] ?? [:] }
+
+    private func mark(_ element: BrandElement?, _ rect: CGRect) {
+        guard let element, !rect.isNull, rect.width > 0, rect.height > 0 else { return }
+        elementFrames[element, default: [:]][writer.pageIndex, default: []].append(rect)
+    }
+
+    private func mark(_ element: BrandElement?, lines: [CGRect]) {
+        mark(element, lines.reduce(CGRect.null) { $0.union($1) })
+    }
+
+    /// The highlight, a little larger than what it marks, with soft corners.
+    private func drawHighlights() {
+        guard let rects = highlights[writer.pageIndex] else { return }
+        writer.context.saveGState()
+        writer.context.setFillColor(BrandElement.highlightColor)
+        // One path, filled once, so where two boxes overlap the yellow isn't any darker.
+        for rect in rects {
+            let box = writer.pdfRect(x: rect.minX - 3, top: rect.minY - 2, width: rect.width + 6, height: rect.height + 4)
+            writer.context.addPath(CGPath(roundedRect: box, cornerWidth: 2.5, cornerHeight: 2.5, transform: nil))
+        }
+        writer.context.fillPath(using: .winding)
+        writer.context.restoreGState()
+    }
+
     func drawAll() {
+        writer.onBeginPage = { [unowned self] _ in self.drawHighlights() }
         writer.onNewPage = { [unowned self] _ in
             self.drawContinuationHeader()
             if self.inTable { self.drawTableHeader() }
@@ -179,19 +218,30 @@ final class Layout {
             if drawn.height > 0 {
                 logo.draw(in: writer.pdfRect(x: writer.left, top: leftY, width: room.width, height: room.height),
                           context: writer.context)
+                mark(.logo, CGRect(x: writer.left, y: leftY, width: drawn.width, height: drawn.height))
                 leftY += ceil(drawn.height) + 12
             }
         }
         if !content.fromName.isEmpty {
-            leftY += writer.draw(PageWriter.text(content.fromName, style.body(13, weight: .semibold), PDFStyle.ink),
-                                 x: writer.left, top: leftY, width: 300) + 3
+            let name = PageWriter.text(content.fromName, style.body(13, weight: .semibold), PDFStyle.ink)
+            mark(.businessName, lines: PageWriter.lineFrames(of: name, x: writer.left, top: leftY, width: 300))
+            leftY += writer.draw(name, x: writer.left, top: leftY, width: 300) + 3
         }
         if !content.fromDetails.isEmpty {
-            leftY += writer.draw(PageWriter.text(content.fromDetails, style.body(8.5), PDFStyle.muted),
-                                 x: writer.left, top: leftY, width: 300)
+            let details = PageWriter.text(content.fromDetails, style.body(8.5), PDFStyle.muted)
+            var lines = PageWriter.lineFrames(of: details, x: writer.left, top: leftY, width: 300)
+            // The ABN is the last line, when there is one (`DocumentContent.fromDetails`).
+            if content.fromDetails.components(separatedBy: "\n").last?.hasPrefix("ABN ") == true, let abn = lines.popLast() {
+                mark(.abn, abn)
+            }
+            mark(.details, lines: lines)
+            leftY += writer.draw(details, x: writer.left, top: leftY, width: 300)
         }
         let titleFont = style.heading(26)
-        writer.drawRight(PageWriter.text(content.title, titleFont, PDFStyle.ink), right: writer.right, top: top)
+        let title = PageWriter.text(content.title, titleFont, PDFStyle.ink)
+        writer.drawRight(title, right: writer.right, top: top)
+        let titleWidth = PageWriter.width(of: title)
+        mark(.headingFont, CGRect(x: writer.right - titleWidth, y: top, width: titleWidth, height: PageWriter.lineHeight(titleFont)))
         writer.y = max(leftY, top + PageWriter.lineHeight(titleFont)) + 28
     }
 
@@ -214,21 +264,27 @@ final class Layout {
         var leftY = top
         let width = leftColumnWidth
         leftY += writer.draw(label(content.toLabel), x: writer.left, top: leftY, width: width) + 2
+        var client: [CGRect] = []
         if !content.toName.isEmpty {
-            leftY += writer.draw(PageWriter.text(content.toName, style.body(10.5, weight: .semibold), PDFStyle.ink),
-                                 x: writer.left, top: leftY, width: width) + 1
+            let name = PageWriter.text(content.toName, style.body(10.5, weight: .semibold), PDFStyle.ink)
+            client += PageWriter.lineFrames(of: name, x: writer.left, top: leftY, width: width)
+            leftY += writer.draw(name, x: writer.left, top: leftY, width: width) + 1
         }
         if !content.toDetails.isEmpty {
-            leftY += writer.draw(PageWriter.text(content.toDetails, style.body(8.5), PDFStyle.muted),
-                                 x: writer.left, top: leftY, width: width)
+            let details = PageWriter.text(content.toDetails, style.body(8.5), PDFStyle.muted)
+            client += PageWriter.lineFrames(of: details, x: writer.left, top: leftY, width: width)
+            leftY += writer.draw(details, x: writer.left, top: leftY, width: width)
         }
+        mark(.bodyFont, lines: client)
         let metaX = rightColumnX
         let valueX = metaX + 76
         var rightY = top
         for item in content.meta {
             writer.draw(label(item.label), x: metaX, top: rightY + 1.5, width: 74)
-            let used = writer.draw(PageWriter.text(item.value, style.body(9.5), PDFStyle.ink), x: valueX, top: rightY,
-                                   width: writer.right - valueX)
+            let value = PageWriter.text(item.value, style.body(9.5), PDFStyle.ink)
+            let lines = PageWriter.lineFrames(of: value, x: valueX, top: rightY, width: writer.right - valueX)
+            mark(item.source, lines: lines + [CGRect(x: metaX, y: rightY + 1.5, width: 1, height: 9)])
+            let used = writer.draw(value, x: valueX, top: rightY, width: writer.right - valueX)
             rightY += max(used, 12) + 3
         }
         writer.y = max(leftY, rightY) + 22
@@ -240,6 +296,9 @@ final class Layout {
         writer.y += writer.draw(label(content.amountLabel), x: writer.left, top: writer.y, width: writer.width) + 2
         let amountFont = style.heading(30)
         let amount = PageWriter.text(content.amount, amountFont, style.accent)
+        let amountFrame = PageWriter.lineFrames(of: amount, x: writer.left, top: writer.y, width: writer.width)
+        mark(.headingFont, lines: amountFrame)
+        mark(.accentColour, lines: amountFrame)
         writer.draw(amount, x: writer.left, top: writer.y, width: writer.width)
         let noteFont = style.body(9.5)
         let noteX = writer.left + PageWriter.width(of: amount) + 14
@@ -310,12 +369,18 @@ final class Layout {
         if content.showCodes {
             writer.draw(PageWriter.text(row.code, numberFont, PDFStyle.muted), x: codeX, top: top, width: 26)
         }
+        var words = PageWriter.lineFrames(of: title, x: descX, top: top, width: descWidth)
         writer.draw(title, x: descX, top: top, width: descWidth)
         if !row.detail.isEmpty {
+            words += PageWriter.lineFrames(of: detail, x: descX, top: top + titleHeight + 2, width: descWidth)
             writer.draw(detail, x: descX, top: top + titleHeight + 2, width: descWidth)
         }
+        mark(.bodyFont, lines: words)
         writer.drawRight(PageWriter.text(row.quantity, numberFont, PDFStyle.ink), right: qtyRight, top: top)
-        writer.drawRight(PageWriter.text(row.rate, numberFont, PDFStyle.ink), right: rateRight, top: top)
+        let rate = PageWriter.text(row.rate, numberFont, PDFStyle.ink)
+        let rateWidth = PageWriter.width(of: rate)
+        mark(row.rateSource, CGRect(x: rateRight - rateWidth, y: top, width: rateWidth, height: PageWriter.lineHeight(numberFont)))
+        writer.drawRight(rate, right: rateRight, top: top)
         writer.drawRight(PageWriter.text(row.amount, style.numbers(9.5, weight: .medium), PDFStyle.ink), right: amountRight, top: top)
         writer.y += rowHeight
         writer.rule(top: writer.y - 1, x: writer.left, width: writer.width, color: PDFStyle.rule)
@@ -417,6 +482,7 @@ final class Layout {
             let first = parts.lazy.compactMap { $0 }.first.map(paragraphHeight) ?? 0
             writer.ensureSpace(6 + headingHeight + 4 + first)
             writer.y += 6
+            mark(section.source, lines: PageWriter.lineFrames(of: heading, x: writer.left, top: writer.y, width: writer.width))
             writer.draw(heading, x: writer.left, top: writer.y, width: writer.width)
             writer.y += headingHeight + 4
             for part in parts {
@@ -430,7 +496,13 @@ final class Layout {
                 if paragraph.isBullet {
                     writer.draw(PageWriter.text("•", style.body(9), style.accent), x: writer.left + 2, top: writer.y, width: 10)
                 }
-                writer.draw(paragraphText(paragraph), x: writer.left + indent, top: writer.y, width: writer.width - indent)
+                let text = paragraphText(paragraph)
+                let lines = PageWriter.lineFrames(of: text, x: writer.left + indent, top: writer.y, width: writer.width - indent)
+                // A dot point's highlight takes in its dot.
+                let marked = paragraph.isBullet ? lines + [CGRect(x: writer.left + 2, y: writer.y, width: 1, height: 1)] : lines
+                mark(section.source, lines: marked)
+                mark(.bodyFont, lines: lines)
+                writer.draw(text, x: writer.left + indent, top: writer.y, width: writer.width - indent)
                 writer.y += height + 2
             }
             writer.y += 10

@@ -14,6 +14,9 @@ final class PageWriter {
     var onNewPage: ((PageWriter) -> Void)?
     /// Runs as each page is finished, e.g. to draw its footer.
     var onEndPage: ((PageWriter) -> Void)?
+    /// Runs as each page starts, the first one too, before anything is drawn on it: what it draws
+    /// lies behind the page's text.
+    var onBeginPage: ((PageWriter) -> Void)?
 
     init(context: CGContext) {
         self.context = context
@@ -30,6 +33,7 @@ final class PageWriter {
         context.textMatrix = .identity
         pageIndex += 1
         y = Self.margin
+        onBeginPage?(self)
         if pageIndex > 0 { onNewPage?(self) }
     }
 
@@ -78,6 +82,26 @@ final class PageWriter {
 
     static func lineHeight(_ font: CTFont) -> CGFloat {
         ceil(CTFontGetAscent(font) + CTFontGetDescent(font) + CTFontGetLeading(font))
+    }
+
+    /// Where each line of wrapped text drawn at `x`, `top` lies: from the top of its tallest glyphs to
+    /// its descent, as wide as its words, measured from the top-left of the page.
+    static func lineFrames(of text: NSAttributedString, x: CGFloat, top: CGFloat, width: CGFloat) -> [CGRect] {
+        let height = Self.height(of: text, width: width)
+        guard height > 0 else { return [] }
+        let setter = CTFramesetterCreateWithAttributedString(text)
+        let frameHeight = height + 2
+        let path = CGPath(rect: CGRect(x: 0, y: 0, width: width, height: frameHeight), transform: nil)
+        let frame = CTFramesetterCreateFrame(setter, CFRange(location: 0, length: 0), path, nil)
+        let lines = CTFrameGetLines(frame) as? [CTLine] ?? []
+        var origins = [CGPoint](repeating: .zero, count: lines.count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
+        return zip(lines, origins).map { line, origin in
+            var ascent: CGFloat = 0, descent: CGFloat = 0
+            let lineWidth = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, nil)) - CGFloat(CTLineGetTrailingWhitespaceWidth(line))
+            let baseline = top + (frameHeight - origin.y)
+            return CGRect(x: x + origin.x, y: baseline - ascent, width: lineWidth, height: ascent + descent)
+        }
     }
 
     /// Wrapped, left-aligned text with its top at `top`. Returns the height it took.

@@ -6,6 +6,8 @@ public struct DocumentContent: Equatable {
     public struct Meta: Equatable {
         public var label: String
         public var value: String
+        /// The brand setting this comes from, if any, for the Brand screen's highlight.
+        public var source: BrandElement? = nil
     }
 
     public struct Row: Equatable {
@@ -15,6 +17,8 @@ public struct DocumentContent: Equatable {
         public var quantity: String
         public var rate: String
         public var amount: String
+        /// The brand setting the rate comes from, if any: a line in hours starts at the hourly rate.
+        public var rateSource: BrandElement? = nil
     }
 
     public struct TotalLine: Equatable {
@@ -27,6 +31,8 @@ public struct DocumentContent: Equatable {
         public var heading: String
         /// Lines starting with "- " print as dot points.
         public var text: String
+        /// The brand setting this comes from, if any, for the Brand screen's highlight.
+        public var source: BrandElement? = nil
     }
 
     public var title: String
@@ -67,14 +73,14 @@ extension DocumentContent {
 
         var meta = [Meta(label: "Quote no.", value: quote.number),
                     Meta(label: "Issued", value: quote.issued.long),
-                    Meta(label: "Valid until", value: quote.validUntil.long)]
+                    Meta(label: "Valid until", value: quote.validUntil.long, source: .quoteValidDays)]
         if !quote.title.trimmed.isEmpty { meta.append(Meta(label: "Reference", value: quote.title)) }
 
         var sections: [Section] = []
         if !quote.summary.trimmed.isEmpty { sections.append(Section(heading: "Work summary", text: quote.summary)) }
         sections.append(Section(heading: "Payment plan",
                                 text: "\(quote.plan.summary). You're only invoiced for the lines you accept."))
-        if !quote.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: quote.terms)) }
+        if !quote.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: quote.terms, source: .quoteTerms)) }
 
         return DocumentContent(
             title: "Quote", number: quote.number,
@@ -123,15 +129,17 @@ extension DocumentContent {
 
         var meta = [Meta(label: "Invoice no.", value: invoice.number),
                     Meta(label: "Issued", value: invoice.issued.long),
-                    Meta(label: "Due", value: invoice.due.long)]
+                    Meta(label: "Due", value: invoice.due.long, source: .paymentDueDays)]
         // Quotes and invoices are numbered separately, so an invoice from a quote names it: this is
         // how the client connects the two. A one-off invoice has no quote line.
         if let quoteNumber { meta.append(Meta(label: "Quote no.", value: quoteNumber)) }
         if !invoice.title.trimmed.isEmpty { meta.append(Meta(label: "Reference", value: invoice.title)) }
 
         var sections: [Section] = []
-        if !brand.paymentDetails.trimmed.isEmpty { sections.append(Section(heading: "Payment details", text: brand.paymentDetails)) }
-        if !invoice.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: invoice.terms)) }
+        if !brand.paymentDetails.trimmed.isEmpty {
+            sections.append(Section(heading: "Payment details", text: brand.paymentDetails, source: .paymentDetails))
+        }
+        if !invoice.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: invoice.terms, source: .invoiceTerms)) }
 
         let paidUp = invoice.paid > .zero && invoice.owing <= .zero
         return DocumentContent(
@@ -187,7 +195,8 @@ extension DocumentContent {
         Row(code: line.code, title: line.title, detail: line.detail,
             quantity: line.unit.describe(line.quantity),
             rate: line.rate.formatted(currencyCode: currency),
-            amount: line.amount.formatted(currencyCode: currency))
+            amount: line.amount.formatted(currencyCode: currency),
+            rateSource: line.unit == .hours ? .hourlyRate : nil)
     }
 
     /// The business's details, then its ABN whenever it has one. Every quote, invoice and receipt
