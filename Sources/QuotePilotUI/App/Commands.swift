@@ -77,5 +77,18 @@ public struct QuotePilotCommands: Commands {
             Button("Find…") { model.whenFree { model.find() } }
                 .keyboardShortcut("f")
         }
+        // Our part of the Help menu: the version, as a greyed-out line (the standard About box shows
+        // it too, from the same Info.plist), and the update command. Like the others they wait while
+        // a message box is up.
+        CommandGroup(after: .help) {
+            Button("Quote Pilot \(model.currentVersion)") {}
+                .disabled(true)
+            Divider()
+            Button("Check for Updates…") { model.whenFree { model.checkForUpdatesNow() } }
+                .disabled(!model.canCheckForUpdates)
+            // On once a check has found a newer version; it asks before it does anything.
+            Button("Install Update…") { model.whenFree { model.installUpdate() } }
+                .disabled(!model.canInstallUpdate)
+        }
     }
 }

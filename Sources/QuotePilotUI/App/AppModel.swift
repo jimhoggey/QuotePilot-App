@@ -120,6 +120,14 @@ public final class AppModel {
     /// The last thing the open panel was asked for, kept for `fileChosen`: SwiftUI may clear
     /// `choosingFile` as the panel closes, before it hands over the file.
     @ObservationIgnored var lastFileChoice: FileChoice?
+    /// The newer release the last check found, if any (see `AppModel+Updates`).
+    public internal(set) var availableUpdate: ReleaseInfo?
+    /// True while a check for updates is waiting for GitHub.
+    public internal(set) var isCheckingForUpdates = false
+    /// True from the click on Update until Quote Pilot quits, or the install fails.
+    public internal(set) var isInstallingUpdate = false
+    /// How the updater reaches GitHub, the settings and the log; tests swap it for fakes.
+    @ObservationIgnored var updates: UpdateServices = .live
     /// Opens Mail drafts; tests use a fake.
     @ObservationIgnored public let mail: any MailComposer
     /// Where copies of mailed PDFs go: `~/Documents/Quote Pilot`, or a temporary folder in tests.
