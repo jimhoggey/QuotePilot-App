@@ -377,6 +377,37 @@ import QuotePilotCore
         #expect(!SelectOnRightClick.opensMenu(.otherMouseDown, modifiers: []))
     }
 
+    @Test func aRightClickOnRowNChoosesNNotTheNextRow() {
+        var hover = RowHover<String>()
+        hover.moved("Q-0002", inside: true)
+        #expect(hover.target == "Q-0002")
+        hover.moved("Q-0001", inside: false)
+        #expect(hover.target == "Q-0002")
+    }
+
+    @Test func aClickOnTheLineBetweenTwoRowsChoosesExactlyOne() {
+        // The pointer crosses from Q-0002 into Q-0001: the two rows report in either order.
+        var enterFirst = RowHover<String>()
+        enterFirst.moved("Q-0002", inside: true)
+        enterFirst.moved("Q-0001", inside: true)
+        enterFirst.moved("Q-0002", inside: false)
+        #expect(enterFirst.target == "Q-0001")
+
+        var exitFirst = RowHover<String>()
+        exitFirst.moved("Q-0002", inside: true)
+        exitFirst.moved("Q-0002", inside: false)
+        exitFirst.moved("Q-0001", inside: true)
+        #expect(exitFirst.target == "Q-0001")
+    }
+
+    @Test func aRightClickWithNoRowUnderThePointerChoosesNothing() {
+        var hover = RowHover<String>()
+        #expect(hover.target == nil)
+        hover.moved("Q-0002", inside: true)
+        hover.moved("Q-0002", inside: false)
+        #expect(hover.target == nil)
+    }
+
     @Test func theListsDrawWithTheirRowMenus() throws {
         let job = try job()
         for (section, name) in [(AppSection.quotes, "quotes"), (.invoices, "invoices")] {
