@@ -2,7 +2,7 @@ import QuotePilotCore
 import SwiftUI
 
 /// Which of the three first steps a new library has done. The Dashboard shows the box while there are
-/// no quotes; once one exists the box is gone for good.
+/// no quotes; once one exists it goes, until Help → Show Getting Started brings it back.
 struct GettingStarted: Equatable {
     enum Item: CaseIterable {
         case business, client, quote
@@ -54,8 +54,31 @@ struct GettingStarted: Equatable {
     /// The first step not done yet: its button is the one drawn as the default.
     var first: Item? { Item.allCases.first { !isDone($0) } }
 
-    /// The box shows until the first quote exists.
-    var isShowing: Bool { !quote }
+    /// Whether the library alone shows the box: until the first quote exists.
+    var isShowing: Bool { Self.isVisible(hasQuotes: quote, hidden: false, shownFromHelp: false) }
+
+    /// The one rule for the box: it shows while there are no quotes and it isn't hidden, or whenever
+    /// Help → Show Getting Started has asked for it.
+    static func isVisible(hasQuotes: Bool, hidden: Bool, shownFromHelp: Bool) -> Bool {
+        (!hasQuotes && !hidden) || shownFromHelp
+    }
+
+    /// Help → Show Getting Started: clears Hide, shows the box even with quotes, and goes to the
+    /// Dashboard. Like every menu command it waits while a message box is up.
+    @MainActor
+    static func showAgain(in model: AppModel, defaults: UserDefaults = .standard) {
+        model.whenFree {
+            defaults.set(false, forKey: StepPreferences.hideGettingStartedKey)
+            defaults.set(true, forKey: StepPreferences.showGettingStartedKey)
+            model.go(to: .dashboard)
+        }
+    }
+
+    /// The box's Hide button: hidden again, and no longer held open by the Help menu.
+    static func hide(in defaults: UserDefaults) {
+        defaults.set(true, forKey: StepPreferences.hideGettingStartedKey)
+        defaults.set(false, forKey: StepPreferences.showGettingStartedKey)
+    }
 
     /// What each step's button does.
     @MainActor
@@ -76,20 +99,25 @@ struct GettingStarted: Equatable {
 
 /// The "Getting started" group box at the top of a new library's Dashboard, with its Hide button and
 /// the sentence under it. It is a hint: it can be hidden, and it hides itself when the first quote exists.
+/// Help → Show Getting Started brings it back, quotes or not, until Hide is pressed again.
 struct GettingStartedBox: View {
     let model: AppModel
+    private let defaults: UserDefaults
     @AppStorage private var hidden: Bool
+    @AppStorage private var shownFromHelp: Bool
     @AppStorage private var stepsShown: Bool
 
     init(model: AppModel, defaults: UserDefaults = .standard) {
         self.model = model
+        self.defaults = defaults
         _hidden = AppStorage(wrappedValue: false, StepPreferences.hideGettingStartedKey, store: defaults)
+        _shownFromHelp = AppStorage(wrappedValue: false, StepPreferences.showGettingStartedKey, store: defaults)
         _stepsShown = AppStorage(wrappedValue: true, StepPreferences.showStepsKey, store: defaults)
     }
 
     var body: some View {
         let steps = GettingStarted(library: model.library)
-        if steps.isShowing && !hidden {
+        if GettingStarted.isVisible(hasQuotes: steps.isDone(.quote), hidden: hidden, shownFromHelp: shownFromHelp) {
             VStack(alignment: .leading, spacing: 6) {
                 GroupBox("Getting started") {
                     VStack(alignment: .leading, spacing: 6) {
@@ -102,10 +130,10 @@ struct GettingStartedBox: View {
                 }
                 // On the box's top edge, to the right, like its title on the left.
                 .overlay(alignment: .topTrailing) {
-                    Button("Hide") { hidden = true }
+                    Button("Hide") { GettingStarted.hide(in: defaults) }
                         .buttonStyle(.win95Small)
                         .padding(.trailing, 8)
-                        .help("Hide this box. It also goes by itself once you have a quote.")
+                        .help("Hide this box. Help → Show Getting Started brings it back.")
                 }
                 Text(GettingStarted.footnote(stepsShown: stepsShown))
                     .font(Win95.body)
