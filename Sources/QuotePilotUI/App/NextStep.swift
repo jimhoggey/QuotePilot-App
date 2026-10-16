@@ -61,8 +61,10 @@ struct NextStep: Equatable {
             return NextStep(steps: progress(titles, at: 0), sentence: sentence, action: action)
 
         case .sent:
+            // One line at 1240 wide. Record Acceptance… (for a client who just says yes) is its own
+            // button in the header, so the sentence doesn't name it.
             return NextStep(steps: progress(titles, at: 1),
-                            sentence: "Next: wait for the client to tick the PDF. Then drop it on this window, or use Record Acceptance… if they told you.",
+                            sentence: "Next: when the client's ticked PDF comes back, drop it here.",
                             action: nil)
 
         case .expired:
