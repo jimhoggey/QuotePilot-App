@@ -6,6 +6,20 @@ import QuotePilotCore
 public enum DocumentRenderer {
     /// Draws a document as PDF data. Quotes also get the tick-box form.
     public static func render(_ content: DocumentContent, style: PDFStyle) -> Data {
+        // Drawn twice: the first time only to count the pages, for the footer's "Page 1 of 2". The
+        // footer sits in the bottom margin, so it never moves anything else.
+        let pageCount = draw(content, style: style, pageCount: nil).layout.writer.pageIndex + 1
+        let (data, layout) = draw(content, style: style, pageCount: pageCount)
+        guard content.formQuoteNumber != nil else { return data }
+        let withWidgets = addForm(layout.fields, to: data, content: content)
+        // PDFKit leaves the catalog without an AcroForm, which other viewers need to fill the form.
+        if let standard = AcroFormWriter.addingAcroForm(to: withWidgets) { return standard }
+        assertionFailure("Couldn't add an AcroForm to the quote PDF; it will only be fillable in Apple's apps")
+        return withWidgets
+    }
+
+    /// The document's pages, without the form, and the layout that drew them.
+    private static func draw(_ content: DocumentContent, style: PDFStyle, pageCount: Int?) -> (data: Data, layout: Layout) {
         let data = NSMutableData()
         var mediaBox = CGRect(origin: .zero, size: PageWriter.pageSize)
         let info: [CFString: Any] = [
@@ -18,14 +32,10 @@ public enum DocumentRenderer {
         let context = CGContext(consumer: consumer, mediaBox: &mediaBox, info as CFDictionary)!
         let writer = PageWriter(context: context)
         let layout = Layout(content: content, style: style, writer: writer)
+        layout.pageCount = pageCount
         layout.drawAll()
         writer.finish()
-        guard content.formQuoteNumber != nil else { return data as Data }
-        let withWidgets = addForm(layout.fields, to: data as Data, content: content)
-        // PDFKit leaves the catalog without an AcroForm, which other viewers need to fill the form.
-        if let standard = AcroFormWriter.addingAcroForm(to: withWidgets) { return standard }
-        assertionFailure("Couldn't add an AcroForm to the quote PDF; it will only be fillable in Apple's apps")
-        return withWidgets
+        return (data as Data, layout)
     }
 
     /// Adds the form widgets PDFKit-side, where the drawing recorded them.
@@ -129,11 +139,15 @@ final class Layout {
     /// Where the description column starts and how wide it is, for tests.
     var descriptionColumn: (x: CGFloat, width: CGFloat) { (descX, descWidth) }
 
+    /// How many pages the document has, for the footer; nil while that's still being found out.
+    var pageCount: Int?
+
     func drawAll() {
         writer.onNewPage = { [unowned self] _ in
             self.drawContinuationHeader()
             if self.inTable { self.drawTableHeader() }
         }
+        writer.onEndPage = { [unowned self] _ in self.drawFooter() }
         writer.newPage()
         drawHeader()
         drawParties()
@@ -380,6 +394,26 @@ final class Layout {
             }
             writer.y += 10
         }
+    }
+
+    /// Where the footer's rule sits, measured down from the top of the page: in the bottom margin,
+    /// clear of the last line of the page.
+    static var footerRuleTop: CGFloat { PageWriter.pageSize.height - PageWriter.margin + 12 }
+
+    /// The same on every page of every document: a hairline, the business and the document on the
+    /// left, the page number on the right.
+    private func drawFooter() {
+        let top = Self.footerRuleTop
+        writer.rule(top: top, x: writer.left, width: writer.width, color: PDFStyle.rule)
+        let font = style.body(7.5)
+        let document = "\(content.title) \(content.number)"
+        let left = content.fromName.trimmed.isEmpty ? document : "\(content.fromName.trimmed)  ·  \(document)"
+        let page = "Page \(writer.pageIndex + 1)" + (pageCount.map { " of \($0)" } ?? "")
+        let pageText = PageWriter.text(page, font, PDFStyle.muted)
+        let pageWidth = ceil(PageWriter.width(of: pageText))
+        writer.draw(PageWriter.text(left, font, PDFStyle.muted), x: writer.left, top: top + 5,
+                    width: writer.width - pageWidth - Self.columnGap)
+        writer.drawRight(pageText, right: writer.right, top: top + 5)
     }
 
     private func drawContinuationHeader() {

@@ -104,6 +104,40 @@ import QuotePilotCore
         #expect(next.maxY <= end.minY, "the next line overlaps the wrapped label")
     }
 
+    // MARK: Footer and page breaks
+
+    /// Quotes, invoices and receipts all end every page the same way: the business and document on
+    /// the left, "Page 2 of 3" on the right, in the bottom margin below the last line.
+    @Test func everyPageOfEveryDocumentHasTheSameFooter() throws {
+        var receipted = Sample.invoice(.standalone)
+        receipted.payments = [Payment(date: Sample.today, amount: Money(dollars: 100))]
+        let documents: [(DocumentContent, String)] = [
+            (.quote(Sample.quote(extraLines: 40), client: Sample.client, brand: Sample.brand), "Quote Q-0001"),
+            (.invoice(Sample.invoice(.standalone), client: Sample.client, brand: Sample.brand, quoteNumber: nil), "Invoice INV-0001"),
+            (.receipt(receipted, client: Sample.client, brand: Sample.brand), "Receipt INV-0001"),
+        ]
+        var footerLines: Set<CGFloat> = []
+        for (content, name) in documents {
+            let document = Sample.pdf(content)
+            for index in 0..<document.pageCount {
+                let page = try #require(document.page(at: index))
+                let label = "Page \(index + 1) of \(document.pageCount)"
+                let footer = try #require(Self.bounds(of: label, in: document, page: index).first, "\(name): \(label)")
+                #expect(footer.maxY < PageWriter.margin, "\(name) page \(index + 1): the footer is above the margin")
+                #expect(abs(footer.maxX - (PageWriter.pageSize.width - PageWriter.margin)) < 1)
+                let left = try #require(Self.bounds(of: name, in: document, page: index).last)
+                #expect(abs(left.midY - footer.midY) < 1, "\(name) page \(index + 1)")
+                #expect(page.string?.contains("Sample Studio") == true)
+                footerLines.insert((footer.minY * 4).rounded() / 4)
+                // Nothing else reaches into the bottom margin.
+                let low = page.selection(for: CGRect(x: 0, y: footer.maxY + 1, width: PageWriter.pageSize.width,
+                                                     height: PageWriter.margin - footer.maxY - 1))?.string ?? ""
+                #expect(low.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, "\(name) page \(index + 1): \(low)")
+            }
+        }
+        #expect(footerLines.count == 1, "footers at \(footerLines)")
+    }
+
     // MARK: The logo
 
     /// A made-up logo: a solid magenta PNG of `width` x `height` pixels.

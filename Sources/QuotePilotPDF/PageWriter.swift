@@ -12,6 +12,8 @@ final class PageWriter {
     var y: CGFloat = 0
     /// Runs at the top of every page after the first, e.g. to repeat the table header.
     var onNewPage: ((PageWriter) -> Void)?
+    /// Runs as each page is finished, e.g. to draw its footer.
+    var onEndPage: ((PageWriter) -> Void)?
 
     init(context: CGContext) {
         self.context = context
@@ -23,7 +25,7 @@ final class PageWriter {
     var bottom: CGFloat { Self.pageSize.height - Self.margin }
 
     func newPage() {
-        if pageIndex >= 0 { context.endPDFPage() }
+        endPage()
         context.beginPDFPage(nil)
         context.textMatrix = .identity
         pageIndex += 1
@@ -32,8 +34,14 @@ final class PageWriter {
     }
 
     func finish() {
-        if pageIndex >= 0 { context.endPDFPage() }
+        endPage()
         context.closePDF()
+    }
+
+    private func endPage() {
+        guard pageIndex >= 0 else { return }
+        onEndPage?(self)
+        context.endPDFPage()
     }
 
     /// Starts a new page unless `height` more points fit on this one.
