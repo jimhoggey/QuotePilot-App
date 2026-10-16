@@ -163,7 +163,7 @@ struct QuoteEditorView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Win95TextEditor(text: quote.summary)
                         .frame(height: 90)
-                    Text("Lines starting with \"- \" print as dot points.")
+                    Text("Lines starting with a dash, • or * print as dot points.")
                         .font(Win95.small)
                         .foregroundStyle(Win95.text)
                 }

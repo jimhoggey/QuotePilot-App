@@ -182,7 +182,7 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
     public var lines: [LineItem]
     /// The highest line number ever given out on this quote, so a sent quote never reuses a line ID.
     public var lastLineNumber: Int
-    /// Plain text; lines starting with "- " print as dot points.
+    /// Plain text; lines starting with a dash, "•" or "*" print as dot points.
     public var summary: String
     public var terms: String
     public var stage: QuoteStage

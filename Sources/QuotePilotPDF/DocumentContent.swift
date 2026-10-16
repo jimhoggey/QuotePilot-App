@@ -29,7 +29,7 @@ public struct DocumentContent: Equatable {
 
     public struct Section: Equatable {
         public var heading: String
-        /// Lines starting with "- " print as dot points.
+        /// Lines starting with a dash, "•" or "*" print as dot points.
         public var text: String
         /// The brand setting this comes from, if any, for the Brand screen's highlight.
         public var source: BrandElement? = nil
