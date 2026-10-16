@@ -130,6 +130,71 @@ import QuotePilotCore
     @Test func theSwitchesAreSavedUnderTheirOwnNames() {
         #expect(StepPreferences.showStepsKey == "showSteps")
         #expect(StepPreferences.hideGettingStartedKey == "hideGettingStarted")
+        #expect(StepPreferences.showGettingStartedKey == "showGettingStarted")
+    }
+
+    // MARK: Help → Show Getting Started
+
+    @Test func theRuleShowsANewLibraryUntilHidden() {
+        #expect(GettingStarted.isVisible(hasQuotes: false, hidden: false, shownFromHelp: false))
+        #expect(GettingStarted.isVisible(hasQuotes: false, hidden: true, shownFromHelp: false) == false)
+    }
+
+    @Test func theRuleHidesTheBoxOnceThereAreQuotes() {
+        #expect(GettingStarted.isVisible(hasQuotes: true, hidden: false, shownFromHelp: false) == false)
+    }
+
+    @Test func theHelpMenuShowsTheBoxEvenWithQuotes() {
+        #expect(GettingStarted.isVisible(hasQuotes: true, hidden: false, shownFromHelp: true))
+        #expect(GettingStarted.isVisible(hasQuotes: true, hidden: true, shownFromHelp: true))
+    }
+
+    @Test func showGettingStartedSetsTheFlagsAndGoesToTheDashboard() throws {
+        let model = try UIFixture.sampleModel()
+        let store = defaults()
+        store.set(true, forKey: StepPreferences.hideGettingStartedKey)
+        model.go(to: .clients)
+
+        GettingStarted.showAgain(in: model, defaults: store)
+        #expect(store.bool(forKey: StepPreferences.hideGettingStartedKey) == false)
+        #expect(store.bool(forKey: StepPreferences.showGettingStartedKey))
+        #expect(model.section == .dashboard)
+    }
+
+    @Test func showGettingStartedWaitsWhileAMessageIsShowing() throws {
+        let model = try UIFixture.sampleModel()
+        let store = defaults()
+        var beeps = 0
+        model.beep = { beeps += 1 }
+        model.go(to: .clients)
+        model.show(title: "Careful", text: "Read this first.")
+
+        GettingStarted.showAgain(in: model, defaults: store)
+        #expect(beeps == 1)
+        #expect(store.bool(forKey: StepPreferences.showGettingStartedKey) == false)
+        #expect(model.section == .clients)
+    }
+
+    /// The user's report: Hide, then no way back once there are quotes. The Help menu brings the box
+    /// back with its three steps ticked as usual, and Hide takes it away again.
+    @Test func theBoxComesBackWithQuotesAndHideTakesItAwayAgain() throws {
+        let model = try UIFixture.sampleModel()
+        let store = defaults()
+        GettingStarted.hide(in: store)
+        func height() -> CGFloat {
+            size(GettingStartedBox(model: model, defaults: store).groupBoxStyle(.win95), width: 778).height
+        }
+        #expect(height() == 0)
+
+        GettingStarted.showAgain(in: model, defaults: store)
+        #expect(height() > 80, "the box is \(height()) high")
+        // The steps keep their ticks: the sample library has a quote.
+        #expect(GettingStarted(library: model.library).isDone(.quote))
+
+        GettingStarted.hide(in: store)
+        #expect(store.bool(forKey: StepPreferences.hideGettingStartedKey))
+        #expect(store.bool(forKey: StepPreferences.showGettingStartedKey) == false)
+        #expect(height() == 0)
     }
 
     @Test func theSentenceUnderTheBoxDropsTheStepBarWhenItIsOff() {

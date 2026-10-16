@@ -2,10 +2,12 @@ import QuotePilotCore
 import SwiftUI
 
 /// The two switches for the learning aids. View → Show Steps turns the step bar off everywhere; the
-/// Getting started box has its own Hide button.
+/// Getting started box has its own Hide button, and Help → Show Getting Started brings it back.
 enum StepPreferences {
     static let showStepsKey = "showSteps"
     static let hideGettingStartedKey = "hideGettingStarted"
+    /// Set by Help → Show Getting Started: shows the box even once the library has quotes.
+    static let showGettingStartedKey = "showGettingStarted"
 }
 
 /// The words of the step bar, apart from how they are drawn. Steps are shown as words in order, never
