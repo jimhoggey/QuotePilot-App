@@ -68,6 +68,42 @@ import QuotePilotCore
         #expect(big.descriptionColumn.width < writer.width - Layout.qtyColumn - Layout.rateColumn - Layout.amountColumn)
     }
 
+    // MARK: The right-hand column
+
+    /// The document's details, the totals and the Accepted by date all start on one line.
+    @Test func detailsTotalsAndTheDateFieldShareALeftEdge() throws {
+        let data = DocumentRenderer.render(.quote(Sample.quote(), client: Sample.client, brand: Sample.brand), style: PDFStyle())
+        let document = try #require(PDFDocument(data: data))
+        let column = PageWriter.pageSize.width - PageWriter.margin - Layout.rightColumnWidth
+        let details = try #require(Self.bounds(of: "Quote no.", in: document).first)
+        let total = try #require(Self.bounds(of: "Total (AUD)", in: document).first)
+        let date = try #require(document.page(at: 0)?.annotations.first { $0.fieldName == QuoteFormFields.date("Q-0001") })
+        #expect(abs(details.minX - column) < 1.5)
+        #expect(abs(total.minX - column) < 1.5)
+        #expect(abs(date.bounds.minX - column) < 0.5, "\(date.bounds.minX) against \(column)")
+        // The client and the name field stop short of it.
+        let name = try #require(document.page(at: 0)?.annotations.first { $0.fieldName == QuoteFormFields.name("Q-0001") })
+        #expect(name.bounds.maxX <= column - Layout.columnGutter + 0.5, "\(name.bounds.maxX)")
+    }
+
+    /// A totals label too long for the room its amount leaves wraps, and the next line moves down
+    /// to clear it.
+    @Test func aLongTotalsLabelWrapsClearOfItsAmount() throws {
+        var invoice = Sample.invoice(.standalone)
+        invoice.payments = [Payment(date: Sample.today, amount: Money(dollars: 1_080))]
+        var content = DocumentContent.receipt(invoice, client: Sample.client, brand: Sample.brand)
+        content.totals[1].label = "Paid 15 October 2026 by bank transfer from the client's trust account"
+        content.totals[1].value = "$1,234,567.89"
+        let document = Sample.pdf(content)
+        let words = try #require(Self.bounds(of: "Paid 15 October", in: document).first)
+        let end = try #require(Self.bounds(of: "account", in: document).first)
+        let value = try #require(Self.bounds(of: "$1,234,567.89", in: document).first)
+        let next = try #require(Self.bounds(of: "Balance (AUD)", in: document).first)
+        #expect(end.midY < words.midY - 4, "the label didn't wrap")
+        #expect(words.maxX < value.minX)
+        #expect(next.maxY <= end.minY, "the next line overlaps the wrapped label")
+    }
+
     /// Right-aligned figures sit on the same baseline as the words on their row, and the table's
     /// column labels on one baseline. Measured in ink: the lowest dark pixel of letters and figures
     /// without descenders, drawn at 8 pixels a point.

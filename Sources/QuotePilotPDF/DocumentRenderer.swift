@@ -174,23 +174,37 @@ final class Layout {
         writer.y = max(leftY, top + PageWriter.lineHeight(titleFont)) + 28
     }
 
+    /// How wide the right-hand column is: the document's details (number, dates) and the totals
+    /// start on the same line, and so does the Accepted by date.
+    static let rightColumnWidth: CGFloat = 250
+    /// The gap kept between the left-hand blocks and the right-hand column.
+    static let columnGutter: CGFloat = 20
+
+    /// Where the right-hand column starts.
+    var rightColumnX: CGFloat { writer.right - Self.rightColumnWidth }
+    /// How wide a left-hand block can be without reaching the right-hand column.
+    private var leftColumnWidth: CGFloat { rightColumnX - Self.columnGutter - writer.left }
+
     private func drawParties() {
         let top = writer.y
         var leftY = top
-        leftY += writer.draw(label(content.toLabel), x: writer.left, top: leftY, width: 240) + 2
+        let width = leftColumnWidth
+        leftY += writer.draw(label(content.toLabel), x: writer.left, top: leftY, width: width) + 2
         if !content.toName.isEmpty {
             leftY += writer.draw(PageWriter.text(content.toName, style.body(10.5, weight: .semibold), PDFStyle.ink),
-                                 x: writer.left, top: leftY, width: 240) + 1
+                                 x: writer.left, top: leftY, width: width) + 1
         }
         if !content.toDetails.isEmpty {
             leftY += writer.draw(PageWriter.text(content.toDetails, style.body(8.5), PDFStyle.muted),
-                                 x: writer.left, top: leftY, width: 240)
+                                 x: writer.left, top: leftY, width: width)
         }
-        let metaX = writer.right - 230
+        let metaX = rightColumnX
+        let valueX = metaX + 76
         var rightY = top
         for item in content.meta {
             writer.draw(label(item.label), x: metaX, top: rightY + 1.5, width: 74)
-            let used = writer.draw(PageWriter.text(item.value, style.body(9.5), PDFStyle.ink), x: metaX + 76, top: rightY, width: 154)
+            let used = writer.draw(PageWriter.text(item.value, style.body(9.5), PDFStyle.ink), x: valueX, top: rightY,
+                                   width: writer.right - valueX)
             rightY += max(used, 12) + 3
         }
         writer.y = max(leftY, rightY) + 22
@@ -270,21 +284,45 @@ final class Layout {
         writer.rule(top: writer.y - 1, x: writer.left, width: writer.width, color: PDFStyle.rule)
     }
 
-    private func drawTotals() {
-        let needed = content.totals.reduce(CGFloat(26)) { $0 + ($1.strong ? 23 : 15) }
-        writer.ensureSpace(needed)
-        writer.y += 10
-        let x = writer.right - 250
-        for total in content.totals {
+    /// One line of the totals, measured: its label wraps in the room its amount leaves, and the line
+    /// is as tall as the label.
+    private struct MeasuredTotal {
+        var label: NSAttributedString
+        var value: NSAttributedString
+        var labelWidth: CGFloat
+        var step: CGFloat
+        var strong: Bool
+    }
+
+    private func measuredTotals() -> [MeasuredTotal] {
+        let width = writer.right - rightColumnX
+        return content.totals.map { total in
             let font = total.strong ? style.body(10.5, weight: .semibold) : style.body(9.5)
             let figures = total.strong ? style.numbers(10.5, weight: .semibold) : style.numbers(9.5)
+            let label = PageWriter.text(total.label, font, PDFStyle.ink)
+            let value = PageWriter.text(total.value, figures, PDFStyle.ink)
+            let labelWidth = width - ceil(PageWriter.width(of: value)) - Self.columnGap
+            let height = max(PageWriter.height(of: label, width: labelWidth), PageWriter.lineHeight(font))
+            // 15 and 18 points a line, as always, unless the label wraps.
+            let step = max(total.strong ? 18 : 15, height + (total.strong ? 5 : 3))
+            return MeasuredTotal(label: label, value: value, labelWidth: labelWidth, step: step, strong: total.strong)
+        }
+    }
+
+    private func drawTotals() {
+        let totals = measuredTotals()
+        let needed = totals.reduce(CGFloat(26)) { $0 + $1.step + ($1.strong ? 5 : 0) }
+        writer.ensureSpace(needed)
+        writer.y += 10
+        let x = rightColumnX
+        for total in totals {
             if total.strong {
-                writer.rule(top: writer.y, x: x, width: 250, color: PDFStyle.ink, thickness: 1)
+                writer.rule(top: writer.y, x: x, width: writer.right - x, color: PDFStyle.ink, thickness: 1)
                 writer.y += 5
             }
-            writer.draw(PageWriter.text(total.label, font, PDFStyle.ink), x: x, top: writer.y, width: 170)
-            writer.drawRight(PageWriter.text(total.value, figures, PDFStyle.ink), right: writer.right, top: writer.y)
-            writer.y += total.strong ? 18 : 15
+            writer.draw(total.label, x: x, top: writer.y, width: total.labelWidth)
+            writer.drawRight(total.value, right: writer.right, top: writer.y)
+            writer.y += total.step
         }
         writer.y += 16
     }
@@ -295,12 +333,15 @@ final class Layout {
         writer.y += writer.draw(PageWriter.text("Accepted by", style.body(10, weight: .semibold), PDFStyle.ink),
                                 x: writer.left, top: writer.y, width: 200) + 8
         let top = writer.y
-        addField(QuoteFormFields.name(number), .text, x: writer.left, top: top, width: 240, height: 18)
-        addField(QuoteFormFields.date(number), .text, x: writer.left + 260, top: top, width: 120, height: 18)
-        writer.rule(top: top + 18, x: writer.left, width: 240, color: PDFStyle.muted)
-        writer.rule(top: top + 18, x: writer.left + 260, width: 120, color: PDFStyle.muted)
+        // The name across the left-hand column, the date at the start of the right-hand one.
+        let nameWidth = leftColumnWidth
+        let dateX = rightColumnX
+        addField(QuoteFormFields.name(number), .text, x: writer.left, top: top, width: nameWidth, height: 18)
+        addField(QuoteFormFields.date(number), .text, x: dateX, top: top, width: 120, height: 18)
+        writer.rule(top: top + 18, x: writer.left, width: nameWidth, color: PDFStyle.muted)
+        writer.rule(top: top + 18, x: dateX, width: 120, color: PDFStyle.muted)
         writer.draw(label("Name"), x: writer.left, top: top + 21, width: 100)
-        writer.draw(label("Date"), x: writer.left + 260, top: top + 21, width: 100)
+        writer.draw(label("Date"), x: dateX, top: top + 21, width: 100)
         writer.y = top + 43
     }
 
