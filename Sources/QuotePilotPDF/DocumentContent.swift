@@ -78,7 +78,7 @@ extension DocumentContent {
 
         return DocumentContent(
             title: "Quote", number: quote.number,
-            fromName: brand.businessName, fromDetails: fromDetails(brand, taxed: quote.taxed),
+            fromName: brand.businessName, fromDetails: fromDetails(brand),
             toLabel: "Prepared for", toName: client?.name ?? "", toDetails: clientDetails(client),
             meta: meta,
             amountLabel: "Quote total (\(currency))",
@@ -134,7 +134,7 @@ extension DocumentContent {
         let paidUp = invoice.paid > .zero && invoice.owing <= .zero
         return DocumentContent(
             title: invoice.taxed ? "Tax invoice" : "Invoice", number: invoice.number,
-            fromName: brand.businessName, fromDetails: fromDetails(brand, taxed: invoice.taxed),
+            fromName: brand.businessName, fromDetails: fromDetails(brand),
             toLabel: "Billed to", toName: client?.name ?? "", toDetails: clientDetails(client),
             meta: meta,
             amountLabel: paidUp ? "Paid in full" : "Amount due (\(currency))",
@@ -167,7 +167,7 @@ extension DocumentContent {
 
         return DocumentContent(
             title: "Receipt", number: invoice.number,
-            fromName: brand.businessName, fromDetails: fromDetails(brand, taxed: invoice.taxed),
+            fromName: brand.businessName, fromDetails: fromDetails(brand),
             toLabel: "Received from", toName: client?.name ?? "", toDetails: clientDetails(client),
             meta: meta,
             amountLabel: "Total paid (\(currency))",
@@ -188,10 +188,27 @@ extension DocumentContent {
             amount: line.amount.formatted(currencyCode: currency))
     }
 
-    static func fromDetails(_ brand: Brand, taxed: Bool) -> String {
+    /// The business's details, then its ABN whenever it has one. Every quote, invoice and receipt
+    /// carries the ABN, GST or not: business clients expect one, and may withhold tax without it.
+    static func fromDetails(_ brand: Brand) -> String {
         var parts = [brand.details.trimmed].filter { !$0.isEmpty }
-        if taxed && !brand.abn.trimmed.isEmpty { parts.append("ABN \(brand.abn.trimmed)") }
+        if !brand.abn.trimmed.isEmpty { parts.append("ABN \(formattedABN(brand.abn))") }
         return parts.joined(separator: "\n")
+    }
+
+    /// An ABN as it prints: eleven digits grouped 2-3-3-3 ("12 345 678 901"), however they were
+    /// spaced when typed; anything else exactly as typed.
+    public static func formattedABN(_ abn: String) -> String {
+        let typed = abn.trimmed
+        let digits = typed.filter { !$0.isWhitespace }
+        guard digits.count == 11, digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return typed }
+        var groups: [Substring] = []
+        var rest = Substring(digits)
+        for size in [2, 3, 3, 3] {
+            groups.append(rest.prefix(size))
+            rest = rest.dropFirst(size)
+        }
+        return groups.joined(separator: " ")
     }
 
     static func clientDetails(_ client: Client?) -> String {

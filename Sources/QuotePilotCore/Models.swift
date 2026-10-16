@@ -65,7 +65,8 @@ public struct Brand: Codable, Hashable, Sendable {
     public var businessName = ""
     /// Address, email, phone, website: one per line, printed under the business name.
     public var details = ""
-    /// Printed on tax invoices.
+    /// Printed with the business details on every quote, invoice and receipt whenever it's filled
+    /// in, GST or not.
     public var abn = ""
     /// Bank, BSB and account, or PayID.
     public var paymentDetails = ""

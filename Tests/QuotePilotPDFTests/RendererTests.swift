@@ -19,7 +19,8 @@ import QuotePilotCore
                          "50% when the quote is accepted"] {
             #expect(text.contains(expected), "missing \(expected)")
         }
-        #expect(!text.contains("ABN"))
+        // The brand has an ABN, so the quote carries it, though it has no GST.
+        #expect(text.contains("ABN 00 000 000 000"))
     }
 
     @Test func aDepositInvoiceBillsTheShare() {
@@ -61,6 +62,70 @@ import QuotePilotCore
         #expect(content.totals.map(\.label) == ["Subtotal", "GST (10%)", "Total (AUD)"])
         #expect(content.amount == "$1,188.00")
         #expect(Sample.text(Sample.pdf(content)).contains("ABN 00 000 000 000"))
+    }
+
+    // MARK: The ABN
+
+    /// GST off: still an "Invoice", with no GST lines, but the ABN prints with the business details.
+    @Test func anInvoiceWithoutGSTStillShowsTheABN() {
+        var brand = Sample.brand
+        brand.abn = "12345678901"
+        let content = DocumentContent.invoice(Sample.invoice(.standalone), client: Sample.client, brand: brand, quoteNumber: nil)
+        #expect(content.title == "Invoice")
+        #expect(content.totals.map(\.label) == ["Total (AUD)"])
+        #expect(content.fromDetails == "hello@example.com\n0400 000 000\nABN 12 345 678 901")
+        let text = Sample.text(Sample.pdf(content))
+        #expect(text.contains("ABN 12 345 678 901"))
+        #expect(!text.contains("Tax invoice"))
+        #expect(!text.contains("GST"))
+    }
+
+    /// Quotes and receipts carry it too, whether or not the document has GST.
+    @Test func quotesAndReceiptsShowTheABNWithOrWithoutGST() {
+        var brand = Sample.brand
+        brand.abn = "12 345 678 901"
+        var receipted = Sample.invoice(.standalone)
+        receipted.payments = [Payment(date: Sample.today, amount: Money(dollars: 100))]
+        var taxedQuote = Sample.quote()
+        taxedQuote.taxed = true
+        let documents: [DocumentContent] = [
+            .quote(Sample.quote(), client: Sample.client, brand: brand),
+            .quote(taxedQuote, client: Sample.client, brand: brand),
+            .receipt(receipted, client: Sample.client, brand: brand),
+        ]
+        for content in documents {
+            #expect(content.fromDetails.hasSuffix("\nABN 12 345 678 901"), "\(content.title)")
+            #expect(Sample.text(Sample.pdf(content)).contains("ABN 12 345 678 901"), "\(content.title)")
+        }
+    }
+
+    /// No ABN on the brand: no "ABN" line anywhere, taxed or not.
+    @Test func anEmptyABNPrintsNothing() {
+        var brand = Sample.brand
+        brand.abn = "   "
+        var receipted = Sample.invoice(.standalone, taxed: true)
+        receipted.payments = [Payment(date: Sample.today, amount: Money(dollars: 100))]
+        let documents: [DocumentContent] = [
+            .quote(Sample.quote(), client: Sample.client, brand: brand),
+            .invoice(Sample.invoice(.standalone), client: Sample.client, brand: brand, quoteNumber: nil),
+            .invoice(Sample.invoice(.standalone, taxed: true), client: Sample.client, brand: brand, quoteNumber: nil),
+            .receipt(receipted, client: Sample.client, brand: brand),
+        ]
+        for content in documents {
+            #expect(content.fromDetails == "hello@example.com\n0400 000 000", "\(content.title)")
+            #expect(!Sample.text(Sample.pdf(content)).contains("ABN"), "\(content.title)")
+        }
+    }
+
+    @Test func anABNOfElevenDigitsIsGroupedTwoThreeThreeThree() {
+        #expect(DocumentContent.formattedABN("12345678901") == "12 345 678 901")
+        #expect(DocumentContent.formattedABN(" 12 345 678 901 ") == "12 345 678 901")
+        #expect(DocumentContent.formattedABN("123 456 789 01") == "12 345 678 901")
+        // Anything else prints as typed.
+        #expect(DocumentContent.formattedABN("1234567890") == "1234567890")
+        #expect(DocumentContent.formattedABN("123456789012") == "123456789012")
+        #expect(DocumentContent.formattedABN("12-345-678-901") == "12-345-678-901")
+        #expect(DocumentContent.formattedABN("Applied for") == "Applied for")
     }
 
     @Test func aReceiptListsThePayments() {

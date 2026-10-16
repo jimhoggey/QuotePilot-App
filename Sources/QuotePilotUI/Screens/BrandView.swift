@@ -85,7 +85,7 @@ struct BusinessTab: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Registered for GST", isOn: $brand.gstRegistered)
                         .toggleStyle(.win95)
-                    Text("Off: no GST anywhere. On: new quotes add 10% GST, and invoices say Tax invoice and show your ABN.")
+                    Text("Off: no GST anywhere. On: new quotes add 10% GST, and invoices say Tax invoice.")
                         .font(Win95.small)
                         .fixedSize(horizontal: false, vertical: true)
                 }
