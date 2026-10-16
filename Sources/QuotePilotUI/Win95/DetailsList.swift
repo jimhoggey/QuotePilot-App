@@ -163,6 +163,7 @@ public struct DetailsList<Row, ID: Hashable>: View {
     let rowMenu: ((ID) -> AnyView)?
     @State private var sort: DetailsSort?
     @State private var scrollerReserve: CGFloat = DetailsLayout.legacyScrollerWidth
+    @State private var rowHover = RowHoverBox<ID>()
     @FocusState private var focused: Bool
     /// Lets a test draw the list as if it had keyboard focus; a real focus needs a key window.
     var forcedFocus: Bool?
@@ -206,6 +207,16 @@ public struct DetailsList<Row, ID: Hashable>: View {
                             LazyVStack(spacing: 0) {
                                 ForEach(ordered, id: id) { row in
                                     rowView(row, widths: widths)
+                                }
+                            }
+                        }
+                        // One watcher for the whole list: a right-click chooses the row under the pointer.
+                        .background {
+                            if rowMenu != nil {
+                                SelectOnRightClick {
+                                    guard let target = rowHover.hover.target else { return }
+                                    selection = target
+                                    focused = true
                                 }
                             }
                         }
@@ -280,12 +291,10 @@ public struct DetailsList<Row, ID: Hashable>: View {
             .accessibilityAddTraits(selected ? .isSelected : [])
             .accessibilityAction(named: "Open") { onOpen?(rowID) }
         if let rowMenu {
-            // A right-click chooses the row first, then its menu opens.
+            // A right-click chooses the row first (the list's watcher, from this hover), then its menu opens.
             base
-                .background(SelectOnRightClick {
-                    selection = rowID
-                    focused = true
-                })
+                .onHover { inside in rowHover.hover.moved(rowID, inside: inside) }
+                .onDisappear { rowHover.hover.moved(rowID, inside: false) }
                 .contextMenu { rowMenu(rowID) }
         } else {
             base

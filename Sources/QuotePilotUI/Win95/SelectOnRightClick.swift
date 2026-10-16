@@ -1,10 +1,35 @@
 import AppKit
 import SwiftUI
 
+/// Which row the pointer is over, built from the rows' hover callbacks. Two neighbouring rows can
+/// both report in the same moment as the pointer crosses the line between them, in either order, so
+/// an exit only clears the row it came from: the row entered last is the one that answers.
+struct RowHover<ID: Hashable> {
+    private(set) var current: ID?
+
+    mutating func moved(_ id: ID, inside: Bool) {
+        if inside {
+            current = id
+        } else if current == id {
+            current = nil
+        }
+    }
+
+    /// The row a menu click chooses: the one under the pointer, or none (the selection stays as it is).
+    var target: ID? { current }
+}
+
+/// Holds a `RowHover` for a list without making the list redraw on every pointer move.
+final class RowHoverBox<ID: Hashable> {
+    var hover = RowHover<ID>()
+}
+
 /// Makes a right-click on a list row choose that row first, as in Windows, so its context menu opens
-/// on a row that shows as selected. SwiftUI's `contextMenu` leaves the selection alone. Put it in the
-/// row's background: it watches the window's mouse-downs, passes every one on untouched (the menu
-/// still opens, a click still reaches the row) and takes none itself.
+/// on a row that shows as selected. SwiftUI's `contextMenu` leaves the selection alone. One of these
+/// goes in the background of the whole list (not one per row, where several could answer the same
+/// click): it watches the window's mouse-downs, passes every one on untouched (the menu still opens,
+/// a click still reaches the row) and takes none itself. The row to choose is the one the list's
+/// hover tracking says is under the pointer.
 struct SelectOnRightClick: NSViewRepresentable {
     let action: () -> Void
 
@@ -47,8 +72,8 @@ struct SelectOnRightClick: NSViewRepresentable {
             monitor = nil
         }
 
-        /// Only a menu click that lands on the part of this row that shows (a row scrolled half out of
-        /// the list doesn't answer for the strip under the header).
+        /// Only a menu click that lands on the part of the list that shows (the header strip above the
+        /// rows doesn't count).
         private func see(_ event: NSEvent) {
             guard isActive, event.window === window,
                   SelectOnRightClick.opensMenu(event.type, modifiers: event.modifierFlags),
