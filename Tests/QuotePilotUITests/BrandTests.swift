@@ -109,6 +109,67 @@ import QuotePilotPDF
         #expect(HourlyRateField.stored(Money(dollars: 95)) == Money(dollars: 95))
     }
 
+    // MARK: When the sample quote redraws
+
+    /// Typing saves as it goes but leaves the sample quote alone; ending the edit brings it up to date.
+    @Test func typingWaitsForTheEditToEndBeforeTheSampleRedraws() throws {
+        let model = try UIFixture.sampleModel()
+        let before = model.library.brand
+        let sample = model.sampleContent()
+        let typing = model.brandTypingBinding
+        typing.wrappedValue.businessName = "Sample Studio T"
+        typing.wrappedValue.businessName = "Sample Studio Two"
+        typing.wrappedValue.hourlyRate = Money(dollars: 9)
+        typing.wrappedValue.hourlyRate = Money(dollars: 95)
+        // Saved at once...
+        #expect(model.library.brand.businessName == "Sample Studio Two")
+        #expect(model.library.brand.hourlyRate == Money(dollars: 95))
+        guard case .loaded(let saved) = model.store.load() else {
+            Issue.record("Not saved")
+            return
+        }
+        #expect(saved.brand.businessName == "Sample Studio Two")
+        // ...but the sample is drawn as it was.
+        #expect(model.previewBrand == before)
+        #expect(model.sampleContent() == sample)
+
+        model.brandEditEnded()
+        #expect(model.previewBrand == model.library.brand)
+        #expect(model.previewBrand.businessName == "Sample Studio Two")
+        #expect(model.sampleContent() != sample)
+
+        // The next edit holds it again, at what it now shows.
+        typing.wrappedValue.abn = "12 345 678 901"
+        #expect(model.previewBrand.businessName == "Sample Studio Two")
+        #expect(model.previewBrand.abn == before.abn)
+        model.brandEditEnded()
+        #expect(model.previewBrand.abn == "12 345 678 901")
+    }
+
+    /// A checkbox, a colour swatch or a logo changes in one action, so the sample redraws at once,
+    /// with whatever was typed before it.
+    @Test func aCheckboxColourOrLogoRedrawsTheSampleAtOnce() throws {
+        let model = try UIFixture.sampleModel()
+        let gst = model.library.brand.gstRegistered
+        model.brandTypingBinding.wrappedValue.businessName = "Sample Studio Two"
+        model.brandBinding.wrappedValue.gstRegistered.toggle()
+        #expect(model.previewBrand.gstRegistered == !gst)
+        #expect(model.previewBrand.businessName == "Sample Studio Two")
+        #expect(model.previewBrand == model.library.brand)
+
+        let colour = model.library.brand.accentHex == "#7A1F2B" ? "#2E6B30" : "#7A1F2B"
+        model.brandTypingBinding.wrappedValue.details = "1 Sample Street"
+        model.brandBinding.wrappedValue.accentHex = colour
+        #expect(model.previewBrand.accentHex == colour)
+        #expect(model.previewBrand == model.library.brand)
+
+        model.brandTypingBinding.wrappedValue.abn = "12 345 678 901"
+        model.choosingFile = .logo
+        model.fileChosen(.success(try UIFixture.file("my logo.pdf", model.pdf(model.sampleContent()))))
+        #expect(model.library.brand.logoFile != nil)
+        #expect(model.previewBrand == model.library.brand)
+    }
+
     // MARK: One file picker for the whole app
 
     /// A font file that ships with macOS, or nil when this Mac has none of the usual ones.

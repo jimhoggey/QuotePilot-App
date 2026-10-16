@@ -4,7 +4,9 @@ import QuotePilotPDF
 import SwiftUI
 
 /// Brand: everything documents carry about the business, on four tabs, beside a sample quote that
-/// redraws as you change things.
+/// redraws as you change things. Text fields save as you type through `brandTypingBinding`, but the
+/// sample waits for the edit to end: Return, leaving the field, another tab, or the window no longer
+/// being key. Checkboxes, swatches, pickers and files redraw it at once.
 struct BrandView: View {
     enum Tab: Hashable {
         case business, look, documents, emails
@@ -20,16 +22,18 @@ struct BrandView: View {
 
     var body: some View {
         let brand = model.brandBinding
+        let typing = model.brandTypingBinding
         HStack(alignment: .top, spacing: 8) {
             PropertyTabs(selection: $tab, tabs: [(.business, "Business"), (.look, "Look"),
                                                  (.documents, "Documents"), (.emails, "Emails")]) {
                 ScrollView {
                     Group {
                         switch tab {
-                        case .business: BusinessTab(brand: brand)
+                        case .business: BusinessTab(brand: brand, typing: typing)
                         case .look: LookTab(model: model, brand: brand)
-                        case .documents: DocumentsTab(brand: brand)
-                        case .emails: EmailsTab(brand: brand)
+                        // Only text and day fields on these two.
+                        case .documents: DocumentsTab(brand: typing)
+                        case .emails: EmailsTab(brand: typing)
                         }
                     }
                     .padding(.trailing, 6)
@@ -37,32 +41,41 @@ struct BrandView: View {
             }
             .frame(minWidth: 460, idealWidth: 520, maxWidth: 600)
             GroupBox("Sample quote") {
-                LivePDFPreview(model: model, content: model.sampleContent())
+                LivePDFPreview(model: model, content: model.sampleContent(), brand: model.previewBrand)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(8)
         .groupBoxStyle(.win95)
+        .environment(\.textEditEnded) { model.brandEditEnded() }
+        // A field taken away by another tab, or by leaving the screen, reports no end of its own.
+        .onChange(of: tab) { model.brandEditEnded() }
+        .onDisappear { model.brandEditEnded() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
+            model.brandEditEnded()
+        }
     }
 }
 
 struct BusinessTab: View {
     @Binding var brand: Brand
+    /// The same brand, for the text fields: the sample quote waits for their edits to end.
+    @Binding var typing: Brand
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             GroupBox("Business") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Win95FieldRow("Name:") { Win95TextField("Business name", text: $brand.businessName) }
-                    Win95FieldRow("Details:") { Win95TextEditor(text: $brand.details).frame(height: 70) }
+                    Win95FieldRow("Name:") { Win95TextField("Business name", text: $typing.businessName) }
+                    Win95FieldRow("Details:") { Win95TextEditor(text: $typing.details).frame(height: 70) }
                     Text("Address, email, phone and website, one per line. They print under your name.")
                         .font(Win95.small)
-                    Win95FieldRow("ABN:") { Win95TextField("ABN", text: $brand.abn) }
+                    Win95FieldRow("ABN:") { Win95TextField("ABN", text: $typing.abn) }
                 }
             }
             GroupBox("Payment details") {
                 VStack(alignment: .leading, spacing: 4) {
-                    Win95TextEditor(text: $brand.paymentDetails)
+                    Win95TextEditor(text: $typing.paymentDetails)
                         .frame(height: 54)
                     Text("Bank, BSB and account, or PayID. Printed on invoices.")
                         .font(Win95.small)
@@ -115,7 +128,7 @@ struct LookTab: View {
                 }
             }
             GroupBox("Hourly rate") {
-                HourlyRateField(rate: $brand.hourlyRate, currencyCode: brand.currencyCode)
+                HourlyRateField(rate: model.brandTypingBinding.hourlyRate, currencyCode: brand.currencyCode)
             }
             FontGroup(title: "Heading font", fontName: model.headingFontName,
                       none: "The system font (no heading font chosen).", hint: Self.headingFontHint,
@@ -128,7 +141,7 @@ struct LookTab: View {
                       choose: { model.choosingFile = .bodyFont }, remove: { model.removeBodyFont() },
                       style: $brand.bodyFontStyle)
             GroupBox("Accent colour") {
-                AccentPicker(hex: $brand.accentHex)
+                AccentPicker(hex: $brand.accentHex, typedHex: model.brandTypingBinding.accentHex)
             }
         }
         .foregroundStyle(Win95.text)
@@ -227,7 +240,10 @@ struct LogoWell: View {
 
 /// The documents' accent colour: a hex field, its swatch, and a few ready-made choices.
 struct AccentPicker: View {
+    /// Set by the swatches.
     @Binding var hex: String
+    /// Set by the hex field, which may hold the sample quote until its edit ends.
+    @Binding var typedHex: String
     /// Document colours, not window colours: these go on the client's PDFs.
     private static let presets = ["#0B6B66", "#1F2A44", "#7A1F2B", "#2E6B30", "#5B3F8C", "#B85C00"]
 
@@ -237,7 +253,7 @@ struct AccentPicker: View {
                 Swatch(hex: hex)
                     .frame(width: 28, height: 22)
                 CommitField(label: "Accent colour", value: hex, format: { $0 }, parse: FieldParser.hex,
-                            alignment: .leading) { hex = $0 }
+                            alignment: .leading) { typedHex = $0 }
                     .frame(width: 100)
                 Text("Six hex digits, like #0B6B66.")
                     .font(Win95.small)

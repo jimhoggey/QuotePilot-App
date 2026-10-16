@@ -195,6 +195,7 @@ struct CommitField<Value: Equatable>: View {
     @State private var text = ""
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.textEditEnded) private var editEnded
 
     /// While typing: the value to commit now, or nil when the text is half-typed, nonsense, or no
     /// change from what's stored.
@@ -266,6 +267,7 @@ struct CommitField<Value: Equatable>: View {
         if leaving.beep { NSSound.beep() }
         // The stored value: what was committed while typing, or the old one if an edit was refused.
         text = leaving.text
+        editEnded()
     }
 }
 
