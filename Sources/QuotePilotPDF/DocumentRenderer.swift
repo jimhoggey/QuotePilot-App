@@ -96,6 +96,14 @@ final class Layout {
     private let rateRight: CGFloat
     private let amountRight: CGFloat
 
+    /// The narrowest the Qty, Rate and Amount columns get, each with the space before it. Wider
+    /// figures (a total in the millions) widen their column, and the description gives way.
+    static let qtyColumn: CGFloat = 58
+    static let rateColumn: CGFloat = 72
+    static let amountColumn: CGFloat = 78
+    /// The space kept between a column's widest figure and the column before it.
+    static let columnGap: CGFloat = 14
+
     init(content: DocumentContent, style: PDFStyle, writer: PageWriter) {
         self.content = content
         self.style = style
@@ -103,11 +111,23 @@ final class Layout {
         tickX = writer.left
         codeX = writer.left + (content.formQuoteNumber != nil ? 22 : 0)
         descX = codeX + (content.showCodes ? 28 : 0)
+        func widest(_ texts: [String], _ font: CTFont) -> CGFloat {
+            texts.map { PageWriter.width(of: PageWriter.text($0, font, PDFStyle.ink)) }.max() ?? 0
+        }
+        let label = style.body(7.5, weight: .medium)
+        let qty = max(widest(content.rows.map(\.quantity), style.numbers(9.5)), widest(["Qty"], label))
+        let rate = max(widest(content.rows.map(\.rate), style.numbers(9.5)), widest(["Rate"], label))
+        let amount = max(widest(content.rows.map(\.amount), style.numbers(9.5, weight: .medium)), widest(["Amount"], label))
         amountRight = writer.right
-        rateRight = amountRight - 78
-        qtyRight = rateRight - 72
-        descWidth = qtyRight - 58 - descX
+        rateRight = amountRight - max(Self.amountColumn, ceil(amount) + Self.columnGap)
+        qtyRight = rateRight - max(Self.rateColumn, ceil(rate) + Self.columnGap)
+        descWidth = qtyRight - max(Self.qtyColumn, ceil(qty) + Self.columnGap) - descX
     }
+
+    /// Where the Qty, Rate and Amount columns end, for tests.
+    var columnRights: (qty: CGFloat, rate: CGFloat, amount: CGFloat) { (qtyRight, rateRight, amountRight) }
+    /// Where the description column starts and how wide it is, for tests.
+    var descriptionColumn: (x: CGFloat, width: CGFloat) { (descX, descWidth) }
 
     func drawAll() {
         writer.onNewPage = { [unowned self] _ in
@@ -235,7 +255,7 @@ final class Layout {
         if let number = content.formQuoteNumber {
             addField(QuoteFormFields.line(number, row.code), .checkbox, x: tickX, top: top, width: 12, height: 12)
         }
-        let numberFont = style.body(9.5)
+        let numberFont = style.numbers(9.5)
         if content.showCodes {
             writer.draw(PageWriter.text(row.code, numberFont, PDFStyle.muted), x: codeX, top: top, width: 26)
         }
@@ -245,7 +265,7 @@ final class Layout {
         }
         writer.drawRight(PageWriter.text(row.quantity, numberFont, PDFStyle.ink), right: qtyRight, top: top)
         writer.drawRight(PageWriter.text(row.rate, numberFont, PDFStyle.ink), right: rateRight, top: top)
-        writer.drawRight(PageWriter.text(row.amount, style.body(9.5, weight: .medium), PDFStyle.ink), right: amountRight, top: top)
+        writer.drawRight(PageWriter.text(row.amount, style.numbers(9.5, weight: .medium), PDFStyle.ink), right: amountRight, top: top)
         writer.y += rowHeight
         writer.rule(top: writer.y - 1, x: writer.left, width: writer.width, color: PDFStyle.rule)
     }
@@ -257,12 +277,13 @@ final class Layout {
         let x = writer.right - 250
         for total in content.totals {
             let font = total.strong ? style.body(10.5, weight: .semibold) : style.body(9.5)
+            let figures = total.strong ? style.numbers(10.5, weight: .semibold) : style.numbers(9.5)
             if total.strong {
                 writer.rule(top: writer.y, x: x, width: 250, color: PDFStyle.ink, thickness: 1)
                 writer.y += 5
             }
             writer.draw(PageWriter.text(total.label, font, PDFStyle.ink), x: x, top: writer.y, width: 170)
-            writer.drawRight(PageWriter.text(total.value, font, PDFStyle.ink), right: writer.right, top: writer.y)
+            writer.drawRight(PageWriter.text(total.value, figures, PDFStyle.ink), right: writer.right, top: writer.y)
             writer.y += total.strong ? 18 : 15
         }
         writer.y += 16

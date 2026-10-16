@@ -69,6 +69,15 @@ public struct PDFStyle {
         }
         return NSFont.systemFont(ofSize: size, weight: weight) as CTFont
     }
+
+    /// The body font with tabular (equal-width) figures, for quantities and money, so the digits of
+    /// a column line up under each other. A font without tabular figures draws as `body` does.
+    func numbers(_ size: CGFloat, weight: NSFont.Weight = .regular) -> CTFont {
+        let tabular: [CFString: Any] = [kCTFontFeatureTypeIdentifierKey: kNumberSpacingType,
+                                        kCTFontFeatureSelectorIdentifierKey: kMonospacedNumbersSelector]
+        let descriptor = CTFontDescriptorCreateWithAttributes([kCTFontFeatureSettingsAttribute: [tabular]] as CFDictionary)
+        return CTFontCreateCopyWithAttributes(body(size, weight: weight), 0, nil, descriptor)
+    }
 }
 
 /// A logo from a PNG or JPG (bitmap) or a PDF (stays sharp at any size). An SVG logo is a PDF by the
