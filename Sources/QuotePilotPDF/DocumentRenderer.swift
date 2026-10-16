@@ -158,8 +158,15 @@ final class Layout {
         let top = writer.y
         var leftY = top
         if let logo = style.logo {
-            logo.draw(in: writer.pdfRect(x: writer.left, top: leftY, width: 180, height: 44), context: writer.context)
-            leftY += 44 + 12
+            // A wide logo is held to the width, a tall one to the height; either way the name starts
+            // 12 pt under the logo as drawn.
+            let room = Self.logoSize
+            let drawn = logo.fitted(in: room)
+            if drawn.height > 0 {
+                logo.draw(in: writer.pdfRect(x: writer.left, top: leftY, width: room.width, height: room.height),
+                          context: writer.context)
+                leftY += ceil(drawn.height) + 12
+            }
         }
         if !content.fromName.isEmpty {
             leftY += writer.draw(PageWriter.text(content.fromName, style.body(13, weight: .semibold), PDFStyle.ink),
@@ -173,6 +180,9 @@ final class Layout {
         writer.drawRight(PageWriter.text(content.title, titleFont, PDFStyle.ink), right: writer.right, top: top)
         writer.y = max(leftY, top + PageWriter.lineHeight(titleFont)) + 28
     }
+
+    /// The most room a logo gets at the top left.
+    static let logoSize = CGSize(width: 180, height: 56)
 
     /// How wide the right-hand column is: the document's details (number, dates) and the totals
     /// start on the same line, and so does the Accepted by date.

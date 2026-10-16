@@ -137,8 +137,8 @@ import QuotePilotCore
         #expect(data.count > DocumentRenderer.render(content, style: PDFStyle()).count)
         #expect(branded.pageCount == 1)
 
-        // The 200 x 80 logo is drawn to fit 180 x 44 at the top left, so its rectangle (120 x 72 of
-        // it) is about 66 x 40 points up there.
+        // The 200 x 80 logo is drawn to fit 180 x 56 at the top left, so its rectangle (120 x 72 of
+        // it) is about 84 x 50 points up there.
         let hits = try magenta(in: branded)
         #expect(hits.count > 1_500)
         let size = try #require(branded.page(at: 0)?.bounds(for: .mediaBox).size)

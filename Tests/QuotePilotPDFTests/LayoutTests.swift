@@ -104,6 +104,56 @@ import QuotePilotCore
         #expect(next.maxY <= end.minY, "the next line overlaps the wrapped label")
     }
 
+    // MARK: The logo
+
+    /// A made-up logo: a solid magenta PNG of `width` x `height` pixels.
+    static func logo(width: Int, height: Int) throws -> Logo {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("logo-\(UUID().uuidString).png")
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+            NSColor(srgbRed: 0.85, green: 0, blue: 0.85, alpha: 1).setFill()
+            rect.fill()
+            return true
+        }
+        let tiff = try #require(image.tiffRepresentation)
+        let png = try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+        // Left in the temporary folder: a bitmap logo reads its file when it's drawn.
+        try png.write(to: url)
+        return try #require(Logo(url: url))
+    }
+
+    /// Where the logo's magenta is on page 1, in points from the top left.
+    static func logoBox(_ data: Data) throws -> CGRect {
+        let page = try #require(Ink(page: 0, of: data, scale: 2))
+        var box = CGRect.null
+        for y in 0..<page.image.pixelsHigh / 4 {
+            for x in 0..<page.image.pixelsWide / 2 {
+                guard let c = page.image.colorAt(x: x, y: y), c.redComponent > 0.7, c.greenComponent < 0.3, c.blueComponent > 0.7
+                else { continue }
+                box = box.union(CGRect(x: CGFloat(x) / 2, y: CGFloat(y) / 2, width: 0.5, height: 0.5))
+            }
+        }
+        return box
+    }
+
+    /// Wide or tall, the logo starts at the top margin and the business name starts 12 pt under the
+    /// logo as drawn, not under the room it was allowed.
+    @Test func theNameFollowsTheLogoAsDrawn() throws {
+        let content = DocumentContent.quote(Sample.quote(), client: Sample.client, brand: Sample.brand)
+        for (width, height, drawnWidth, drawnHeight) in [(640, 110, 180.0, 180.0 * 110 / 640), (120, 320, 56.0 * 120 / 320, 56.0)] {
+            let data = DocumentRenderer.render(content, style: PDFStyle(logo: try Self.logo(width: width, height: height)))
+            let box = try Self.logoBox(data)
+            #expect(abs(box.minY - PageWriter.margin) < 1, "\(width) x \(height): top at \(box.minY)")
+            #expect(abs(box.minX - PageWriter.margin) < 1)
+            #expect(abs(box.width - drawnWidth) < 1.5, "\(width) x \(height): \(box.width) wide")
+            #expect(abs(box.height - drawnHeight) < 1.5, "\(width) x \(height): \(box.height) high")
+            // The name's top, measured down from the top of the page.
+            let document = try #require(PDFDocument(data: data))
+            let name = try #require(Self.bounds(of: "Sample Studio", in: document).first)
+            let nameTop = PageWriter.pageSize.height - name.maxY
+            #expect(nameTop - box.maxY > 8 && nameTop - box.maxY < 16, "\(width) x \(height): name \(nameTop - box.maxY) under the logo")
+        }
+    }
+
     /// Right-aligned figures sit on the same baseline as the words on their row, and the table's
     /// column labels on one baseline. Measured in ink: the lowest dark pixel of letters and figures
     /// without descenders, drawn at 8 pixels a point.
