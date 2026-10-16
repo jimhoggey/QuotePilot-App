@@ -35,7 +35,13 @@ final class PageWriter {
         y = Self.margin
         onBeginPage?(self)
         if pageIndex > 0 { onNewPage?(self) }
+        contentTop = y
     }
+
+    /// Where this page's own content starts, under any repeated header.
+    private var contentTop: CGFloat = 0
+    /// True when nothing has been drawn on this page yet but its repeated header.
+    var isAtTopOfPage: Bool { y <= contentTop + 0.5 }
 
     func finish() {
         endPage()
@@ -65,6 +71,19 @@ final class PageWriter {
             .font: font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
         ])
+    }
+
+    /// `text` set to wrap between words, breaking inside a word only when it's wider than the line.
+    static func wrapping(_ text: NSAttributedString) -> NSAttributedString {
+        let wrapped = NSMutableAttributedString(attributedString: text)
+        var mode = CTLineBreakMode.byWordWrapping
+        let paragraph = withUnsafeBytes(of: &mode) { bytes in
+            CTParagraphStyleCreate([CTParagraphStyleSetting(spec: .lineBreakMode, valueSize: bytes.count,
+                                                            value: bytes.baseAddress!)], 1)
+        }
+        wrapped.addAttribute(NSAttributedString.Key(kCTParagraphStyleAttributeName as String), value: paragraph,
+                             range: NSRange(location: 0, length: wrapped.length))
+        return wrapped
     }
 
     static func height(of text: NSAttributedString, width: CGFloat) -> CGFloat {
@@ -102,6 +121,59 @@ final class PageWriter {
             let baseline = top + (frameHeight - origin.y)
             return CGRect(x: x + origin.x, y: baseline - ascent, width: lineWidth, height: ascent + descent)
         }
+    }
+
+    /// One line of wrapped text, laid out as `draw` would set it, for text that may continue on the
+    /// next page. Distances are from the top of the whole text.
+    struct Line {
+        let line: CTLine
+        /// Where the line's room starts and ends, and its baseline.
+        let top: CGFloat
+        let bottom: CGFloat
+        let baseline: CGFloat
+        /// Its words: in from the left, how wide, and how far they reach above and below the baseline.
+        let x: CGFloat
+        let width: CGFloat
+        let ascent: CGFloat
+        let descent: CGFloat
+    }
+
+    /// `text` wrapped to `width`, line by line.
+    static func lines(of text: NSAttributedString, width: CGFloat) -> [Line] {
+        let height = Self.height(of: text, width: width)
+        guard height > 0 else { return [] }
+        let setter = CTFramesetterCreateWithAttributedString(text)
+        let frameHeight = height + 2
+        let path = CGPath(rect: CGRect(x: 0, y: 0, width: width, height: frameHeight), transform: nil)
+        let frame = CTFramesetterCreateFrame(setter, CFRange(location: 0, length: 0), path, nil)
+        let ctLines = CTFrameGetLines(frame) as? [CTLine] ?? []
+        var origins = [CGPoint](repeating: .zero, count: ctLines.count)
+        CTFrameGetLineOrigins(frame, CFRange(location: 0, length: 0), &origins)
+        let measured = zip(ctLines, origins).map { line, origin -> (CTLine, CGPoint, CGFloat, CGFloat, CGFloat) in
+            var ascent: CGFloat = 0, descent: CGFloat = 0
+            let width = CGFloat(CTLineGetTypographicBounds(line, &ascent, &descent, nil)) - CGFloat(CTLineGetTrailingWhitespaceWidth(line))
+            return (line, origin, width, ascent, descent)
+        }
+        return measured.enumerated().map { index, item in
+            let (line, origin, lineWidth, ascent, descent) = item
+            let baseline = frameHeight - origin.y
+            let top = index == 0 ? 0 : baseline - ascent
+            let bottom: CGFloat
+            if index + 1 < measured.count {
+                let next = measured[index + 1]
+                bottom = (frameHeight - next.1.y) - next.3
+            } else {
+                bottom = max(height, baseline + descent)
+            }
+            return Line(line: line, top: top, bottom: bottom, baseline: baseline, x: origin.x, width: lineWidth,
+                        ascent: ascent, descent: descent)
+        }
+    }
+
+    /// Draws one laid-out line, with the top of its text block at `textTop`.
+    func draw(_ line: Line, x: CGFloat, textTop: CGFloat) {
+        context.textPosition = CGPoint(x: x + line.x, y: Self.pageSize.height - (textTop + line.baseline))
+        CTLineDraw(line.line, context)
     }
 
     /// Wrapped, left-aligned text with its top at `top`. Returns the height it took.

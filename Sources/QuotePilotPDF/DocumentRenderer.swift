@@ -345,8 +345,9 @@ final class Layout {
     }
 
     private func rowTexts(_ row: DocumentContent.Row) -> (title: NSAttributedString, detail: NSAttributedString) {
-        (PageWriter.text(row.title, style.body(9.5, weight: .medium), PDFStyle.ink),
-         PageWriter.text(row.detail, style.body(8.5), PDFStyle.muted))
+        // Pasted wording wraps between words here too, as in the sections.
+        (PageWriter.wrapping(PageWriter.text(Self.printable(row.title), style.body(9.5, weight: .medium), PDFStyle.ink)),
+         PageWriter.wrapping(PageWriter.text(Self.printable(row.detail), style.body(8.5), PDFStyle.muted)))
     }
 
     private func rowHeight(_ row: DocumentContent.Row) -> CGFloat {
@@ -448,38 +449,72 @@ final class Layout {
     }
 
     /// One paragraph of a section: its text, and whether it's a dot point.
-    private struct Paragraph {
+    struct Paragraph: Equatable {
         var text: String
         var isBullet: Bool
     }
 
-    /// A section's paragraphs, one per line of its text; nil for a blank line.
-    private func paragraphs(_ text: String) -> [Paragraph?] {
-        text.components(separatedBy: "\n").map { paragraph in
-            let line = paragraph.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { return nil }
-            let isBullet = line.hasPrefix("- ") || line.hasPrefix("• ")
-            return Paragraph(text: isBullet ? String(line.dropFirst(2)) : line, isBullet: isBullet)
+    /// What starts a dot point: a dash of any length, a bullet or an asterisk, with or without a
+    /// space after it.
+    static let bulletMarkers: Set<Character> = ["-", "–", "—", "•", "*"]
+
+    /// A section's paragraphs, one per line of its text; nil for a blank line. A marker alone on its
+    /// line (as a two-column web page pastes its dot points) is dropped, not printed.
+    static func paragraphs(_ text: String) -> [Paragraph?] {
+        let unified = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\u{2028}", with: "\n")
+            .replacingOccurrences(of: "\u{2029}", with: "\n")
+        return unified.components(separatedBy: "\n").compactMap { paragraph -> Paragraph?? in
+            let line = printable(paragraph).trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { return .some(nil) }
+            guard let first = line.first, bulletMarkers.contains(first) else { return Paragraph(text: line, isBullet: false) }
+            let rest = line.dropFirst().trimmingCharacters(in: .whitespaces)
+            if rest.isEmpty { return Paragraph??.none }
+            return Paragraph(text: rest, isBullet: true)
         }
+    }
+
+    /// Text as it should wrap: spaces that forbid a line break (pasted from web pages as
+    /// non-breaking spaces) become plain spaces, and invisible break points and soft hyphens go,
+    /// so lines break between words and never inside one.
+    static func printable(_ text: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x00AD, 0x200B, 0x2060, 0xFEFF:
+                continue
+            default:
+                scalars.append(scalar.properties.generalCategory == .spaceSeparator ? " " : scalar)
+            }
+        }
+        return String(scalars)
     }
 
     private static let bulletIndent: CGFloat = 12
 
     private func paragraphText(_ paragraph: Paragraph) -> NSAttributedString {
-        PageWriter.text(paragraph.text, style.body(9), PDFStyle.ink)
+        PageWriter.wrapping(PageWriter.text(paragraph.text, style.body(9), PDFStyle.ink))
     }
 
-    private func paragraphHeight(_ paragraph: Paragraph) -> CGFloat {
-        PageWriter.height(of: paragraphText(paragraph), width: writer.width - (paragraph.isBullet ? Self.bulletIndent : 0))
+    private func paragraphLines(_ paragraph: Paragraph) -> [PageWriter.Line] {
+        PageWriter.lines(of: paragraphText(paragraph), width: writer.width - (paragraph.isBullet ? Self.bulletIndent : 0))
+    }
+
+    /// The height of a paragraph's first two lines (all of it when shorter): the least of it that
+    /// starts on a page.
+    private func openingHeight(_ paragraph: Paragraph) -> CGFloat {
+        let lines = paragraphLines(paragraph)
+        return lines.prefix(2).last?.bottom ?? 0
     }
 
     private func drawSections() {
         for section in content.sections {
             let heading = PageWriter.text(section.heading, style.body(10, weight: .semibold), PDFStyle.ink)
             let headingHeight = PageWriter.height(of: heading, width: writer.width)
-            let parts = paragraphs(section.text)
-            // A heading never ends a page: it goes over with its first paragraph if that won't fit.
-            let first = parts.lazy.compactMap { $0 }.first.map(paragraphHeight) ?? 0
+            let parts = Self.paragraphs(section.text)
+            // A heading never ends a page: it goes over with the start of its first paragraph.
+            let first = parts.lazy.compactMap { $0 }.first.map(openingHeight) ?? 0
             writer.ensureSpace(6 + headingHeight + 4 + first)
             writer.y += 6
             mark(section.source, lines: PageWriter.lineFrames(of: heading, x: writer.left, top: writer.y, width: writer.width))
@@ -490,22 +525,52 @@ final class Layout {
                     writer.y += 5
                     continue
                 }
-                let indent: CGFloat = paragraph.isBullet ? Self.bulletIndent : 0
-                let height = paragraphHeight(paragraph)
-                writer.ensureSpace(height)
-                if paragraph.isBullet {
-                    writer.draw(PageWriter.text("•", style.body(9), style.accent), x: writer.left + 2, top: writer.y, width: 10)
-                }
-                let text = paragraphText(paragraph)
-                let lines = PageWriter.lineFrames(of: text, x: writer.left + indent, top: writer.y, width: writer.width - indent)
-                // A dot point's highlight takes in its dot.
-                let marked = paragraph.isBullet ? lines + [CGRect(x: writer.left + 2, y: writer.y, width: 1, height: 1)] : lines
-                mark(section.source, lines: marked)
-                mark(.bodyFont, lines: lines)
-                writer.draw(text, x: writer.left + indent, top: writer.y, width: writer.width - indent)
-                writer.y += height + 2
+                drawParagraph(paragraph, source: section.source)
+                writer.y += 2
             }
             writer.y += 10
+        }
+    }
+
+    /// A paragraph, line by line, so a long one carries on at the top of the next page with its
+    /// wrapping and indent. It never leaves its first line alone at the foot of a page, nor its last
+    /// line alone at the top of the next.
+    private func drawParagraph(_ paragraph: Paragraph, source: BrandElement?) {
+        let lines = paragraphLines(paragraph)
+        let indent: CGFloat = paragraph.isBullet ? Self.bulletIndent : 0
+        let x = writer.left + indent
+        var start = 0
+        while start < lines.count {
+            let offset = lines[start].top
+            let pageTop = writer.y
+            // How many of the remaining lines fit on this page.
+            var count = 0
+            while start + count < lines.count, pageTop + lines[start + count].bottom - offset <= writer.bottom { count += 1 }
+            let remaining = lines.count - start
+            let atTopOfPage = writer.isAtTopOfPage
+            if count < remaining {
+                if remaining - count == 1 && count > 1 { count -= 1 }            // no lone last line over the page
+                if count == 1 && start == 0 && !atTopOfPage { count = 0 }        // no lone first line at the foot
+            }
+            if count == 0 {
+                if atTopOfPage { count = 1 } else { writer.newPage(); continue }
+            }
+            if start == 0 && paragraph.isBullet {
+                writer.draw(PageWriter.text("•", style.body(9), style.accent), x: writer.left + 2, top: writer.y, width: 10)
+            }
+            var frames: [CGRect] = []
+            for line in lines[start..<(start + count)] {
+                writer.draw(line, x: x, textTop: pageTop - offset)
+                frames.append(CGRect(x: x + line.x, y: pageTop - offset + line.baseline - line.ascent,
+                                     width: line.width, height: line.ascent + line.descent))
+            }
+            // A dot point's highlight takes in its dot.
+            let dot = start == 0 && paragraph.isBullet ? [CGRect(x: writer.left + 2, y: pageTop, width: 1, height: 1)] : []
+            mark(source, lines: frames + dot)
+            mark(.bodyFont, lines: frames)
+            writer.y = pageTop + lines[start + count - 1].bottom - offset
+            start += count
+            if start < lines.count { writer.newPage() }
         }
     }
 
