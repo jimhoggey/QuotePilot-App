@@ -496,39 +496,93 @@ public final class AppModel {
         library.brand.logoFile.map { store.assetsFolder.appendingPathComponent($0) }
     }
 
-    /// The heading font's name as people know it ("Avenir Next Demi Bold"), or nil.
-    public var headingFontName: String? {
-        guard let name = library.brand.headingFontFile,
-              let descriptors = CTFontManagerCreateFontDescriptorsFromURL(
-                  store.assetsFolder.appendingPathComponent(name) as CFURL) as? [CTFontDescriptor],
-              let first = descriptors.first
-        else { return nil }
-        return CTFontDescriptorCopyAttribute(first, kCTFontDisplayNameAttribute) as? String
+    /// The heading font's file in Assets, or nil when there's none.
+    public var headingFontURL: URL? {
+        library.brand.headingFontFile.map { store.assetsFolder.appendingPathComponent($0) }
     }
 
-    /// Copies a PNG, JPG or PDF into the library's Assets folder and makes it the logo.
+    /// The heading font's name as people know it ("Georgia"; a font with several styles by its
+    /// family, "Archivo", since the Style picker names the style), or nil.
+    public var headingFontName: String? {
+        headingFontURL.flatMap(FontFile.displayName(at:))
+    }
+
+    /// The body font's file in Assets, or nil when there's none.
+    public var bodyFontURL: URL? {
+        library.brand.bodyFontFile.map { store.assetsFolder.appendingPathComponent($0) }
+    }
+
+    /// The body font's name as people know it, or nil.
+    public var bodyFontName: String? {
+        bodyFontURL.flatMap(FontFile.displayName(at:))
+    }
+
+    /// Puts a PNG, JPG, SVG or PDF into the library's Assets folder and makes it the logo. An SVG is
+    /// turned into a one-page PDF on the way in (only the PDF is kept), so it stays sharp at any size.
     public func importLogo(from url: URL) {
-        guard Logo(url: url) != nil else {
+        let name: String?
+        do {
+            name = try storeLogoQuietly(url)
+        } catch {
+            show(error, title: "Couldn't copy \(url.lastPathComponent)")
+            return
+        }
+        guard let name else {
             show(title: "Not an Image",
-                 text: "\(url.lastPathComponent) isn't an image Quote Pilot can use. Choose a PNG, JPG or PDF.",
+                 text: "\(url.lastPathComponent) isn't an image Quote Pilot can use. Choose a PNG, JPG, SVG or PDF.",
                  kind: .warning)
             return
         }
-        guard let name = copyAsset(url, prefix: "logo") else { return }
         change("Couldn't use that logo") { $0.brand.logoFile = name }
     }
 
+    /// Saves a logo file into Assets and returns its new name. Nil, with nothing saved, when the file
+    /// isn't an image Quote Pilot can use. A PNG, JPG or PDF is copied as it is; an SVG is converted
+    /// to a one-page PDF (`SVGLogo`) and saved as that, since the PDF logo path draws it as vectors.
+    /// Throws when the image is fine but can't be saved.
+    func storeLogoQuietly(_ url: URL) throws -> String? {
+        if SVGLogo.isSVG(url) {
+            guard let pdf = SVGLogo.pdfData(from: url) else { return nil }
+            return try writeAssetQuietly(pdf, prefix: "logo", pathExtension: "pdf")
+        }
+        guard Logo(url: url) != nil else { return nil }
+        return try copyAssetQuietly(url, prefix: "logo")
+    }
+
+    /// The Weight a heading font starts on (700, Bold) and a body font starts on (400, Regular).
+    static let headingStartWeight = 700
+    static let bodyStartWeight = 400
+
     /// Copies a TTF or OTF into the Assets folder and makes it the heading font.
     public func importHeadingFont(from url: URL) {
-        let descriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor] ?? []
-        guard !descriptors.isEmpty else {
+        guard let name = copyFontAsset(url, prefix: "heading-font") else { return }
+        // A style belongs to the font it was chosen from, so a new font starts afresh: on the style
+        // nearest Bold when the font has weights to choose from (the Style picker can change it), and
+        // on its only style otherwise.
+        let style = FontFile.startingStyle(at: store.assetsFolder.appendingPathComponent(name),
+                                           nearWeight: Self.headingStartWeight)
+        change("Couldn't use that font") { $0.brand.headingFontFile = name; $0.brand.headingFontStyle = style }
+    }
+
+    /// Copies a TTF or OTF into the Assets folder and makes it the body font.
+    public func importBodyFont(from url: URL) {
+        guard let name = copyFontAsset(url, prefix: "body-font") else { return }
+        // As for the heading font, but starting nearest Regular, so text isn't heavy by default.
+        let style = FontFile.startingStyle(at: store.assetsFolder.appendingPathComponent(name),
+                                           nearWeight: Self.bodyStartWeight)
+        change("Couldn't use that font") { $0.brand.bodyFontFile = name; $0.brand.bodyFontStyle = style }
+    }
+
+    /// Copies a font file into Assets and returns its new name; with the Not a Font box and nothing
+    /// copied when the file isn't a font Quote Pilot can use.
+    private func copyFontAsset(_ url: URL, prefix: String) -> String? {
+        guard !FontFile.styles(at: url).isEmpty else {
             show(title: "Not a Font",
                  text: "\(url.lastPathComponent) isn't a font Quote Pilot can use. Choose a TTF or OTF file.",
                  kind: .warning)
-            return
+            return nil
         }
-        guard let name = copyAsset(url, prefix: "heading-font") else { return }
-        change("Couldn't use that font") { $0.brand.headingFontFile = name }
+        return copyAsset(url, prefix: prefix)
     }
 
     public func removeLogo() {
@@ -536,7 +590,11 @@ public final class AppModel {
     }
 
     public func removeHeadingFont() {
-        change("Couldn't remove the heading font") { $0.brand.headingFontFile = nil }
+        change("Couldn't remove the heading font") { $0.brand.headingFontFile = nil; $0.brand.headingFontStyle = nil }
+    }
+
+    public func removeBodyFont() {
+        change("Couldn't remove the body font") { $0.brand.bodyFontFile = nil; $0.brand.bodyFontStyle = nil }
     }
 
     /// Copies a file into Assets under a fresh name ("logo-1A2B3C4D.png"), so a document already
@@ -558,6 +616,15 @@ public final class AppModel {
         return name
     }
 
+    /// Saves data into Assets under a fresh name ("logo-1A2B3C4D.pdf"), the way `copyAssetQuietly`
+    /// does a file. Returns the new name.
+    func writeAssetQuietly(_ data: Data, prefix: String, pathExtension: String) throws -> String {
+        let name = "\(prefix)-\(UUID().uuidString.prefix(8)).\(pathExtension)"
+        try FileManager.default.createDirectory(at: store.assetsFolder, withIntermediateDirectories: true)
+        try data.write(to: store.assetsFolder.appendingPathComponent(name), options: .atomic)
+        return name
+    }
+
     // MARK: Documents
 
     public func quoteContent(_ id: UUID) -> DocumentContent? {
@@ -571,13 +638,16 @@ public final class AppModel {
         return .invoice(invoice, client: library.client(invoice.clientID), brand: library.brand, quoteNumber: quoteNumber)
     }
 
-    /// A made-up quote in the current brand, for the Brand screen's preview.
+    /// A made-up quote in the current brand, for the Brand screen's preview. Its hours line is at the
+    /// brand's hourly rate when there is one ($0 is none), so changing the rate shows in the amount
+    /// and the total; otherwise at $90.
     public func sampleContent() -> DocumentContent {
         let brand = library.brand
+        let hourlyRate = brand.hourlyRate.flatMap { $0 > .zero ? $0 : nil } ?? Money(dollars: 90)
         var quote = Quote(number: "Q-0000", title: "Sample job", issued: today,
                           validUntil: today.adding(days: brand.quoteValidDays), taxed: brand.gstRegistered,
                           summary: "What's included:\n- A planning meeting\n- Design and build", terms: brand.quoteTerms)
-        quote.addLine(LineItem(title: "Planning meeting", quantity: 2, unit: .hours, rate: Money(dollars: 90)))
+        quote.addLine(LineItem(title: "Planning meeting", quantity: 2, unit: .hours, rate: hourlyRate))
         quote.addLine(LineItem(title: "Design", rate: Money(dollars: 600)))
         quote.addLine(LineItem(title: "Build", rate: Money(dollars: 1200)))
         let client = Client(name: "Sample Client Pty Ltd", contactName: "Sam Example", email: "sam@example.com")

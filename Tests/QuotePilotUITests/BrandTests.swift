@@ -1,8 +1,11 @@
 import AppKit
 import Foundation
+import PDFKit
 import SwiftUI
 import Testing
+import UniformTypeIdentifiers
 import QuotePilotCore
+import QuotePilotPDF
 @testable import QuotePilotUI
 
 @MainActor
@@ -117,10 +120,92 @@ import QuotePilotCore
     }
 
     @Test func theBrandPickersUseTheOneImporterWithTheirOwnFileTypes() {
-        #expect(FileChoice.logo.contentTypes == [.png, .jpeg, .pdf])
+        #expect(FileChoice.logo.contentTypes == [.png, .jpeg, .svg, .pdf])
         #expect(FileChoice.headingFont.contentTypes == [.font])
+        #expect(FileChoice.bodyFont.contentTypes == [.font])
         #expect(FileChoice.returnedQuote.contentTypes == [.pdf])
         #expect(FileChoice.legacyBackup.contentTypes == [.json])
+    }
+
+    @Test func theLogoPickerOffersSVGAndTheHintSaysSo() {
+        #expect(FileChoice.logo.contentTypes.contains(.svg))
+        #expect(UTType.svg.preferredFilenameExtension == "svg")
+        #expect(LookTab.logoHint == "PNG, JPG, SVG or PDF. SVG and PDF logos stay sharp at any size.")
+    }
+
+    /// An SVG chosen as the logo reaches the logo handler, becomes a PDF in Assets, and is not read as
+    /// a returned quote.
+    @Test func aChosenSVGLogoBecomesAPDFLogo() throws {
+        let model = try UIFixture.sampleModel()
+        let quotes = model.library.quotes.count
+        model.choosingFile = .logo
+        // SwiftUI may close the panel (clearing the choice) before it reports the file.
+        model.choosingFile = nil
+        model.fileChosen(.success(try UIFixture.file("my logo.svg", UIFixture.svgData())))
+        let name = try #require(model.library.brand.logoFile)
+        #expect(name.hasPrefix("logo-") && name.hasSuffix(".pdf"))
+        #expect(model.message == nil)
+        #expect(model.dialog == nil)
+        #expect(model.openQuoteID == nil)
+        #expect(model.library.quotes.count == quotes)
+        let url = try #require(model.logoURL)
+        guard case .vector? = Logo(url: url) else {
+            Issue.record("The SVG should be kept as a PDF (vector) logo")
+            return
+        }
+        #expect(PDFDocument(url: url)?.page(at: 0)?.bounds(for: .mediaBox).size == CGSize(width: 200, height: 80))
+        // Only the PDF is kept: the original SVG stays where the person has it.
+        let kept = try FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)
+        #expect(kept == [name])
+    }
+
+    @Test func aBrokenSVGIsRefusedWithTheOneNotAnImageBox() throws {
+        let model = try UIFixture.sampleModel()
+        model.choosingFile = .logo
+        model.fileChosen(.success(try UIFixture.file("broken.svg", Data(#"<svg xmlns="http://www.w3.org/2000/svg"><rect"#.utf8))))
+        #expect(model.message?.title == "Not an Image")
+        #expect(model.message?.text.contains("broken.svg") == true)
+        #expect(model.message?.text.contains("SVG") == true)
+        #expect(model.library.brand.logoFile == nil)
+        #expect(model.dialog == nil)
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: model.store.assetsFolder.path)) ?? []
+        #expect(kept.isEmpty)
+
+        // A logo already there stays when a broken SVG is chosen after it.
+        model.importLogo(from: try UIFixture.file("logo.png", UIFixture.pngData()))
+        let before = try #require(model.library.brand.logoFile)
+        model.message = nil
+        model.importLogo(from: try UIFixture.file("worse.svg", Data("not a picture".utf8)))
+        #expect(model.message?.title == "Not an Image")
+        #expect(model.library.brand.logoFile == before)
+    }
+
+    /// With the SVG logo set, the Look tab shows it in the logo well (snapshot: brand-look-svg-logo).
+    @Test func theLookTabDrawsAnSVGLogo() throws {
+        let model = try UIFixture.sampleModel()
+        model.importLogo(from: try UIFixture.file("logo.svg", UIFixture.svgData()))
+        #expect(model.library.brand.logoFile != nil)
+        let rep = try #require(Snapshot.render(BrandView(model: model, tab: .look).background(Win95.face),
+                                               size: CGSize(width: 1000, height: 640), name: "brand-look-svg-logo"))
+        #expect(Snapshot.hasContent(rep))
+        #expect(Snapshot.logoPixels(rep) > 200, "the SVG logo isn't in the logo well")
+    }
+
+    /// The same logo on a rendered quote page (snapshot: quote-page-svg-logo), through the real chain:
+    /// the Assets file, the brand's look, the renderer.
+    @Test func aQuotePageDrawsTheSVGLogoAtTheTop() throws {
+        let model = try UIFixture.sampleModel()
+        let plain = try #require(Snapshot.renderPage(model.pdf(model.sampleContent()), name: "quote-page-no-logo"))
+        #expect(Snapshot.logoPixels(plain) == 0)
+
+        model.importLogo(from: try UIFixture.file("logo.svg", UIFixture.svgData()))
+        let data = model.pdf(model.sampleContent())
+        let page = try #require(Snapshot.renderPage(data, name: "quote-page-svg-logo"))
+        #expect(Snapshot.hasContent(page))
+        // At 2 pixels to the point, the logo is in the top 300 pixels, and about 66 x 40 points big.
+        #expect(Snapshot.logoPixels(page, rows: 300) > 6_000)
+        #expect(Snapshot.logoPixels(page, rows: 300) == Snapshot.logoPixels(page))
+        #expect(!String(decoding: data, as: UTF8.self).contains("/Subtype /Image"))
     }
 
     /// The logo choice reaches the logo handler, and never the returned-quote reader: a PDF logo
@@ -220,14 +305,34 @@ import QuotePilotCore
 
     /// The smallest window (980 x 620) gives the section 492 points (see the Dashboard's fit test),
     /// and the Look tab's groups sit in what is left of that after the Brand screen's padding (16),
-    /// the tab strip (24) and the panel's padding (20): 432. The groups must fit it whole, at the
-    /// narrowest the tab column goes (460 less the panel's padding and the scroller's gap).
-    @Test func theLookTabFitsTheSmallestWindow() throws {
+    /// the tab strip (24) and the panel's padding (20): 432. With the Body font group the Look tab
+    /// (Logo, Hourly rate, Heading font, Body font, Accent colour) is taller than that, whether or not
+    /// a font is chosen, so it scrolls: nothing may be cut off, so the tab must sit in a vertical
+    /// scroll view that holds all of it (at the narrowest the tab column goes: 460 less the panel's
+    /// padding and the scroller's gap).
+    @Test func theLookTabScrollsInTheSmallestWindowSoEveryGroupCanBeReached() throws {
         let model = try UIFixture.sampleModel()
         _ = NSApplication.shared
         let look = LookTab(model: model, brand: model.brandBinding).groupBoxStyle(.win95)
-        let needed = NSHostingView(rootView: look.frame(width: 460 - 20 - 6)).fittingSize
-        let available: CGFloat = 620 - 28 - 66 - 26 - 8 - 16 - 24 - 20
-        #expect(needed.height <= available, "the Look tab needs \(needed.height) of \(available)")
+        let needed = NSHostingView(rootView: look.frame(width: 460 - 20 - 6)).fittingSize.height
+
+        let size = CGSize(width: 778, height: 492)
+        let host = NSHostingView(rootView: BrandView(model: model, tab: .look).background(Win95.face)
+            .frame(width: size.width, height: size.height))
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless],
+                              backing: .buffered, defer: false)
+        window.contentView = host
+        host.frame = CGRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            var found = (view as? NSScrollView).map { [$0] } ?? []
+            for subview in view.subviews { found += scrollViews(in: subview) }
+            return found
+        }
+        // The tab's scroll view is the one that scrolls up and down and is tall enough for the groups.
+        let tab = try #require(scrollViews(in: host).first { $0.hasVerticalScroller && ($0.documentView?.frame.height ?? 0) >= needed })
+        let document = try #require(tab.documentView)
+        #expect(document.frame.height > tab.contentSize.height, "taller than the \(tab.contentSize.height) it shows, so it scrolls")
+        #expect(document.frame.height >= needed)
     }
 }

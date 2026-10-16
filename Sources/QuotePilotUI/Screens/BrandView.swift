@@ -83,10 +83,16 @@ struct BusinessTab: View {
 }
 
 /// The Brand screen's pickers don't have importers of their own: Choose… asks the model's one open
-/// panel (`FileChoice.logo`, `.headingFont`), which RootView shows and `fileChosen` answers.
+/// panel (`FileChoice.logo`, `.headingFont`, `.bodyFont`), which RootView shows and `fileChosen` answers.
 struct LookTab: View {
     let model: AppModel
     @Binding var brand: Brand
+
+    /// What the Logo group says about the files it takes.
+    static let logoHint = "PNG, JPG, SVG or PDF. SVG and PDF logos stay sharp at any size."
+    /// What the Heading font and Body font groups say they are for.
+    static let headingFontHint = "A TTF or OTF file, used for document titles and headings. For a variable font, choose its style."
+    static let bodyFontHint = "A TTF or OTF file for the text of quotes and invoices. Leave it empty to use the standard Mac font."
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -103,7 +109,7 @@ struct LookTab: View {
                                 .buttonStyle(.win95)
                                 .disabled(brand.logoFile == nil)
                         }
-                        Text("PNG, JPG or PDF. A PDF logo stays sharp at any size.")
+                        Text(Self.logoHint)
                             .font(Win95.small)
                     }
                 }
@@ -111,26 +117,57 @@ struct LookTab: View {
             GroupBox("Hourly rate") {
                 HourlyRateField(rate: $brand.hourlyRate, currencyCode: brand.currencyCode)
             }
-            GroupBox("Heading font") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(model.headingFontName ?? "The system font (no heading font chosen).")
-                        .font(Win95.body)
-                    HStack(spacing: 6) {
-                        Button("Choose…") { model.choosingFile = .headingFont }
-                            .buttonStyle(.win95)
-                        Button("Remove") { model.removeHeadingFont() }
-                            .buttonStyle(.win95)
-                            .disabled(brand.headingFontFile == nil)
-                    }
-                    Text("A TTF or OTF file, used for document titles and headings.")
-                        .font(Win95.small)
-                }
-            }
+            FontGroup(title: "Heading font", fontName: model.headingFontName,
+                      none: "The system font (no heading font chosen).", hint: Self.headingFontHint,
+                      fontURL: model.headingFontURL, hasFont: brand.headingFontFile != nil,
+                      choose: { model.choosingFile = .headingFont }, remove: { model.removeHeadingFont() },
+                      style: $brand.headingFontStyle)
+            FontGroup(title: "Body font", fontName: model.bodyFontName,
+                      none: "The standard Mac font (no body font chosen).", hint: Self.bodyFontHint,
+                      fontURL: model.bodyFontURL, hasFont: brand.bodyFontFile != nil,
+                      choose: { model.choosingFile = .bodyFont }, remove: { model.removeBodyFont() },
+                      style: $brand.bodyFontStyle)
             GroupBox("Accent colour") {
                 AccentPicker(hex: $brand.accentHex)
             }
         }
         .foregroundStyle(Win95.text)
+    }
+}
+
+/// A font group on the Look tab: the font's name, Choose… and Remove, its Style picker when the file has
+/// styles to choose from, and what the font is for.
+struct FontGroup: View {
+    let title: String
+    /// The chosen font's name, or nil when there's none.
+    let fontName: String?
+    /// What the group says while there is no font.
+    let none: String
+    let hint: String
+    let fontURL: URL?
+    let hasFont: Bool
+    let choose: () -> Void
+    let remove: () -> Void
+    @Binding var style: FontStyle?
+
+    var body: some View {
+        GroupBox(title) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(fontName ?? none)
+                    .font(Win95.body)
+                HStack(spacing: 6) {
+                    Button("Choose…", action: choose)
+                        .buttonStyle(.win95)
+                    Button("Remove", action: remove)
+                        .buttonStyle(.win95)
+                        .disabled(!hasFont)
+                }
+                FontStylePicker(fontURL: fontURL, label: "\(title) style", style: $style)
+                Text(hint)
+                    .font(Win95.small)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
