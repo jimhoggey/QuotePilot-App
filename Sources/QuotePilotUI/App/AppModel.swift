@@ -139,7 +139,11 @@ public final class AppModel {
     let now: () -> Date
     /// What `whenFree` does when a message box is up. Tests swap it for a counter.
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
+    /// What File → Show Money Records does with the Records folder. Tests swap it for a recorder.
+    @ObservationIgnored var openInFinder: (URL) -> Void = { _ = NSWorkspace.shared.open($0) }
     @ObservationIgnored private var lastBackupDay: Day?
+    /// Set once a money record couldn't be written and Activity has said so, until one can be again.
+    @ObservationIgnored private var moneyRecordsFailing = false
 
     public init(store: LibraryStore, now: @escaping () -> Date = Date.init,
                 mail: any MailComposer = SystemMailComposer(), sentFolder: URL = SentArchive.defaultFolder) {
@@ -215,12 +219,29 @@ public final class AppModel {
         } catch {
             return error
         }
+        let before = library
         library = copy
         lastSaved = now()
         // The change may have taken the selected quote or invoice out of the list's search.
         dropHiddenSelections(afterChange: true)
         backUpIfDue()
+        updateMoneyRecords(before: before)
         return nil
+    }
+
+    /// After a save, the money records follow the library (`writeMoneyRecords`). A write that fails
+    /// never undoes the save or shows a box: Activity says so once, until a write works again.
+    private func updateMoneyRecords(before: Library) {
+        do {
+            try writeMoneyRecords(before: before)
+            moneyRecordsFailing = false
+        } catch {
+            guard !moneyRecordsFailing else { return }
+            moneyRecordsFailing = true
+            var noted = library
+            noted.log("Couldn't update the money records in Records: \(error.localizedDescription)", at: now())
+            if (try? store.save(noted)) != nil { library = noted }
+        }
     }
 
     /// Today's backup, tried once a day.

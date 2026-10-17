@@ -50,6 +50,8 @@ glance.
 - **File menu:** Import from Invoice Generator Backup…, Export Payments for Tax Time…, Back Up To…,
   Restore Backup…, Start Fresh… and Reset Quote and Invoice Numbers…. Restore Backup… restores the
   daily backup you pick, with no extra question. The status bar says which backup came back.
+  - **Money records:** every change rewrites a CSV per financial year for your accountant (invoices
+    sent, payments, receipts) in `~/Documents/Quote Pilot/Records/`; File → Show Money Records opens it.
 - Every change saves as you make it, with a daily backup. If the library file is ever damaged,
   Quote Pilot won't save over it and offers the latest backup instead. Every mailed PDF is also kept
   in `~/Documents/Quote Pilot/<year>/`.

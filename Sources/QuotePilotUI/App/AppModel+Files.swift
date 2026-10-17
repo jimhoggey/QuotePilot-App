@@ -91,6 +91,38 @@ extension AppModel {
                                    contentType: .commaSeparatedText)
     }
 
+    // MARK: Money records
+
+    /// `~/Documents/Quote Pilot/Records`, beside the mailed PDFs' year folders: one CSV per financial
+    /// year for a tax accountant. In tests it's inside the temporary sent folder.
+    public var recordsFolder: URL { sentFolder.appendingPathComponent("Records", isDirectory: true) }
+
+    /// "Money record FY 2026-27.csv"
+    public static func moneyRecordFileName(for year: FinancialYear) -> String {
+        "Money record FY \(year.startYear)-\(String(format: "%02d", (year.startYear + 1) % 100)).csv"
+    }
+
+    /// Rewrites, each file in one go, the money record of this financial year and of every year with
+    /// money events now or in `before`, so a year whose last payment was just removed is rewritten too.
+    func writeMoneyRecords(before: Library) throws {
+        var years = Set(library.moneyRecordYears() + before.moneyRecordYears())
+        years.insert(FinancialYear(containing: today))
+        try FileManager.default.createDirectory(at: recordsFolder, withIntermediateDirectories: true)
+        for year in years {
+            let url = recordsFolder.appendingPathComponent(Self.moneyRecordFileName(for: year))
+            try Data(library.moneyRecordCSV(for: year).utf8).write(to: url, options: .atomic)
+        }
+    }
+
+    /// File → Show Money Records: the Records folder in Finder, made if it's missing. The library's
+    /// records are written first, so the folder is never behind (not while the library can't be read,
+    /// when they'd be written from an empty one).
+    public func showMoneyRecords() {
+        if libraryIsOpen { try? writeMoneyRecords(before: library) }
+        try? FileManager.default.createDirectory(at: recordsFolder, withIntermediateDirectories: true)
+        openInFinder(recordsFolder)
+    }
+
     // MARK: Back Up To…
 
     /// Whether Back Up To… has a library file to copy: the library is open, and a save has put its
