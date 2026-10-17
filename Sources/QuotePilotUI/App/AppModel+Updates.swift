@@ -23,13 +23,23 @@ extension AppModel {
         await checkForUpdatesAtLaunch()
     }
 
-    /// The check at launch. It asks GitHub at most once every 24 hours, only in a real app, and says
-    /// nothing unless there is a newer version (and then only in the status bar).
+    /// The check at launch. It asks GitHub every time Quote Pilot starts, only in a real app, and says
+    /// nothing unless there is a newer version: then the update banner and the status bar say so.
     func checkForUpdatesAtLaunch() async {
-        guard updates.isBundledApp,
-              UpdateThrottle.isDue(lastCheck: updates.settings.lastUpdateCheck, now: now())
-        else { return }
+        guard updates.isBundledApp else { return }
         await checkForUpdates(manual: false)
+    }
+
+    // MARK: The update banner
+
+    /// Whether the banner under the toolbar offers the newer version: once a check has found one,
+    /// until Later hides it for the rest of this launch.
+    public var showsUpdateBanner: Bool { availableUpdate != nil && !isUpdateBannerHidden }
+
+    /// The banner's Later: the banner goes until the next launch. The status bar's note and Help →
+    /// Install Update… stay.
+    public func hideUpdateBanner() {
+        isUpdateBannerHidden = true
     }
 
     /// The first launch after an install. The install left a marker with the version it should have
@@ -61,10 +71,10 @@ extension AppModel {
         Task { await checkForUpdates(manual: true) }
     }
 
-    /// Asks GitHub for the newest release. A newer one goes in the status bar and turns on Install
-    /// Update…. A check the user asked for also answers in a box: it offers the update, says this is
-    /// the newest version, or says the check failed. The automatic one never does, and a failure only
-    /// reaches the log.
+    /// Asks GitHub for the newest release. A newer one shows the update banner, goes in the status bar
+    /// and turns on Install Update…. A check the user asked for also answers in a box: it offers the
+    /// update, says this is the newest version, or says the check failed. The automatic one never
+    /// does, and a failure only reaches the log.
     func checkForUpdates(manual: Bool) async {
         guard !isCheckingForUpdates else { return }
         isCheckingForUpdates = true
@@ -72,8 +82,7 @@ extension AppModel {
         let version = updates.version
         do {
             let release = try await UpdateChecker(currentVersion: version, fetch: updates.fetch).check()
-            // Only a check that got an answer starts the 24 hours: one that failed tries again at the
-            // next launch.
+            // Only a check that got an answer counts as the last check.
             updates.settings.lastUpdateCheck = now()
             availableUpdate = release
             if let release {

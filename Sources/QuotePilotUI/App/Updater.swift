@@ -1,8 +1,8 @@
 import Foundation
 
-// The update check, as pure logic: what to ask GitHub, how to read the answer, which version is newer
-// and when to ask again. The network, the settings file and the log are passed in (`UpdateServices`),
-// so the tests never touch any of them.
+// The update check, as pure logic: what to ask GitHub, how to read the answer and which version is
+// newer. The network, the settings file and the log are passed in (`UpdateServices`), so the tests
+// never touch any of them.
 
 /// Where Quote Pilot's releases live, and what to expect in them.
 enum UpdateSource {
@@ -170,17 +170,5 @@ struct UpdateChecker {
     static let live: Fetch = { request in
         let (data, response) = try await URLSession(configuration: .ephemeral).data(for: request)
         return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
-    }
-}
-
-/// When to ask GitHub: at launch, and then not again for 24 hours.
-enum UpdateThrottle {
-    static let interval: TimeInterval = 24 * 60 * 60
-
-    /// Whether the last check is old enough. A last check that lies in the future (the clock was set
-    /// back) doesn't hold the next one off.
-    static func isDue(lastCheck: Date?, now: Date) -> Bool {
-        guard let lastCheck, lastCheck <= now else { return true }
-        return now.timeIntervalSince(lastCheck) >= interval
     }
 }

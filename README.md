@@ -96,8 +96,10 @@ To release: change `CFBundleShortVersionString` (and `CFBundleVersion`) in `Reso
 commit that to `main`, then run `scripts/release.sh 1.1.0`. It tests, builds, zips, tags and
 publishes `QuotePilot-mac.zip` as a GitHub release, and edits no file itself.
 
-Quote Pilot checks GitHub for a newer release once a day, when it starts. It only tells you in the
-status bar; it installs only when you choose Help → Install Update… and confirm. The check sends
+Quote Pilot checks GitHub for a newer release every time it starts, in the background, and says
+nothing if the check fails. A newer release shows a banner under the toolbar ("Quote Pilot 1.1.0 is
+ready.") and a note in the status bar. It installs only when you choose Install Update (on the
+banner, or Help → Install Update…) and confirm; Later hides the banner until the next launch. The check sends
 nothing about you or your work, only the app's version number. Help → Check for Updates… checks
 at once. Each update is written to `~/Library/Logs/Quote Pilot/update.log`, and the old app goes
 to the Trash.
