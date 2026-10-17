@@ -122,7 +122,8 @@ import QuotePilotCore
         WindowAccessor.configure(window, title: "Quote Pilot")
         let host = NSHostingView(rootView: RootView(model: model)
             .environment(\.colorScheme, .light)
-            .environment(\.controlActiveState, .key))
+            .environment(\.controlActiveState, .key)
+            .environment(\.displayScale, 1))
         window.contentView = host
         window.setContentSize(size)
         host.frame = CGRect(origin: .zero, size: size)
@@ -130,9 +131,7 @@ import QuotePilotCore
         // The point of these tests: there is a title-bar inset to push the content down, or to grow
         // a background up through.
         try #require(host.safeAreaInsets.top > 0, "this window has no title bar inset to test against")
-        let rep = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
-        host.cacheDisplay(in: host.bounds, to: rep)
-        return rep
+        return try #require(Snapshot.capture(host))
     }
 
     /// Navy by its look rather than its exact numbers: the off-screen bitmap isn't colour managed, so
