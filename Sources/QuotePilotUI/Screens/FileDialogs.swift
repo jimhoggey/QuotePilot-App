@@ -80,6 +80,37 @@ struct TaxExportView: View {
     }
 }
 
+/// File → Start Fresh…, in one dialog: what it removes, what it keeps, the backup it makes first, and
+/// a tick box for the clients. Cancel is the default button, as for anything that removes work.
+struct StartFreshView: View {
+    let model: AppModel
+    @State private var removeClients = false
+
+    /// What the dialog says.
+    static let text = "Start Fresh removes every quote, invoice and payment, and the Activity list. Numbering starts again at Q-0001 and INV-0001. Brand settings are kept.\n\nQuote Pilot backs up the library first, so File → Restore Backup… can bring it all back."
+
+    var body: some View {
+        DialogPanel(title: "Start Fresh", icon: .folder, width: 460) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(Self.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle("Also remove clients", isOn: $removeClients)
+                    .toggleStyle(.win95)
+                HStack(spacing: 8) {
+                    Spacer()
+                    Button("Start Fresh") { model.startFresh(removingClients: removeClients) }
+                        .buttonStyle(.win95)
+                    Button("Cancel") { model.dialog = nil }
+                        .buttonStyle(.win95Default)
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .font(Win95.body)
+            .foregroundStyle(Win95.text)
+        }
+    }
+}
+
 /// The daily backups, newest first; restore one. It restores straight away, with no question: the
 /// text says the library it replaces is kept beside it, and the status bar says what came back.
 struct RestoreView: View {

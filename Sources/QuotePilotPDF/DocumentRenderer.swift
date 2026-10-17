@@ -96,13 +96,15 @@ struct PlacedField: Equatable {
     var rect: CGRect
 }
 
-/// Lays out one document: header, parties, amount, line table, totals, form, sections.
+/// Lays out one document: header, parties, amount, line table, totals, Included and Not included,
+/// form, sections.
 final class Layout {
     let content: DocumentContent
     let style: PDFStyle
     let writer: PageWriter
     private(set) var fields: [PlacedField] = []
     private var inTable = false
+    private var inLists = false
 
     // Line-table columns, measured from the left of the page.
     private let tickX: CGFloat
@@ -185,6 +187,7 @@ final class Layout {
         writer.onNewPage = { [unowned self] _ in
             self.drawContinuationHeader()
             if self.inTable { self.drawTableHeader() }
+            if self.inLists { self.drawListsHeader() }
         }
         writer.onEndPage = { [unowned self] _ in self.drawFooter() }
         writer.newPage()
@@ -194,6 +197,8 @@ final class Layout {
         drawAcceptAll()
         drawTable()
         drawTotals()
+        // The client sees what's included and what isn't before they sign.
+        for lists in content.sections.compactMap(\.lists) { drawLists(lists) }
         drawAcceptedBy()
         drawSections()
     }
@@ -345,8 +350,9 @@ final class Layout {
     }
 
     private func rowTexts(_ row: DocumentContent.Row) -> (title: NSAttributedString, detail: NSAttributedString) {
-        (PageWriter.text(row.title, style.body(9.5, weight: .medium), PDFStyle.ink),
-         PageWriter.text(row.detail, style.body(8.5), PDFStyle.muted))
+        // Pasted wording wraps between words here too, as in the sections.
+        (PageWriter.wrapping(PageWriter.text(Self.printable(row.title), style.body(9.5, weight: .medium), PDFStyle.ink)),
+         PageWriter.wrapping(PageWriter.text(Self.printable(row.detail), style.body(8.5), PDFStyle.muted)))
     }
 
     private func rowHeight(_ row: DocumentContent.Row) -> CGFloat {
@@ -448,38 +454,73 @@ final class Layout {
     }
 
     /// One paragraph of a section: its text, and whether it's a dot point.
-    private struct Paragraph {
+    struct Paragraph: Equatable {
         var text: String
         var isBullet: Bool
     }
 
-    /// A section's paragraphs, one per line of its text; nil for a blank line.
-    private func paragraphs(_ text: String) -> [Paragraph?] {
-        text.components(separatedBy: "\n").map { paragraph in
-            let line = paragraph.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { return nil }
-            let isBullet = line.hasPrefix("- ") || line.hasPrefix("• ")
-            return Paragraph(text: isBullet ? String(line.dropFirst(2)) : line, isBullet: isBullet)
+    /// What starts a dot point: a dash of any length, a bullet or an asterisk, with or without a
+    /// space after it.
+    static let bulletMarkers: Set<Character> = ["-", "–", "—", "•", "*"]
+
+    /// A section's paragraphs, one per line of its text; nil for a blank line. A marker alone on its
+    /// line (as a two-column web page pastes its dot points) is dropped, not printed.
+    static func paragraphs(_ text: String) -> [Paragraph?] {
+        let unified = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .replacingOccurrences(of: "\u{2028}", with: "\n")
+            .replacingOccurrences(of: "\u{2029}", with: "\n")
+        return unified.components(separatedBy: "\n").compactMap { paragraph -> Paragraph?? in
+            let line = printable(paragraph).trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { return .some(nil) }
+            guard let first = line.first, bulletMarkers.contains(first) else { return Paragraph(text: line, isBullet: false) }
+            let rest = line.dropFirst().trimmingCharacters(in: .whitespaces)
+            if rest.isEmpty { return Paragraph??.none }
+            return Paragraph(text: rest, isBullet: true)
         }
+    }
+
+    /// Text as it should wrap: spaces that forbid a line break (pasted from web pages as
+    /// non-breaking spaces) become plain spaces, and invisible break points and soft hyphens go,
+    /// so lines break between words and never inside one.
+    static func printable(_ text: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            switch scalar.value {
+            case 0x00AD, 0x200B, 0x2060, 0xFEFF:
+                continue
+            default:
+                scalars.append(scalar.properties.generalCategory == .spaceSeparator ? " " : scalar)
+            }
+        }
+        return String(scalars)
     }
 
     private static let bulletIndent: CGFloat = 12
 
     private func paragraphText(_ paragraph: Paragraph) -> NSAttributedString {
-        PageWriter.text(paragraph.text, style.body(9), PDFStyle.ink)
+        PageWriter.wrapping(PageWriter.text(paragraph.text, style.body(9), PDFStyle.ink))
     }
 
-    private func paragraphHeight(_ paragraph: Paragraph) -> CGFloat {
-        PageWriter.height(of: paragraphText(paragraph), width: writer.width - (paragraph.isBullet ? Self.bulletIndent : 0))
+    private func paragraphLines(_ paragraph: Paragraph) -> [PageWriter.Line] {
+        PageWriter.lines(of: paragraphText(paragraph), width: writer.width - (paragraph.isBullet ? Self.bulletIndent : 0))
+    }
+
+    /// The height of a paragraph's first two lines (all of it when shorter): the least of it that
+    /// starts on a page.
+    private func openingHeight(_ paragraph: Paragraph) -> CGFloat {
+        let lines = paragraphLines(paragraph)
+        return lines.prefix(2).last?.bottom ?? 0
     }
 
     private func drawSections() {
-        for section in content.sections {
+        // The Included and Not included table has already printed, before Accepted by.
+        for section in content.sections where section.lists == nil {
             let heading = PageWriter.text(section.heading, style.body(10, weight: .semibold), PDFStyle.ink)
             let headingHeight = PageWriter.height(of: heading, width: writer.width)
-            let parts = paragraphs(section.text)
-            // A heading never ends a page: it goes over with its first paragraph if that won't fit.
-            let first = parts.lazy.compactMap { $0 }.first.map(paragraphHeight) ?? 0
+            let parts = Self.paragraphs(section.text)
+            // A heading never ends a page: it goes over with the start of its first paragraph.
+            let first = parts.lazy.compactMap { $0 }.first.map(openingHeight) ?? 0
             writer.ensureSpace(6 + headingHeight + 4 + first)
             writer.y += 6
             mark(section.source, lines: PageWriter.lineFrames(of: heading, x: writer.left, top: writer.y, width: writer.width))
@@ -490,23 +531,125 @@ final class Layout {
                     writer.y += 5
                     continue
                 }
-                let indent: CGFloat = paragraph.isBullet ? Self.bulletIndent : 0
-                let height = paragraphHeight(paragraph)
-                writer.ensureSpace(height)
-                if paragraph.isBullet {
-                    writer.draw(PageWriter.text("•", style.body(9), style.accent), x: writer.left + 2, top: writer.y, width: 10)
-                }
-                let text = paragraphText(paragraph)
-                let lines = PageWriter.lineFrames(of: text, x: writer.left + indent, top: writer.y, width: writer.width - indent)
-                // A dot point's highlight takes in its dot.
-                let marked = paragraph.isBullet ? lines + [CGRect(x: writer.left + 2, y: writer.y, width: 1, height: 1)] : lines
-                mark(section.source, lines: marked)
-                mark(.bodyFont, lines: lines)
-                writer.draw(text, x: writer.left + indent, top: writer.y, width: writer.width - indent)
-                writer.y += height + 2
+                drawParagraph(paragraph, source: section.source)
+                writer.y += 2
             }
             writer.y += 10
         }
+    }
+
+    /// A paragraph, line by line, so a long one carries on at the top of the next page with its
+    /// wrapping and indent. It never leaves its first line alone at the foot of a page, nor its last
+    /// line alone at the top of the next.
+    private func drawParagraph(_ paragraph: Paragraph, source: BrandElement?) {
+        let lines = paragraphLines(paragraph)
+        let indent: CGFloat = paragraph.isBullet ? Self.bulletIndent : 0
+        let x = writer.left + indent
+        var start = 0
+        while start < lines.count {
+            let offset = lines[start].top
+            let pageTop = writer.y
+            // How many of the remaining lines fit on this page.
+            var count = 0
+            while start + count < lines.count, pageTop + lines[start + count].bottom - offset <= writer.bottom { count += 1 }
+            let remaining = lines.count - start
+            let atTopOfPage = writer.isAtTopOfPage
+            if count < remaining {
+                if remaining - count == 1 && count > 1 { count -= 1 }            // no lone last line over the page
+                if count == 1 && start == 0 && !atTopOfPage { count = 0 }        // no lone first line at the foot
+            }
+            if count == 0 {
+                if atTopOfPage { count = 1 } else { writer.newPage(); continue }
+            }
+            if start == 0 && paragraph.isBullet {
+                writer.draw(PageWriter.text("•", style.body(9), style.accent), x: writer.left + 2, top: writer.y, width: 10)
+            }
+            var frames: [CGRect] = []
+            for line in lines[start..<(start + count)] {
+                writer.draw(line, x: x, textTop: pageTop - offset)
+                frames.append(CGRect(x: x + line.x, y: pageTop - offset + line.baseline - line.ascent,
+                                     width: line.width, height: line.ascent + line.descent))
+            }
+            // A dot point's highlight takes in its dot.
+            let dot = start == 0 && paragraph.isBullet ? [CGRect(x: writer.left + 2, y: pageTop, width: 1, height: 1)] : []
+            mark(source, lines: frames + dot)
+            mark(.bodyFont, lines: frames)
+            writer.y = pageTop + lines[start + count - 1].bottom - offset
+            start += count
+            if start < lines.count { writer.newPage() }
+        }
+    }
+
+    // MARK: Included and Not included
+
+    /// The space between the Included and Not included columns.
+    static let listGutter: CGFloat = 20
+    /// The table's columns: Included and Not included side by side, or only the one with items,
+    /// alone at full width.
+    private var listColumns: [(heading: String, items: [String])] = []
+    /// How wide each column is.
+    var listColumnWidth: CGFloat {
+        let count = CGFloat(max(listColumns.count, 1))
+        return (writer.width - Self.listGutter * (count - 1)) / count
+    }
+    private func listColumnX(_ index: Int) -> CGFloat {
+        writer.left + CGFloat(index) * (listColumnWidth + Self.listGutter)
+    }
+    private var listsHeadingFont: CTFont { style.body(10, weight: .semibold) }
+    private var listsHeaderHeight: CGFloat { PageWriter.lineHeight(listsHeadingFont) + 3 + 4 }
+
+    /// The column headings and the rule under them; again at the top of each page the table
+    /// carries on to.
+    private func drawListsHeader() {
+        for (index, column) in listColumns.enumerated() {
+            writer.draw(PageWriter.text(column.heading, listsHeadingFont, PDFStyle.ink),
+                        x: listColumnX(index), top: writer.y, width: listColumnWidth)
+        }
+        writer.y += PageWriter.lineHeight(listsHeadingFont) + 3
+        writer.rule(top: writer.y, x: writer.left, width: writer.width, color: PDFStyle.ink, thickness: 1)
+        writer.y += 4
+    }
+
+    private func listCell(_ item: String?) -> NSAttributedString {
+        PageWriter.wrapping(PageWriter.text(Self.printable(item ?? ""), style.body(9), PDFStyle.ink))
+    }
+
+    private func listRowHeight(_ cells: [NSAttributedString]) -> CGFloat {
+        cells.map { PageWriter.height(of: $0, width: listColumnWidth) }
+            .reduce(PageWriter.lineHeight(style.body(9))) { max($0, $1) } + 9
+    }
+
+    /// The Included and Not included lists side by side, one item a row; a list with no items
+    /// leaves its column out and the other prints alone at full width. A long table goes over the
+    /// page row by row, with its headings again at the top.
+    private func drawLists(_ lists: DocumentContent.Lists) {
+        listColumns = [(heading: "Included", items: lists.included), (heading: "Not included", items: lists.notIncluded)]
+            .filter { !$0.items.isEmpty }
+        guard !listColumns.isEmpty else { return }
+        let rows = (0..<(listColumns.map(\.items.count).max() ?? 0)).map { index in
+            listColumns.map { listCell($0.items.indices.contains(index) ? $0.items[index] : nil) }
+        }
+        // The headings never end a page: they go over with the first row.
+        writer.ensureSpace(6 + listsHeaderHeight + (rows.first.map(listRowHeight) ?? 0))
+        writer.y += 6
+        drawListsHeader()
+        inLists = true
+        for cells in rows {
+            let height = listRowHeight(cells)
+            writer.ensureSpace(height)
+            let top = writer.y + 4
+            let words = cells.enumerated().flatMap { index, cell in
+                PageWriter.lineFrames(of: cell, x: listColumnX(index), top: top, width: listColumnWidth)
+            }
+            mark(.bodyFont, lines: words)
+            for (index, cell) in cells.enumerated() {
+                writer.draw(cell, x: listColumnX(index), top: top, width: listColumnWidth)
+            }
+            writer.y += height
+            writer.rule(top: writer.y - 1, x: writer.left, width: writer.width, color: PDFStyle.rule)
+        }
+        inLists = false
+        writer.y += 16
     }
 
     /// Where the footer's rule sits, measured down from the top of the page: in the bottom margin,

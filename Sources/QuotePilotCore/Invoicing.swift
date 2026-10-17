@@ -98,6 +98,25 @@ extension Library {
         return draftInvoice(closing, for: found, on: day)
     }
 
+    /// What the client still has to pay for the whole job a quote's invoices bill: the job's total less
+    /// every payment on its live invoices. The total is what its live invoices add up to once the
+    /// closing one is drafted; before that, the deposit's lines (the accepted lines, before its share).
+    /// Nil when the quote has no live invoices.
+    public func leftToPay(onQuote id: UUID) -> Money? {
+        let live = invoices(forQuote: id)
+        guard !live.isEmpty else { return nil }
+        let total: Money
+        if live.contains(where: \.kind.isClosing) {
+            total = live.reduce(.zero) { $0 + $1.amount }
+        } else if let deposit = live.first(where: { $0.kind == .deposit }) {
+            total = deposit.lineTotals.total
+        } else {
+            total = live.reduce(.zero) { $0 + $1.amount }
+        }
+        let paid = live.reduce(.zero) { $0 + $1.paid }
+        return max(total - paid, .zero)
+    }
+
     /// The quote's live closing invoice (the final one for 50/50, the full one otherwise), or nil when
     /// it has none yet or its closing invoice was voided.
     public func closingInvoice(forQuote id: UUID) -> Invoice? {
@@ -231,6 +250,8 @@ extension Library {
         var copy = Quote(number: takeNumber(.quote), clientID: original.clientID, title: original.title,
                          issued: day, validUntil: day.adding(days: brand.quoteValidDays), plan: original.plan,
                          taxed: original.taxed, summary: original.summary, terms: original.terms)
+        copy.included = original.included
+        copy.notIncluded = original.notIncluded
         for line in original.lines {
             copy.addLine(line.freshCopy)
         }

@@ -30,15 +30,27 @@ struct NextStep: Equatable {
         var label: String { "\(number) \(title)" }
     }
 
-    /// What the next step is done with. Only `openInvoice` has a button on the bar; the others say
-    /// which of the editor's own buttons does the step, and that button is not changed.
+    /// What the next step is done with. Only `openInvoice` and `openQuote` have a button on the bar;
+    /// the others say which of the editor's own buttons does the step, and that button is not changed.
     enum Action: Equatable {
         case send
         case duplicate
         case draftInvoiceNow
         case jobComplete
         case openInvoice(UUID, number: String)
+        /// A paid deposit's quote, where Job Complete is.
+        case openQuote(UUID, number: String)
         case recordPayment
+    }
+
+    /// The document the bar's Open button opens, if the next step has one: its id, its number, and
+    /// what it is ("invoice" or "quote").
+    var openTarget: (id: UUID, number: String, kind: String)? {
+        switch action {
+        case .openInvoice(let id, let number)?: return (id, number, "invoice")
+        case .openQuote(let id, let number)?: return (id, number, "quote")
+        default: return nil
+        }
     }
 
     var steps: [Step]
@@ -144,6 +156,14 @@ struct NextStep: Equatable {
             // Not special-cased for a deposit that a final invoice deducts: that deposit can still be
             // sent and paid, so the ordinary sentence is the true one, and the editor's own note says
             // what is locked and why.
+            // A paid deposit: the balance waits for the job, which is marked done on the quote.
+            if invoice.owing <= .zero, invoice.kind == .deposit, let quoteID = invoice.quoteID,
+               let quote = library.quote(quoteID), quote.completedOn == nil,
+               library.nextInvoiceKind(forQuote: quoteID) == .final {
+                return NextStep(steps: progress(titles, at: nil),
+                                sentence: "Deposit paid. When the job is done, open \(quote.number) and press Job Complete.",
+                                action: .openQuote(quote.id, number: quote.number))
+            }
             if invoice.owing <= .zero {
                 let sentence = invoice.receiptSentAt == nil
                     ? "Paid in full. Send Receipt… if the client wants one."

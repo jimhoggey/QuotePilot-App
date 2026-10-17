@@ -106,6 +106,28 @@ public struct LibraryStore: Sendable {
         return target
     }
 
+    /// What a backup made just before File → Start Fresh has after its day, so the restore list can
+    /// say so: "library-2026-10-15-before-start-fresh-143005.json".
+    public static let startFreshTag = "-before-start-fresh-"
+
+    /// Copies the library into Backups/ now, whether or not today's backup is made, before File →
+    /// Start Fresh empties it. Nil when there's no library file yet, so nothing to keep. Only a
+    /// library that reads is copied: anything else throws, and Start Fresh doesn't go ahead.
+    @discardableResult
+    public func backUpBeforeStartingFresh(now: Date = Date()) throws -> URL? {
+        guard FileManager.default.fileExists(atPath: libraryURL.path) else { return nil }
+        guard case .loaded = load() else { throw StoreError.wouldOverwriteUnreadableLibrary }
+        try FileManager.default.createDirectory(at: backupsFolder, withIntermediateDirectories: true)
+        let time = DateFormatter()
+        time.locale = Locale(identifier: "en_AU_POSIX")
+        time.dateFormat = "HHmmss"
+        let target = backupsFolder.appendingPathComponent(
+            "library-\(Day(now).iso)\(Self.startFreshTag)\(time.string(from: now)).json")
+        if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
+        try FileManager.default.copyItem(at: libraryURL, to: target)
+        return target
+    }
+
     /// Backups, newest first.
     public func backups() -> [URL] {
         let files = (try? FileManager.default.contentsOfDirectory(at: backupsFolder, includingPropertiesForKeys: nil)) ?? []

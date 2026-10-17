@@ -177,6 +177,10 @@ import QuotePilotPDF
         let model = try UIFixture.sampleModel()
         model.choosingFile = .legacyBackup
         #expect(FileChoice.legacyBackup.contentTypes == [.json])
+        // The panel says which file to pick, and where it comes from.
+        #expect(FileChoice.legacyBackup.panelMessage ==
+                "Choose the backup file (.json) made in Invoice Generator with Saved documents → Back up to file.")
+        #expect(FileChoice.returnedQuote.panelMessage == nil)
         // SwiftUI may close the panel (clearing the choice) before it reports the file.
         model.choosingFile = nil
         model.fileChosen(.success(try UIFixture.file("b.json", Self.backup())))
@@ -250,7 +254,7 @@ import QuotePilotPDF
         #expect(try UIFixture.sampleModel().canBackUp)
     }
 
-    /// The menu items read `libraryIsOpen` (Read Returned Quote…, Import from Invoice Generator…,
+    /// The menu items read `libraryIsOpen` (Read Returned Quote…, Import from Invoice Generator Backup…,
     /// Export Payments for Tax Time…, and the New commands) and `canRestoreBackup` (Restore Backup…):
     /// on the unreadable-library screen only restoring is on offer, and only when there is a backup.
     @Test func theFileMenuOffersOnlyRestoreWhileTheLibraryCantBeRead() throws {

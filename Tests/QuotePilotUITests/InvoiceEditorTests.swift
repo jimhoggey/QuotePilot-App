@@ -467,8 +467,11 @@ import QuotePilotCore
         }
         // Sent and unpaid: Send by Mail…, Void…, Duplicate and Save PDF…, with an overdue status.
         let sentOneOff = try width("INV-0002")
-        let paid = try width("INV-0001")
-        #expect(sentOneOff > paid, "the four-button row should be the wider one, or this isn't measuring the buttons")
+        // INV-0003 is a one-off too, part paid, so it has only Send by Mail… and Save PDF…. (INV-0001,
+        // the paid deposit, has the longest top row instead: "Owing on this invoice" and the line
+        // under the readout.)
+        let partPaid = try width("INV-0003")
+        #expect(sentOneOff > partPaid, "the four-button row should be the wider one, or this isn't measuring the buttons")
         for number in ["INV-0001", "INV-0002", "INV-0003"] {
             let needed = try width(number)
             #expect(needed <= Self.sectionWidth, "\(number)'s header needs \(needed) pt of \(Self.sectionWidth)")

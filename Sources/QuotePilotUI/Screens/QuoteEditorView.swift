@@ -125,6 +125,13 @@ struct QuoteEditorView: View {
             }
             GroupBox("Quote") {
                 VStack(alignment: .leading, spacing: 6) {
+                    DocumentNumberRow(model: model, number: current.number, kind: .quote,
+                                      editable: current.stage == .draft,
+                                      help: current.stage == .draft
+                                        ? "Type a number no other quote has, then press Return"
+                                        : "Only a draft's number can be changed") {
+                        model.renumberQuote(quoteID, to: $0)
+                    }
                     Win95FieldRow("Client:") {
                         ClientPicker(clients: model.library.clients, selection: quote.clientID)
                             .disabled(locked)
@@ -163,9 +170,21 @@ struct QuoteEditorView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Win95TextEditor(text: quote.summary)
                         .frame(height: 90)
-                    Text("Lines starting with \"- \" print as dot points.")
+                    Text("Lines starting with a dash, • or * print as dot points.")
                         .font(Win95.small)
                         .foregroundStyle(Win95.text)
+                }
+            }
+            GroupBox("Included / Not included") {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: 8) {
+                        ListBox(label: "Included:", items: quote.included)
+                        ListBox(label: "Not included:", items: quote.notIncluded)
+                    }
+                    Text("Optional. One item per line. The quote prints them side by side when either box has items.")
+                        .font(Win95.small)
+                        .foregroundStyle(Win95.text)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             GroupBox("Terms") {
@@ -191,6 +210,9 @@ struct CommitField<Value: Equatable>: View {
     var alignment: TextAlignment = .trailing
     /// What an empty field says, grey; the label (which VoiceOver reads) when nil.
     var prompt: String?
+    /// False for a field whose every committed value counts, such as a document number: it saves
+    /// only on Return or leaving, never a half-typed value.
+    var commitsWhileTyping = true
     let commit: (Value) -> Void
     @State private var text = ""
     @FocusState private var focused: Bool
@@ -235,7 +257,7 @@ struct CommitField<Value: Equatable>: View {
             .onChange(of: text) { _, newText in
                 // Only what's typed here: not the text the field is given when it appears or when
                 // the stored value changes elsewhere.
-                guard focused, let parsed = Self.liveCommit(text: newText, stored: value, parse: parse) else { return }
+                guard commitsWhileTyping, focused, let parsed = Self.liveCommit(text: newText, stored: value, parse: parse) else { return }
                 commit(parsed)
             }
             .onChange(of: focused) { _, isFocused in
@@ -270,6 +292,74 @@ struct CommitField<Value: Equatable>: View {
         // The stored value: what was committed while typing, or the old one if an edit was refused.
         text = leaving.text
         editEnded()
+    }
+}
+
+/// One of a quote's Included / Not included boxes: one item per line. What's typed is saved as you
+/// type, as items with any dot-point marker stripped (`Quote.listItems`). The text itself is left
+/// alone while you type, so a new empty line stays; when you leave the box it is tidied to the items.
+struct ListBox: View {
+    let label: String
+    @Binding var items: [String]
+    @State private var text = ""
+    @Environment(\.textEditEnded) private var editEnded
+
+    /// The box's text for `items`.
+    static func text(_ items: [String]) -> String { items.joined(separator: "\n") }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(Win95.body)
+                .foregroundStyle(Win95.text)
+            Win95TextEditor(label, text: $text)
+                .frame(height: 80)
+                .environment(\.textEditEnded) {
+                    text = Self.text(items)
+                    editEnded()
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { text = Self.text(items) }
+        .onChange(of: text) { _, newText in
+            let parsed = Quote.listItems(from: newText)
+            if parsed != items { items = parsed }
+        }
+        .onChange(of: items) { _, newItems in
+            // Changed elsewhere, not by typing here: show it.
+            if Quote.listItems(from: text) != newItems { text = Self.text(newItems) }
+        }
+    }
+}
+
+/// A draft's "Number:" row. The number saves on Return or leaving, so a half-typed one is never
+/// taken; text that isn't a number beeps and goes back. Greyed out once sent. A number used before
+/// (by a document since deleted or renumbered) says so in grey beside it.
+struct DocumentNumberRow: View {
+    let model: AppModel
+    let number: String
+    let kind: DocumentKind
+    let editable: Bool
+    let help: String
+    let commit: (String) -> Void
+
+    var body: some View {
+        Win95FieldRow("Number:") {
+            HStack(spacing: 8) {
+                CommitField(label: "Number", value: number, format: { $0 },
+                            parse: { Library.parseNumber($0, kind) }, alignment: .leading,
+                            commitsWhileTyping: false, commit: commit)
+                    .frame(width: 110)
+                    .disabled(!editable)
+                    .help(help)
+                if model.library.numberUsedBefore(number) {
+                    Text("Used before")
+                        .font(Win95.small)
+                        .foregroundStyle(Win95.shadow)
+                        .help("\(number) was on another document before, since deleted or renumbered")
+                }
+            }
+        }
     }
 }
 

@@ -29,10 +29,19 @@ public struct DocumentContent: Equatable {
 
     public struct Section: Equatable {
         public var heading: String
-        /// Lines starting with "- " print as dot points.
+        /// Lines starting with a dash, "•" or "*" print as dot points.
         public var text: String
         /// The brand setting this comes from, if any, for the Brand screen's highlight.
         public var source: BrandElement? = nil
+        /// A quote's Included and Not included lists, printed as a table in place of text, after the
+        /// totals and before Accepted by.
+        public var lists: Lists? = nil
+    }
+
+    /// What a job includes and what it leaves out, one item each.
+    public struct Lists: Equatable {
+        public var included: [String]
+        public var notIncluded: [String]
     }
 
     public var title: String
@@ -78,6 +87,12 @@ extension DocumentContent {
 
         var sections: [Section] = []
         if !quote.summary.trimmed.isEmpty { sections.append(Section(heading: "Work summary", text: quote.summary)) }
+        // Both lists are optional: the table prints only when either has an item.
+        let included = quote.included.map(\.trimmed).filter { !$0.isEmpty }
+        let notIncluded = quote.notIncluded.map(\.trimmed).filter { !$0.isEmpty }
+        if !included.isEmpty || !notIncluded.isEmpty {
+            sections.append(Section(heading: "", text: "", lists: Lists(included: included, notIncluded: notIncluded)))
+        }
         sections.append(Section(heading: "Payment plan",
                                 text: "\(quote.plan.summary). You're only invoiced for the lines you accept."))
         if !quote.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: quote.terms, source: .quoteTerms)) }

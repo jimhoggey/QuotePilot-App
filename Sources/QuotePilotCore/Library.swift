@@ -32,6 +32,14 @@ public enum LibraryError: Error, Equatable, Sendable {
     case depositStillDeducted(String)
     /// A quote (its number) with invoices (their numbers), deleted without saying they go with it.
     case quoteHasInvoices(quote: String, invoices: [String])
+    /// A number (given) another quote or invoice in the library already has.
+    case numberInUse(String)
+    /// Only a draft's number can be changed: a sent one has gone out with it.
+    case numberOnlyOnDrafts
+    /// Text (given) that isn't a number of the kind with that prefix.
+    case notANumber(String, String)
+    /// Numbering can't start again while any quote or invoice is in the library.
+    case documentsStillThere
 }
 
 /// Everything Quote Pilot knows, saved as one file.
@@ -214,6 +222,33 @@ public struct Library: Codable, Sendable {
         if let final = liveFinalDeducting(invoices[index]) { throw LibraryError.deductedByFinal(final.number) }
         let number = invoices.remove(at: index).number
         log("Deleted draft invoice \(number)", number: number)
+    }
+
+    // MARK: Starting fresh
+
+    /// File → Start Fresh: every quote, invoice and payment goes, and Activity, and numbering starts
+    /// again at Q-0001 and INV-0001. Brand settings stay, and so do clients unless `removingClients`.
+    /// Activity then has the one entry saying so.
+    public mutating func startFresh(removingClients: Bool, at time: Date = Date()) {
+        quotes = []
+        invoices = []
+        activity = []
+        usedNumbers = []
+        if removingClients { clients = [] }
+        log(removingClients
+            ? "Started fresh: removed every quote, invoice, payment and client, and Activity"
+            : "Started fresh: removed every quote, invoice and payment, and Activity", at: time)
+    }
+
+    /// Whether numbering can start again at 0001: only with no quotes or invoices at all, so no number
+    /// could be on two documents.
+    public var canResetNumbers: Bool { quotes.isEmpty && invoices.isEmpty }
+
+    /// File → Reset Quote and Invoice Numbers…: the next quote is Q-0001 and the next invoice INV-0001.
+    public mutating func resetNumbers(at time: Date = Date()) throws {
+        guard canResetNumbers else { throw LibraryError.documentsStillThere }
+        usedNumbers = []
+        log("Reset numbering: the next quote is \(nextNumber(.quote)) and the next invoice \(nextNumber(.invoice))", at: time)
     }
 
     // MARK: JSON

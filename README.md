@@ -47,9 +47,9 @@ glance.
   what happened: quotes started and sent, Mail drafts, acceptances, invoices, payments and restores.
   ⌘F finds in the Quotes, Invoices, Clients and Activity lists.
   - Brand also remembers your hourly rate, so a new line in hours starts at it.
-- **File menu:** Import from Invoice Generator…, Export Payments for Tax Time…, Back Up To… and
-  Restore Backup…. Restore Backup… restores the daily backup you pick, with no extra question. The
-  status bar says which backup came back.
+- **File menu:** Import from Invoice Generator Backup…, Export Payments for Tax Time…, Back Up To…,
+  Restore Backup…, Start Fresh… and Reset Quote and Invoice Numbers…. Restore Backup… restores the
+  daily backup you pick, with no extra question. The status bar says which backup came back.
 - Every change saves as you make it, with a daily backup. If the library file is ever damaged,
   Quote Pilot won't save over it and offers the latest backup instead. Every mailed PDF is also kept
   in `~/Documents/Quote Pilot/<year>/`.

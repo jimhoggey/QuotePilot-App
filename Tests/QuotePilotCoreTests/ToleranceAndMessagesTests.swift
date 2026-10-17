@@ -41,10 +41,31 @@ import Testing
         #expect(quote.stage == .draft)
         #expect(quote.plan == .fiftyFifty)
         #expect(quote.summary == "")
+        // A quote saved before the Included and Not included lists has neither.
+        #expect(quote.included.isEmpty)
+        #expect(quote.notIncluded.isEmpty)
         #expect(quote.lastLineNumber == 1)
         #expect(quote.lines[0].quantity == 1)
         #expect(quote.lines[0].unit == .units)
         #expect(quote.lines[0].amount == Money(dollars: 1000))
+    }
+
+    @Test func aQuotesIncludedListsRoundTrip() throws {
+        var quote = Quote(number: "Q-0009", issued: Day(year: 2026, month: 10, day: 15),
+                          validUntil: Day(year: 2026, month: 11, day: 14))
+        quote.included = ["Design", "Hosting setup"]
+        quote.notIncluded = ["Printing"]
+        let decoded = try Library.makeDecoder().decode(Quote.self, from: Library.makeEncoder().encode(quote))
+        #expect(decoded.included == ["Design", "Hosting setup"])
+        #expect(decoded.notIncluded == ["Printing"])
+    }
+
+    /// One item a line, as typed or pasted: dot-point markers and blank lines go.
+    @Test func listItemsDropMarkersAndBlankLines() {
+        #expect(Quote.listItems(from: "- Design\n\n•Hosting setup\n  – Logo files  \n* \n—Training\r\nSupport") ==
+                ["Design", "Hosting setup", "Logo files", "Training", "Support"])
+        #expect(Quote.listItems(from: "Re-design of the home page") == ["Re-design of the home page"])
+        #expect(Quote.listItems(from: "  \n").isEmpty)
     }
 
     @Test func aQuoteMissingItsNumberIsStillRejected() {
@@ -83,7 +104,8 @@ import Testing
                                       .nothingLeftToInvoice, .alreadyInvoiced, .isVoid, .hasPayments,
                                       .deductedByFinal("INV-0002"), .unknownLineCodes(["09"]),
                                       .notEditable, .noPayments, .paymentNotPositive,
-                                      .paymentMoreThanOwing(Money(dollars: 300))]
+                                      .paymentMoreThanOwing(Money(dollars: 300)), .numberInUse("Q-0003"),
+                                      .numberOnlyOnDrafts, .notANumber("abc", "Q-"), .documentsStillThere]
         for error in errors {
             #expect(!error.message.isEmpty)
             #expect(error.localizedDescription == error.message)

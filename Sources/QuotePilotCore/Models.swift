@@ -182,8 +182,12 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
     public var lines: [LineItem]
     /// The highest line number ever given out on this quote, so a sent quote never reuses a line ID.
     public var lastLineNumber: Int
-    /// Plain text; lines starting with "- " print as dot points.
+    /// Plain text; lines starting with a dash, "•" or "*" print as dot points.
     public var summary: String
+    /// What the job includes and what it leaves out, one item each; both optional. The PDF prints them
+    /// side by side only when either has an item.
+    public var included: [String] = []
+    public var notIncluded: [String] = []
     public var terms: String
     public var stage: QuoteStage
     public var sentAt: Date?
@@ -211,6 +215,21 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
     public var totals: Totals { Totals(subtotal: lines.subtotal, taxed: taxed) }
     public var acceptedLines: [LineItem] { lines.filter { $0.decision == .accepted } }
     public var acceptedTotals: Totals { Totals(subtotal: acceptedLines.subtotal, taxed: taxed) }
+
+    /// What a dot point may start with, as typed or pasted: a dash of any length, a bullet or an asterisk.
+    static let listMarkers: Set<Character> = ["-", "–", "—", "•", "*"]
+
+    /// The items of an Included or Not included box: one per line, without the dot-point marker it
+    /// was typed or pasted with, and without blank lines.
+    public static func listItems(from text: String) -> [String] {
+        text.components(separatedBy: .newlines).compactMap { line in
+            var item = Substring(line.trimmingCharacters(in: .whitespaces))
+            while let first = item.first, listMarkers.contains(first) {
+                item = item.dropFirst().drop(while: { $0.isWhitespace })
+            }
+            return item.isEmpty ? nil : String(item)
+        }
+    }
 }
 
 // MARK: - Invoices
@@ -392,7 +411,7 @@ extension Client {
 extension Quote {
     enum CodingKeys: String, CodingKey {
         case id, number, clientID, title, issued, validUntil, plan, taxed, lines, lastLineNumber
-        case summary, terms, stage, sentAt, acceptance, completedOn
+        case summary, included, notIncluded, terms, stage, sentAt, acceptance, completedOn
     }
 
     public init(from decoder: Decoder) throws {
@@ -408,6 +427,8 @@ extension Quote {
         lines = try c.value(.lines, or: [])
         lastLineNumber = try c.value(.lastLineNumber, or: lines.compactMap { Int($0.code) }.max() ?? 0)
         summary = try c.value(.summary, or: "")
+        included = try c.value(.included, or: [])
+        notIncluded = try c.value(.notIncluded, or: [])
         terms = try c.value(.terms, or: "")
         stage = try c.value(.stage, or: .draft)
         sentAt = try c.decodeIfPresent(Date.self, forKey: .sentAt)

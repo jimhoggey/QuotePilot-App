@@ -13,16 +13,33 @@ enum Snapshot {
         let host = NSHostingView(rootView: view
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .light)
-            .environment(\.controlActiveState, .key))
+            .environment(\.controlActiveState, .key)
+            // Drawn for the 1x bitmap `capture` makes, not for the main screen's scale.
+            .environment(\.displayScale, 1))
         let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless],
                               backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: .aqua)
         window.contentView = host
         host.frame = CGRect(origin: .zero, size: size)
         host.layoutSubtreeIfNeeded()
-        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return nil }
-        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let rep = capture(host) else { return nil }
         save(rep, name: name)
+        return rep
+    }
+
+    /// `view` drawn at one pixel to the point, whatever the screens' backing scale: every test's
+    /// pixel coordinates are points. (`bitmapImageRepForCachingDisplay` follows the main screen, so on
+    /// a Retina display it is twice the size and every coordinate lands somewhere else.)
+    static func capture(_ view: NSView) -> NSBitmapImageRep? {
+        let bounds = view.bounds
+        guard bounds.width >= 1, bounds.height >= 1,
+              let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(bounds.width.rounded()),
+                                         pixelsHigh: Int(bounds.height.rounded()), bitsPerSample: 8,
+                                         samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
+        else { return nil }
+        rep.size = bounds.size
+        view.cacheDisplay(in: bounds, to: rep)
         return rep
     }
 

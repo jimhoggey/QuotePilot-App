@@ -13,6 +13,8 @@ public enum Dialog: Equatable {
     case taxExport
     /// Choose a daily backup to restore.
     case restore
+    /// File → Start Fresh…: what goes, what stays, and whether clients go too.
+    case startFresh
 }
 
 /// A Windows 95 dialog: navy title bar, grey body, bevelled edge.
@@ -125,6 +127,8 @@ struct DialogOverlay: View {
             TaxExportView(model: model)
         case .restore:
             RestoreView(model: model)
+        case .startFresh:
+            StartFreshView(model: model)
         }
     }
 }

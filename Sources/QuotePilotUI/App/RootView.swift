@@ -62,6 +62,7 @@ public struct RootView: View {
         .fileImporter(isPresented: choosing, allowedContentTypes: model.choosingFile?.contentTypes ?? [.pdf]) { result in
             model.fileChosen(result)
         }
+        .fileDialogMessage(model.choosingFile?.panelMessage.map { Text($0) })
         // A PDF dropped anywhere on the window is read as a returned quote.
         .dropDestination(for: URL.self) { urls, _ in
             model.dropped(urls)

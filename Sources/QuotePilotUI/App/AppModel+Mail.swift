@@ -93,9 +93,9 @@ extension AppModel {
             && !text.contains(where: \.isWhitespace)
     }
 
-    /// "Yes, Sent". A quote or an invoice that is now sent has nothing left to change on its page, so
-    /// its editor closes and the Dashboard shows, with a note in the status bar. A receipt leaves you
-    /// where you are with its note. When the save fails, the message box says so and nothing moves.
+    /// "Yes, Sent". A quote, an invoice or a receipt that is now sent has nothing left to do on its
+    /// page, so the editor closes and the Dashboard shows, with a note in the status bar. When the save
+    /// fails, the message box says so and nothing moves.
     private func markSent(_ document: MailDocument) {
         switch document {
         case .quote(let id):
@@ -113,6 +113,8 @@ extension AppModel {
         case .receipt(let id):
             guard change("Couldn't mark it sent", { try $0.markReceiptSent(invoice: id, at: now()) }),
                   let number = library.invoice(id)?.number else { return }
+            openInvoiceID = nil
+            go(to: .dashboard)
             note("Receipt for \(number) marked as sent")
         }
     }
