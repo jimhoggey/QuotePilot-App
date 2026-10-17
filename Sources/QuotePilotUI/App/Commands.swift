@@ -51,6 +51,9 @@ public struct QuotePilotCommands: Commands {
             // The one command that works while the library can't be read; with no backup it has nothing to offer.
             Button("Restore Backup…") { model.whenFree { model.dialog = .restore } }
                 .disabled(!model.canRestoreBackup)
+            Divider()
+            Button("Start Fresh…") { model.whenFree { model.dialog = .startFresh } }
+                .disabled(!model.libraryIsOpen)
         }
         // The File menu's groups keep a fixed order (new, save, import/export, print), so everything
         // that sits above Close is in the first group and Close is alone in the next. Every change

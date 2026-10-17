@@ -222,6 +222,22 @@ public struct Library: Codable, Sendable {
         log("Deleted draft invoice \(number)", number: number)
     }
 
+    // MARK: Starting fresh
+
+    /// File → Start Fresh: every quote, invoice and payment goes, and Activity, and numbering starts
+    /// again at Q-0001 and INV-0001. Brand settings stay, and so do clients unless `removingClients`.
+    /// Activity then has the one entry saying so.
+    public mutating func startFresh(removingClients: Bool, at time: Date = Date()) {
+        quotes = []
+        invoices = []
+        activity = []
+        usedNumbers = []
+        if removingClients { clients = [] }
+        log(removingClients
+            ? "Started fresh: removed every quote, invoice, payment and client, and Activity"
+            : "Started fresh: removed every quote, invoice and payment, and Activity", at: time)
+    }
+
     // MARK: JSON
 
     public static func makeEncoder() -> JSONEncoder {

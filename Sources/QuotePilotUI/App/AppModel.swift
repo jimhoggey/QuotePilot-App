@@ -766,11 +766,39 @@ public final class AppModel {
 
     public var latestBackup: URL? { store.backups().first }
 
-    /// "library-2026-10-15.json" → "15 Oct 2026", as the restore list shows it; any other name as it is.
+    /// "library-2026-10-15.json" → "15 Oct 2026", as the restore list shows it, and the backup Start
+    /// Fresh makes → "15 Oct 2026, before Start Fresh"; any other name as it is.
     static func backupLabel(_ url: URL) -> String {
         let name = url.deletingPathExtension().lastPathComponent
-        guard name.hasPrefix("library-"), let day = Day(iso: String(name.dropFirst("library-".count))) else { return name }
-        return day.short
+        guard name.hasPrefix("library-") else { return name }
+        let rest = name.dropFirst("library-".count)
+        if let day = Day(iso: String(rest)) { return day.short }
+        if let tag = rest.range(of: LibraryStore.startFreshTag), let day = Day(iso: String(rest[..<tag.lowerBound])) {
+            return "\(day.short), before Start Fresh"
+        }
+        return name
+    }
+
+    /// File → Start Fresh…: backs the library up, then removes every quote, invoice and payment, and
+    /// Activity, and restarts numbering; Brand settings stay, and clients unless `removingClients`.
+    /// If the backup can't be made, nothing is removed and the message box says why.
+    public func startFresh(removingClients: Bool) {
+        let backup: URL?
+        do {
+            backup = try store.backUpBeforeStartingFresh(now: now())
+        } catch {
+            return show(error, title: "Couldn't back up first, so nothing was removed")
+        }
+        let time = now()
+        guard change("Couldn't start fresh", { $0.startFresh(removingClients: removingClients, at: time) }) else { return }
+        dialog = nil
+        openQuoteID = nil
+        openInvoiceID = nil
+        selectedQuoteID = nil
+        selectedInvoiceID = nil
+        if removingClients { selectedClientID = nil }
+        go(to: .dashboard)
+        note(backup == nil ? "Started fresh" : "Started fresh; old library backed up")
     }
 
     /// Puts the newest backup back (the unreadable-library screen's button, and the Library Missing
