@@ -64,6 +64,12 @@ extension Library {
         invoices(forQuote: id).reduce(.zero) { $0 + $1.amount }
     }
 
+    /// What a quote's sent invoices ask for: the part of the job the client has been billed. Drafts
+    /// aren't invoiced yet, and void invoices don't count.
+    public func sentInvoicedAmount(forQuote id: UUID) -> Money {
+        invoices(forQuote: id).filter { $0.stage == .sent }.reduce(.zero) { $0 + $1.amount }
+    }
+
     /// The invoice the quote's plan calls for next, or nil when nothing is left to invoice.
     public func nextInvoiceKind(forQuote id: UUID) -> InvoiceKind? {
         guard let found = quote(id), found.stage == .accepted, !found.acceptedLines.isEmpty else { return nil }
