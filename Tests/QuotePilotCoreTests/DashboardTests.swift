@@ -76,6 +76,95 @@ import Testing
         #expect(dashboard.openQuotesTotal == Money(dollars: 250))
         #expect(dashboard.toInvoice.map(\.number) == ["Q-0001"])
         #expect(dashboard.toInvoice[0].remaining == Money(dollars: 540))
+        // Q-0001's $1,080 less its paid $540 deposit; standalone invoices aren't accepted work.
+        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 540))
+        #expect(dashboard.acceptedJobsOpen == 1)
+        #expect(dashboard.acceptedWorkNotInvoiced == Money(dollars: 540))
+    }
+
+    /// A $5,000 job (50/50), accepted in full, with its deposit invoice drafted and cut to 10% ($500).
+    func fiveThousandDollarJob(taxed: Bool = false) throws -> (library: Library, quoteID: UUID, depositID: UUID) {
+        var library = Library()
+        let client = Client(name: "Sample Client Pty Ltd")
+        library.addClient(client)
+        var quote = library.newQuote(on: today, clientID: client.id)
+        quote.taxed = taxed
+        quote.addLine(LineItem(title: "Fit-out", rate: Money(dollars: 5000)))
+        quote.stage = .sent
+        try library.update(quote)
+        try library.recordAcceptance(Acceptance(source: .byHand, accepted: ["01"], declined: []), forQuote: quote.id)
+        let deposit = try library.draftNextInvoice(forQuote: quote.id, on: today)
+        let index = try #require(library.invoices.firstIndex { $0.id == deposit.id })
+        library.invoices[index].depositPercent = 10
+        return (library, quote.id, deposit.id)
+    }
+
+    /// The user's example: a $5,000 quote is accepted and its $500 deposit invoiced and paid, so $4,500
+    /// is left on the job, none of it invoiced yet.
+    @Test func leftOnAcceptedJobsIsTheAcceptedTotalLessWhatsPaid() throws {
+        var (library, _, depositID) = try fiveThousandDollarJob()
+        try library.markSent(invoice: depositID)
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 500)), toInvoice: depositID)
+        let dashboard = Dashboard(library: library, today: today)
+        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 4500))
+        #expect(dashboard.acceptedJobsOpen == 1)
+        #expect(dashboard.acceptedWorkNotInvoiced == Money(dollars: 4500))
+        #expect(dashboard.acceptedWorkNotInvoiced == dashboard.toInvoice.map(\.remaining).reduce(.zero, +))
+    }
+
+    /// With GST charged, the job is worth $5,500 and the 10% deposit $550.
+    @Test func leftOnAcceptedJobsIncludesGST() throws {
+        var (library, _, depositID) = try fiveThousandDollarJob(taxed: true)
+        try library.markSent(invoice: depositID)
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 550)), toInvoice: depositID)
+        let dashboard = Dashboard(library: library, today: today)
+        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 4950))
+        #expect(dashboard.acceptedWorkNotInvoiced == Money(dollars: 4950))
+    }
+
+    /// A deposit invoiced but not paid yet is still money to come: only the part not invoiced drops.
+    @Test func anInvoicedButUnpaidDepositStillCounts() throws {
+        var (library, _, depositID) = try fiveThousandDollarJob()
+        try library.markSent(invoice: depositID)
+        let dashboard = Dashboard(library: library, today: today)
+        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 5000))
+        #expect(dashboard.acceptedJobsOpen == 1)
+        #expect(dashboard.acceptedWorkNotInvoiced == Money(dollars: 4500))
+    }
+
+    @Test func aFullyPaidJobCountsNothing() throws {
+        var (library, quoteID, depositID) = try fiveThousandDollarJob()
+        try library.markSent(invoice: depositID)
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 500)), toInvoice: depositID)
+        let final = try #require(try library.completeJob(quote: quoteID, on: today))
+        #expect(final.amount == Money(dollars: 4500))
+        try library.markSent(invoice: final.id)
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 4500)), toInvoice: final.id)
+        let dashboard = Dashboard(library: library, today: today)
+        #expect(dashboard.acceptedWorkRemaining == .zero)
+        #expect(dashboard.acceptedJobsOpen == 0)
+        #expect(dashboard.acceptedWorkNotInvoiced == .zero)
+    }
+
+    /// Declined and expired quotes are no work to come, even with lines marked accepted, and a void
+    /// invoice no longer counts as invoiced.
+    @Test func declinedAndExpiredQuotesAndVoidInvoicesAreIgnored() throws {
+        var (library, _, depositID) = try fiveThousandDollarJob()
+        try library.markSent(invoice: depositID)
+        try library.voidInvoice(depositID)
+        let clientID = library.clients[0].id
+        for (stage, issued) in [(QuoteStage.declined, today), (.sent, today.adding(days: -60))] {
+            var quote = library.newQuote(on: issued, clientID: clientID)
+            quote.addLine(LineItem(title: "Other work", rate: Money(dollars: 800)))
+            quote.lines[0].decision = .accepted
+            quote.stage = stage
+            try library.update(quote)
+        }
+        let dashboard = Dashboard(library: library, today: today)
+        #expect(dashboard.openQuotes.filter(\.expired).count == 1)
+        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 5000))
+        #expect(dashboard.acceptedJobsOpen == 1)
+        #expect(dashboard.acceptedWorkNotInvoiced == Money(dollars: 5000))
     }
 
     @Test func expiredQuotesAreShownButNotTotalled() throws {

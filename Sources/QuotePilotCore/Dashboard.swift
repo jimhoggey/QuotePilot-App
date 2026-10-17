@@ -63,6 +63,14 @@ public struct Dashboard: Equatable, Sendable {
     /// Open quotes that haven't expired.
     public var openQuotesTotal: Money
     public var toInvoice: [ToInvoice]
+    /// The money still to come from accepted work: for every accepted (or partly accepted) quote not
+    /// fully paid yet, its accepted total (with GST when the quote charges it) less every payment on
+    /// its live invoices. It covers what is invoiced but unpaid as well as what isn't invoiced yet.
+    public var acceptedWorkRemaining: Money
+    /// How many accepted jobs `acceptedWorkRemaining` covers.
+    public var acceptedJobsOpen: Int
+    /// The part of `acceptedWorkRemaining` not invoiced yet: the "Still to invoice" list's sum.
+    public var acceptedWorkNotInvoiced: Money
 
     public init(library: Library, today: Day) {
         self.today = today
@@ -102,6 +110,14 @@ public struct Dashboard: Equatable, Sendable {
                              accepted: $0.acceptedTotals.total, invoiced: library.invoicedAmount(forQuote: $0.id)) }
             .filter { $0.remaining > .zero }
             .sorted { $0.number < $1.number }
+
+        let leftOnJobs = library.quotes
+            .filter { $0.stage == .accepted }
+            .map { quote in quote.acceptedTotals.total - sum(library.invoices(forQuote: quote.id).map(\.paid)) }
+            .filter { $0 > .zero }
+        acceptedWorkRemaining = sum(leftOnJobs)
+        acceptedJobsOpen = leftOnJobs.count
+        acceptedWorkNotInvoiced = sum(toInvoice.map(\.remaining))
     }
 }
 
