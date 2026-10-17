@@ -54,17 +54,6 @@ import QuotePilotCore
         #expect(model.newPaymentEntry(for: invoice.id)?.amount == "$35.00")
     }
 
-    @Test func thePaymentButtonOpensTheInvoice() throws {
-        let model = try UIFixture.sampleModel()
-        let invoice = try hosting(model)
-        model.section = .dashboard
-        model.startPayment(invoice.id)
-        #expect(model.section == .invoices)
-        #expect(model.openInvoiceID == invoice.id)
-        #expect(model.message == nil)
-        #expect(model.dialog == nil)
-    }
-
     @Test func aPaymentOverWhatsOwingIsRefused() throws {
         let model = try UIFixture.sampleModel()
         let invoice = try hosting(model)
@@ -102,16 +91,10 @@ import QuotePilotCore
     @Test func onlySentInvoicesWithMoneyOwingTakePayments() throws {
         let model = try UIFixture.sampleModel()
         let deposit = try #require(model.library.invoices.first { $0.number == "INV-0001" })
-        model.openInvoice(deposit.id)
-        #expect(model.payableInvoiceID == nil, "paid in full")
-        #expect(model.newPaymentEntry(for: deposit.id) == nil)
+        #expect(model.newPaymentEntry(for: deposit.id) == nil, "paid in full")
         model.newInvoice()
         let draft = try #require(model.openInvoiceID)
-        #expect(model.payableInvoiceID == nil, "a draft")
-        #expect(model.newPaymentEntry(for: draft) == nil)
-        model.startPayment(draft)
-        #expect(model.dialog == nil)
-        #expect(model.message?.text == LibraryError.notSent.message)
+        #expect(model.newPaymentEntry(for: draft) == nil, "a draft")
     }
 
     @Test func aVoidInvoiceTakesNoPayments() throws {
@@ -119,29 +102,8 @@ import QuotePilotCore
         let care = try #require(model.library.invoices.first { $0.number == "INV-0002" })
         model.voidInvoice(care.id)
         model.respond(try #require(model.message?.choices.first { $0.title == "Void" }))
-        model.openInvoice(care.id)
-        #expect(model.payableInvoiceID == nil)
+        #expect(model.library.invoice(care.id)?.stage == .void)
         #expect(model.newPaymentEntry(for: care.id) == nil)
-        model.startPayment(care.id)
-        #expect(model.message?.text == LibraryError.isVoid.message)
-    }
-
-    /// The toolbar's Payment button: the open invoice, or the selected one in the list, and only on
-    /// the Invoices screen.
-    @Test func theToolbarPaymentButtonFollowsTheOpenOrSelectedInvoice() throws {
-        let model = try UIFixture.sampleModel()
-        let hosting = try hosting(model)
-        let care = try #require(model.library.invoices.first { $0.number == "INV-0002" })
-        #expect(model.payableInvoiceID == nil, "the Dashboard has no invoice")
-        model.section = .invoices
-        model.selectedInvoiceID = care.id
-        #expect(model.payableInvoiceID == care.id, "the list's selection")
-        model.openInvoiceID = hosting.id
-        #expect(model.payableInvoiceID == hosting.id, "the open invoice wins")
-        model.openInvoiceID = UUID()
-        #expect(model.payableInvoiceID == care.id, "an open invoice that is gone falls back to the selection")
-        model.section = .quotes
-        #expect(model.payableInvoiceID == nil)
     }
 
     // MARK: Removing

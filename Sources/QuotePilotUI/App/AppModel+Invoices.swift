@@ -78,11 +78,12 @@ extension AppModel {
     }
 
     /// Under a deposit invoice's readout: what's left to pay on the whole job. Nil for any other
-    /// invoice, and for a void deposit.
+    /// invoice, for a void deposit, and once nothing is left, so the readout only shows above $0.
     func leftToPayOnJob(_ id: UUID) -> Money? {
         guard let invoice = library.invoice(id), invoice.kind == .deposit, invoice.stage != .void,
-              let quoteID = invoice.quoteID else { return nil }
-        return library.leftToPay(onQuote: quoteID)
+              let quoteID = invoice.quoteID, let left = library.leftToPay(onQuote: quoteID),
+              left > .zero else { return nil }
+        return left
     }
 
     /// "Draft Invoice Now": the next invoice the quote's plan calls for.
@@ -162,15 +163,6 @@ extension AppModel {
 
     // MARK: Payments
 
-    /// The invoice the toolbar's Payment button records against: the open or selected invoice, when it
-    /// is sent and money is still owing. Anything else greys the button out.
-    public var payableInvoiceID: UUID? {
-        guard section == .invoices, let id = editingInvoiceID ?? selectedInvoiceID,
-              newPaymentEntry(for: id) != nil
-        else { return nil }
-        return id
-    }
-
     /// A new payment as the editor's New payment area starts it: today, what's owing, a bank transfer
     /// and no note. Nil when the invoice can't take a payment: it isn't sent, it is void, or it is
     /// paid in full.
@@ -178,20 +170,6 @@ extension AppModel {
         guard let invoice = library.invoice(invoiceID), invoice.stage == .sent, invoice.owing > .zero else { return nil }
         return PaymentEntry(invoiceID: invoiceID, date: today, amount: money(invoice.owing),
                             method: .bankTransfer, note: "")
-    }
-
-    /// The toolbar's Payment button: opens the invoice in the editor, where the Payments box has the
-    /// New payment area. No box opens. A draft or a void invoice says why it can't take one, for
-    /// callers the toolbar's greying doesn't cover.
-    public func startPayment(_ invoiceID: UUID) {
-        guard let invoice = library.invoice(invoiceID) else { return }
-        switch invoice.stage {
-        case .draft: return show(LibraryError.notSent, title: "Can't Record a Payment")
-        case .void: return show(LibraryError.isVoid, title: "Can't Record a Payment")
-        case .sent: break
-        }
-        // An invoice paid in full opens as well: its Payments box says so, and offers no new payment.
-        openInvoice(invoiceID)
     }
 
     /// Records the New payment area's payment. A refused amount shows why in a box, and the area keeps

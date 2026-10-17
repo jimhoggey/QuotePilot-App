@@ -128,18 +128,11 @@ struct Win95Toolbar: View {
                 tool("New Quote", .quote, help: "Start a new quote (⌘N)") { model.newQuote() }
                 tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)") { model.newInvoice() }
                 ToolbarSeparator()
-                tool("Send", .mail, help: "Open a Mail draft of the open quote or invoice (⌘S)",
-                     enabled: model.sendableDocument != nil) {
-                    if let document = model.sendableDocument { model.send(document) }
-                }
+                // Sending and payments live on the quote and invoice screens (Send by Mail… and the
+                // Payments box), so the toolbar keeps to making documents and PDFs in and out.
                 tool("Read Reply", .folder, help: "Read a returned quote PDF, or drop one on the window (⌘O)") {
                     model.choosingFile = .returnedQuote
                 }
-                tool("Payment", .payment, help: "Record a payment on the open or selected invoice",
-                     enabled: model.payableInvoiceID != nil) {
-                    if let id = model.payableInvoiceID { model.startPayment(id) }
-                }
-                ToolbarSeparator()
                 tool("Save PDF", .pdf, help: "Save the open quote or invoice as a PDF (⌘P)",
                      enabled: model.canExportPDF) { model.exportPDF() }
                 Spacer(minLength: 0)
