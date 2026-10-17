@@ -41,7 +41,7 @@ public struct QuotePilotCommands: Commands {
                 .keyboardShortcut("p")
                 .disabled(!model.canExportPDF)
             Divider()
-            Button("Import from Invoice Generator…") { model.whenFree { model.choosingFile = .legacyBackup } }
+            Button("Import from Invoice Generator Backup…") { model.whenFree { model.choosingFile = .legacyBackup } }
                 .disabled(!model.libraryIsOpen)
             Button("Export Payments for Tax Time…") { model.whenFree { model.dialog = .taxExport } }
                 .disabled(!model.libraryIsOpen)

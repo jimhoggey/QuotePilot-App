@@ -118,6 +118,16 @@ public enum FileChoice: Equatable {
         case .headingFont, .bodyFont: return [.font]
         }
     }
+
+    /// What the open panel says at its top, for a pick that needs explaining.
+    var panelMessage: String? {
+        switch self {
+        case .legacyBackup:
+            return "Choose the backup file (.json) made in Invoice Generator with Saved documents → Back up to file."
+        case .returnedQuote, .logo, .headingFont, .bodyFont:
+            return nil
+        }
+    }
 }
 
 extension AppModel {
