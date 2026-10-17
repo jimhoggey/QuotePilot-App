@@ -37,7 +37,7 @@ struct BrandView: View {
                         // Only text and day fields on these two.
                         case .documents: DocumentsTab(model: model, brand: typing)
                         case .emails: EmailsTab(model: model, brand: typing)
-                        case .settings: SettingsTab(model: model)
+                        case .settings: SettingsTab(model: model, brand: brand, typing: typing)
                         }
                     }
                     .padding(.trailing, 6)
@@ -451,9 +451,13 @@ struct EmailsTab: View {
 }
 
 /// Quote Pilot's own settings, not the documents'. Updates: the running version, Check for Updates
-/// (the Help menu's check) and its answer on the tab, never in a box.
+/// (the Help menu's check) and its answer on the tab, never in a box. Quote Pilot fee: an early,
+/// figures-only fee on what's received each month; nothing is charged.
 struct SettingsTab: View {
     let model: AppModel
+    @Binding var brand: Brand
+    /// The same brand, for the percentage field.
+    @Binding var typing: Brand
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -464,6 +468,32 @@ struct SettingsTab: View {
                         .buttonStyle(.win95)
                         .disabled(!model.canCheckForUpdates)
                     UpdateLineView(model: model)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            GroupBox("Quote Pilot fee") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Calculate a monthly fee", isOn: $brand.appFee.calculates)
+                        .toggleStyle(.win95)
+                    Win95FieldRow("Fee:") {
+                        HStack(spacing: 6) {
+                            CommitField(label: "Quote Pilot fee, in percent", value: typing.appFee.percent,
+                                        format: FieldParser.percentText, parse: FieldParser.percent) {
+                                typing.appFee.percent = $0
+                            }
+                            .frame(width: 60)
+                            Text("%")
+                        }
+                    }
+                    // Greyed out while the fee isn't calculated, and its figures hidden.
+                    .disabled(!brand.appFee.calculates)
+                    ForEach(model.appFeeLines, id: \.self) { line in
+                        Text(line)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("A percentage of the payments recorded each calendar month, 0 to 100%. A figure only: nothing is charged.")
+                        .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

@@ -335,6 +335,10 @@ extension Library {
             found.append("Brand: the hourly rate is \(rate.formatted(currencyCode: currency)), outside "
                 + "\(Money.zero.formatted(currencyCode: currency)) to \(Library.amountLimit.formatted(currencyCode: currency)).")
         }
+        // A NaN is outside the range too: every comparison with it is false.
+        if !AppFee.percentLimit.contains(brand.appFee.percent) {
+            found.append("Brand: the Quote Pilot fee is \(brand.appFee.percent)%, outside 0 to 100%.")
+        }
         func check(_ lines: [LineItem], of number: String) {
             for (index, line) in lines.enumerated() {
                 let name = "\(number) line \(line.code.isEmpty ? String(index + 1) : line.code)"

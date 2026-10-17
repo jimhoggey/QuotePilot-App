@@ -199,6 +199,17 @@ public final class AppModel {
         amount.formatted(currencyCode: currencyCode)
     }
 
+    /// Brand → Settings' Quote Pilot fee figures for today: this month's line and last month's, or
+    /// none while the fee isn't calculated. A figure only; nothing is charged.
+    public var appFeeLines: [String] {
+        guard let figures = AppFeeFigures(library: library, today: today) else { return [] }
+        let percent = FieldParser.percentText(figures.percent)
+        return [
+            "Received this month: \(money(figures.receivedThisMonth)) · Fee at \(percent)%: \(money(figures.feeThisMonth))",
+            "Last month: received \(money(figures.receivedLastMonth)) · fee \(money(figures.feeLastMonth))",
+        ]
+    }
+
     // MARK: The change path
 
     /// Applies `edit` to a copy of the library and saves the copy; only then does the app keep it.
@@ -524,6 +535,8 @@ public final class AppModel {
         brand.paymentDueDays = min(max(brand.paymentDueDays, days.lowerBound), days.upperBound)
         brand.quoteValidDays = min(max(brand.quoteValidDays, days.lowerBound), days.upperBound)
         brand.hourlyRate = brand.hourlyRate.map { Money(cents: min(max($0.cents, 0), Library.amountLimit.cents)) }
+        let percents = AppFee.percentLimit
+        brand.appFee.percent = min(max(brand.appFee.percent, percents.lowerBound), percents.upperBound)
         change("Couldn't save the brand") { $0.brand = brand }
     }
 
