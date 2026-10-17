@@ -3,14 +3,18 @@ import QuotePilotCore
 import QuotePilotPDF
 import SwiftUI
 
-/// Brand: everything documents carry about the business, on four tabs, beside a sample quote that
-/// redraws as you change things. Text fields save as you type through `brandTypingBinding`, but the
-/// sample waits for the edit to end: Return, leaving the field, another tab, or the window no longer
-/// being key. Checkboxes, swatches, pickers and files redraw it at once.
+/// Brand: everything documents carry about the business, on four tabs, and Quote Pilot's own
+/// settings on a fifth, beside a sample quote that redraws as you change things. Text fields save as
+/// you type through `brandTypingBinding`, but the sample waits for the edit to end: Return, leaving
+/// the field, another tab, or the window no longer being key. Checkboxes, swatches, pickers and files
+/// redraw it at once.
 struct BrandView: View {
     enum Tab: Hashable {
-        case business, look, documents, emails
+        case business, look, documents, emails, settings
     }
+
+    static let tabs: [(Tab, String)] = [(.business, "Business"), (.look, "Look"), (.documents, "Documents"),
+                                        (.emails, "Emails"), (.settings, "Settings")]
 
     let model: AppModel
     @State private var tab: Tab
@@ -24,8 +28,7 @@ struct BrandView: View {
         let brand = model.brandBinding
         let typing = model.brandTypingBinding
         HStack(alignment: .top, spacing: 8) {
-            PropertyTabs(selection: $tab, tabs: [(.business, "Business"), (.look, "Look"),
-                                                 (.documents, "Documents"), (.emails, "Emails")]) {
+            PropertyTabs(selection: $tab, tabs: Self.tabs) {
                 ScrollView {
                     Group {
                         switch tab {
@@ -34,6 +37,7 @@ struct BrandView: View {
                         // Only text and day fields on these two.
                         case .documents: DocumentsTab(model: model, brand: typing)
                         case .emails: EmailsTab(model: model, brand: typing)
+                        case .settings: SettingsTab(model: model)
                         }
                     }
                     .padding(.trailing, 6)
@@ -440,6 +444,50 @@ struct EmailsTab: View {
                     focusedTemplate = title
                 } else if focusedTemplate == title {
                     focusedTemplate = nil
+                }
+            }
+        }
+    }
+}
+
+/// Quote Pilot's own settings, not the documents'. Updates: the running version, Check for Updates
+/// (the Help menu's check) and its answer on the tab, never in a box.
+struct SettingsTab: View {
+    let model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            GroupBox("Updates") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Quote Pilot \(model.currentVersion)")
+                    Button("Check for Updates") { model.checkForUpdatesInline() }
+                        .buttonStyle(.win95)
+                        .disabled(!model.canCheckForUpdates)
+                    UpdateLineView(model: model)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .font(Win95.body)
+        .foregroundStyle(Win95.text)
+    }
+}
+
+/// The answer to Check for Updates on the Settings tab: a line of text, with Install Update beside
+/// a newer version. Install Update asks once, as Help → Install Update… does.
+struct UpdateLineView: View {
+    let model: AppModel
+
+    var body: some View {
+        let line = model.updateLine
+        if line != .notChecked {
+            HStack(spacing: 8) {
+                Text(line.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                if case .available = line {
+                    Button("Install Update") { model.installUpdate() }
+                        .buttonStyle(.win95)
+                        .disabled(!model.canInstallUpdate)
                 }
             }
         }

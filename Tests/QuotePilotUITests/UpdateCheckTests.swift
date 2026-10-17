@@ -346,3 +346,84 @@ import Testing
         #expect(rep.map(Snapshot.hasContent) == true)
     }
 }
+
+/// Brand → Settings: Check for Updates answers on the tab, in a line of text, and never in a box.
+@MainActor
+@Suite struct UpdateSettingsTabTests {
+    func model(_ script: FetchScript) throws -> AppModel {
+        let model = try UIFixture.model()
+        model.updates = UpdateFixture.services(script: script)
+        return model
+    }
+
+    @Test func theSettingsTabComesAfterEmails() {
+        #expect(BrandView.tabs.map(\.1) == ["Business", "Look", "Documents", "Emails", "Settings"])
+    }
+
+    @Test func beforeAnyCheckTheLineIsEmptyAndWhileCheckingItSaysSo() throws {
+        let model = try model(FetchScript(json: UpdateFixture.releaseJSON()))
+        #expect(model.updateLine == .notChecked)
+        #expect(model.updateLine.text == "")
+        model.isCheckingForUpdates = true
+        #expect(model.updateLine == .checking)
+        #expect(model.updateLine.text == "Checking for updates…")
+    }
+
+    @Test func theNewestVersionIsSaidOnTheTab() async throws {
+        let script = FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.0"))
+        let model = try model(script)
+        await model.checkForUpdates(manual: true, inline: true)
+        #expect(script.requests.count == 1)
+        #expect(model.updateLine == .newest)
+        #expect(model.updateLine.text == "You have the newest version.")
+        #expect(model.message == nil, "no pop-up")
+    }
+
+    @Test func aNewerVersionIsOfferedOnTheTabAndInstallAsksOnce() async throws {
+        let model = try model(FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.9")))
+        await model.checkForUpdates(manual: true, inline: true)
+        #expect(model.updateLine == .available("1.0.9"))
+        #expect(model.updateLine.text == "1.0.9 is available.")
+        #expect(model.message == nil, "not offered in a box")
+        #expect(model.showsUpdateBanner)
+        #expect(model.canInstallUpdate)
+
+        model.installUpdate()
+        #expect(model.message?.title == "Install Update")
+    }
+
+    @Test func aFailedCheckIsSaidOnTheTab() async throws {
+        let model = try model(FetchScript(.success((Data(), 500))))
+        await model.checkForUpdates(manual: true, inline: true)
+        #expect(model.updateLine == .failed("GitHub answered with an error (500)."))
+        #expect(model.updateLine.text == "Couldn't check for updates. GitHub answered with an error (500).")
+        #expect(model.message == nil, "no pop-up")
+    }
+
+    /// The launch check stays silent when it fails, here too; when it answers, the tab shows that.
+    @Test func theLaunchChecksAnswerShowsButItsFailureDoesNot() async throws {
+        let offline = try model(FetchScript(.failure(FetchScript.Failure.offline)))
+        await offline.start()
+        #expect(offline.updateLine == .notChecked)
+
+        let newest = try model(FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.0")))
+        await newest.start()
+        #expect(newest.updateLine == .newest)
+    }
+
+    /// The Help menu's check still answers in a box, and the tab shows the same answer.
+    @Test func theHelpMenusCheckStillAnswersInABox() async throws {
+        let model = try model(FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.0")))
+        await model.checkForUpdates(manual: true)
+        #expect(model.message?.text == "You have the newest version (1.0.0).")
+        #expect(model.updateLine == .newest)
+    }
+
+    @Test func theSettingsTabDraws() throws {
+        let model = try UIFixture.sampleModel()
+        model.availableUpdate = UpdateFixture.release("1.0.9")
+        let rep = Snapshot.render(BrandView(model: model, tab: .settings).background(Win95.face),
+                                  size: CGSize(width: 778, height: 492), name: "brand-settings-small")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+}

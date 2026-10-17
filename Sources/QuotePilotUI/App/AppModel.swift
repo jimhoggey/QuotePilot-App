@@ -131,6 +131,9 @@ public final class AppModel {
     public internal(set) var isInstallingUpdate = false
     /// Set by the update banner's Later; only a new launch shows the banner again.
     public internal(set) var isUpdateBannerHidden = false
+    /// What the last check said when it found nothing newer, for Brand → Settings (`updateLine`):
+    /// `.newest`, or `.failed` for a check the user asked for. Nil after one that found an update.
+    public internal(set) var lastUpdateAnswer: UpdateLine?
     /// How the updater reaches GitHub, the settings and the log; tests swap it for fakes.
     @ObservationIgnored var updates: UpdateServices = .live
     /// Opens Mail drafts; tests use a fake.

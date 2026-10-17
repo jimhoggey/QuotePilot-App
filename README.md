@@ -101,7 +101,8 @@ nothing if the check fails. A newer release shows a banner under the toolbar ("Q
 ready.") and a note in the status bar. It installs only when you choose Install Update (on the
 banner, or Help → Install Update…) and confirm; Later hides the banner until the next launch. The check sends
 nothing about you or your work, only the app's version number. Help → Check for Updates… checks
-at once. Each update is written to `~/Library/Logs/Quote Pilot/update.log`, and the old app goes
+at once. So does Check for Updates on Brand → Settings, which shows the version and answers on the
+tab instead of in a box. Each update is written to `~/Library/Logs/Quote Pilot/update.log`, and the old app goes
 to the Trash.
 
 ## Licence

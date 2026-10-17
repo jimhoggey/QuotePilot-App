@@ -1,5 +1,27 @@
 import Foundation
 
+/// The line Brand → Settings shows under Check for Updates.
+public enum UpdateLine: Equatable, Sendable {
+    /// No check has answered yet: the line is empty.
+    case notChecked
+    case checking
+    case newest
+    /// A newer version (given); the tab offers Install Update beside it.
+    case available(String)
+    /// The check the user asked for failed (why).
+    case failed(String)
+
+    public var text: String {
+        switch self {
+        case .notChecked: return ""
+        case .checking: return "Checking for updates…"
+        case .newest: return "You have the newest version."
+        case .available(let version): return "\(version) is available."
+        case .failed(let reason): return "Couldn't check for updates. \(reason)"
+        }
+    }
+}
+
 extension AppModel {
     // MARK: What the Help menu can run
 
@@ -71,33 +93,51 @@ extension AppModel {
         Task { await checkForUpdates(manual: true) }
     }
 
+    /// Brand → Settings' Check for Updates: the same check, answered on the tab (`updateLine`)
+    /// instead of in a box.
+    public func checkForUpdatesInline() {
+        Task { await checkForUpdates(manual: true, inline: true) }
+    }
+
+    /// What Brand → Settings says under Check for Updates: the newer version the last check found,
+    /// else what the last check said. The automatic check's failure isn't said here either.
+    public var updateLine: UpdateLine {
+        if isCheckingForUpdates { return .checking }
+        if let availableUpdate { return .available(availableUpdate.version) }
+        return lastUpdateAnswer ?? .notChecked
+    }
+
     /// Asks GitHub for the newest release. A newer one shows the update banner, goes in the status bar
-    /// and turns on Install Update…. A check the user asked for also answers in a box: it offers the
-    /// update, says this is the newest version, or says the check failed. The automatic one never
-    /// does, and a failure only reaches the log.
-    func checkForUpdates(manual: Bool) async {
+    /// and turns on Install Update…. A check the user asked for also answers in a box (unless it is
+    /// `inline`, from Brand → Settings, which answers on the tab): it offers the update, says this is
+    /// the newest version, or says the check failed. The automatic one never does, and its failure
+    /// only reaches the log.
+    func checkForUpdates(manual: Bool, inline: Bool = false) async {
         guard !isCheckingForUpdates else { return }
         isCheckingForUpdates = true
         defer { isCheckingForUpdates = false }
         let version = updates.version
+        let answersInABox = manual && !inline
         do {
             let release = try await UpdateChecker(currentVersion: version, fetch: updates.fetch).check()
             // Only a check that got an answer counts as the last check.
             updates.settings.lastUpdateCheck = now()
             availableUpdate = release
+            lastUpdateAnswer = release == nil ? .newest : nil
             if let release {
                 updates.log.append("Checked for updates: Quote Pilot \(release.version) is available (this is \(version))")
                 note("Quote Pilot \(release.version) is available. Help → Install Update…")
-                if manual, message == nil { installUpdate() }
+                if answersInABox, message == nil { installUpdate() }
             } else {
                 updates.log.append("Checked for updates: \(version) is the newest version")
-                if manual {
+                if answersInABox {
                     show(title: "Check for Updates", text: "You have the newest version (\(version)).")
                 }
             }
         } catch {
             updates.log.append("Checking for updates failed: \(error.localizedDescription)")
-            if manual {
+            if manual { lastUpdateAnswer = .failed(error.localizedDescription) }
+            if answersInABox {
                 show(title: "Couldn't Check for Updates",
                      text: "Quote Pilot couldn't check for updates. \(error.localizedDescription)", kind: .warning)
             }
