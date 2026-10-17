@@ -17,8 +17,8 @@ struct DashboardView: View {
             HStack(alignment: .top, spacing: 8) {
                 Readout(title: "Waiting to be paid", value: model.money(dashboard.waitingTotal),
                         note: Self.count(dashboard.waiting.count, "invoice", "invoices"))
-                Readout(title: "Overdue", value: model.money(dashboard.overdueTotal),
-                        note: Self.overdueNote(dashboard), alert: dashboard.overdueTotal > .zero)
+                Readout(title: "Left on accepted jobs", value: model.money(dashboard.acceptedWorkRemaining),
+                        note: Self.acceptedWorkNote(dashboard, currencyCode: model.currencyCode))
                 Readout(title: "Received \(dashboard.financialYear.label)", value: model.money(dashboard.receivedThisYear),
                         note: "This month: \(model.money(dashboard.receivedThisMonth))")
                 Readout(title: "Quotes out", value: model.money(dashboard.openQuotesTotal),
@@ -143,11 +143,13 @@ struct DashboardView: View {
             + gap + boxWidth(jobColumns(currencyCode: "AUD"), scroller: scroller) + gap
     }
 
-    /// "1 invoice, 5 days late": how many are overdue, and the oldest.
-    static func overdueNote(_ dashboard: Dashboard) -> String {
-        let late = dashboard.waiting.filter { $0.daysLate > 0 }
-        guard let oldest = late.map(\.daysLate).max() else { return "Nothing overdue" }
-        return count(late.count, "invoice", "invoices") + ", " + count(oldest, "day", "days") + " late"
+    /// "3 jobs · $4,500.00 not invoiced yet": how many accepted jobs aren't fully paid, and how much of
+    /// them is still to invoice (the "Still to invoice" list's sum). Overdue invoices show in red in the
+    /// "Waiting to be paid" list and are counted in the status bar.
+    static func acceptedWorkNote(_ dashboard: Dashboard, currencyCode: String) -> String {
+        guard dashboard.acceptedJobsOpen > 0 else { return "No accepted jobs open" }
+        return count(dashboard.acceptedJobsOpen, "job", "jobs") + " · "
+            + dashboard.acceptedWorkNotInvoiced.formatted(currencyCode: currencyCode) + " not invoiced yet"
     }
 
     /// "1 quote waiting on a reply", or "1 waiting on a reply · 2 expired" once some have expired. The
@@ -175,27 +177,29 @@ struct Readout: View {
     let title: String
     let value: String
     let note: String
-    var alert = false
+
+    /// How far a long note may shrink before it is cut off. In the smallest window (980 wide) each
+    /// readout has about 164 points inside its frame, less than "3 jobs · $4,500.00 not invoiced yet"
+    /// needs at full size.
+    static let noteMinimumScale: CGFloat = 0.7
 
     var body: some View {
         GroupBox(title) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(value)
                     .font(Win95.readout)
-                    .foregroundStyle(alert ? Win95.overdue : Win95.text)
+                    .foregroundStyle(Win95.text)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .win95Sunken()
-                HStack(spacing: 4) {
-                    if alert { PixelIconView(.warning) }
-                    Text(note)
-                        .font(Win95.body)
-                        .foregroundStyle(Win95.text)
-                        .lineLimit(1)
-                }
+                Text(note)
+                    .font(Win95.body)
+                    .foregroundStyle(Win95.text)
+                    .lineLimit(1)
+                    .minimumScaleFactor(Self.noteMinimumScale)
             }
         }
         .frame(maxWidth: .infinity)

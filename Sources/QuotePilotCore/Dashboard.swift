@@ -55,7 +55,6 @@ public struct Dashboard: Equatable, Sendable {
     public var financialYear: FinancialYear
     public var waiting: [Owing]
     public var waitingTotal: Money
-    public var overdueTotal: Money
     public var receivedThisMonth: Money
     public var receivedThisYear: Money
     public var invoicedThisYear: Money
@@ -90,7 +89,6 @@ public struct Dashboard: Equatable, Sendable {
                 return a.due < b.due
             }
         waitingTotal = sum(waiting.map(\.owing))
-        overdueTotal = sum(waiting.filter { $0.daysLate > 0 }.map(\.owing))
 
         let payments = sent.flatMap(\.payments)
         receivedThisMonth = sum(payments.filter { $0.date.year == today.year && $0.date.month == today.month }.map(\.amount))

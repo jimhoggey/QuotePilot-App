@@ -150,6 +150,10 @@ QuotePilotApp depends on the other two; QuotePilotPDF depends on QuotePilotCore;
 - **Quotes waiting on a reply:** Sent quotes not yet accepted or declined, with their value.
 - **Still to invoice:** accepted quotes whose invoices don't yet add up to the accepted total (the
   second half of a 50/50 job, for example).
+- **Left on accepted jobs** (replaced the Overdue readout, 17 Oct 2026): for every accepted quote not
+  fully paid, its accepted total (with GST when charged) less every payment on its live invoices. A
+  $5,000 job with a paid $500 deposit leaves $4,500. The note counts the jobs and gives the part not
+  invoiced yet (the Still to invoice sum).
 - **Tax-time export:** a CSV of payments received in a chosen FY (date, client, invoice, amount,
   method).
 
@@ -395,7 +399,7 @@ a glance. This isn't a pixel-font novelty skin.
 - **No animation** beyond instant state changes, as in Windows 95, which also respects reduced motion.
 - **Light appearance only:** Windows 95 had no dark mode, and the look depends on the grey face.
 - **"Easy to read at a glance":** the dashboard puts the four headline numbers (waiting to be paid,
-  overdue, received this FY, quotes out) in big sunken readouts at the top. Lists show status as icon
+  left on accepted jobs, received this FY, quotes out) in big sunken readouts at the top. Lists show status as icon
   plus word, and the status bar repeats the key totals on every screen.
 
 ### Build order for the app (plan 2, split for momentum)

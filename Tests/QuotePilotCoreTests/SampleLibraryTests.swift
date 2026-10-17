@@ -7,7 +7,7 @@ import Testing
         let library = try SampleLibrary.make(today: Fixture.today)
         let dashboard = Dashboard(library: library, today: Fixture.today)
         #expect(dashboard.waitingTotal == Money(dollars: 285))
-        #expect(dashboard.overdueTotal == Money(dollars: 150))
+        #expect(dashboard.waiting.filter { $0.daysLate > 0 }.map(\.owing) == [Money(dollars: 150)])
         #expect(dashboard.waiting.first?.daysLate == 5)
         #expect(dashboard.receivedThisMonth == Money(dollars: 1995))
         #expect(dashboard.receivedThisYear == Money(dollars: 1995))

@@ -59,7 +59,7 @@ import Testing
         #expect(dashboard.waiting[0].owing == Money(dollars: 200))
         #expect(dashboard.waiting[1].daysLate == 0)
         #expect(dashboard.waitingTotal == Money(dollars: 290))
-        #expect(dashboard.overdueTotal == Money(dollars: 200))
+        #expect(dashboard.waiting.filter { $0.daysLate > 0 }.map(\.number) == ["INV-0002"])
     }
 
     @Test func receivedAndInvoicedFollowTheCalendar() throws {
