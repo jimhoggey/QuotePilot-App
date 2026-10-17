@@ -227,9 +227,11 @@ import QuotePilotCore
         for number in ["INV-0001", "INV-0002", "INV-0003"] {
             let found = try invoice(model, number)
             let editor = InvoiceEditorView(model: model, invoiceID: found.id, stepDefaults: defaults())
+            // A deposit's label, "Owing on this invoice", is longer than "Owing", and it sits level
+            // with line 1 of the bar, so the bar stops further from the edge.
             made.append(Case(name: number, next: try next(model, invoice: number),
                              rowWidth: size(editor.titleRow(found)).width, header: AnyView(editor.header(found)),
-                             from: 285, gapBeforeTotal: 285))
+                             from: 285, gapBeforeTotal: found.kind == .deposit ? 360 : 285))
         }
         return made
     }

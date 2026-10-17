@@ -78,11 +78,12 @@ extension AppModel {
     }
 
     /// Under a deposit invoice's readout: what's left to pay on the whole job. Nil for any other
-    /// invoice, and for a void deposit.
+    /// invoice, for a void deposit, and once nothing is left, so the readout only shows above $0.
     func leftToPayOnJob(_ id: UUID) -> Money? {
         guard let invoice = library.invoice(id), invoice.kind == .deposit, invoice.stage != .void,
-              let quoteID = invoice.quoteID else { return nil }
-        return library.leftToPay(onQuote: quoteID)
+              let quoteID = invoice.quoteID, let left = library.leftToPay(onQuote: quoteID),
+              left > .zero else { return nil }
+        return left
     }
 
     /// "Draft Invoice Now": the next invoice the quote's plan calls for.

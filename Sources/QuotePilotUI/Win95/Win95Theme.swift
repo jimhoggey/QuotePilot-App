@@ -34,7 +34,12 @@ public enum Win95 {
     public static let windowTitle = Font.system(size: 14, weight: .bold)
     public static let small = Font.system(size: 11)
     public static let money = Font.system(size: 13).monospacedDigit()
-    public static let readout = Font.system(size: 28, design: .monospaced)
+    public static let readout = Font.system(size: readoutSize, design: .monospaced)
+    public static let readoutSize: CGFloat = 28
+    /// A second readout under the main one, such as "Left to pay on this job": the same look at
+    /// about two thirds of the size (18 of 28), so the main figure stays the one you read first.
+    public static let smallReadout = Font.system(size: smallReadoutSize, design: .monospaced)
+    public static let smallReadoutSize: CGFloat = 18
 }
 
 extension Color {
