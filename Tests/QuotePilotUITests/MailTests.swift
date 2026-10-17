@@ -111,7 +111,7 @@ import QuotePilotPDF
         #expect(statusCell(model) == "INV-0001 marked as sent")
     }
 
-    @Test func yesOnAReceiptStaysWhereYouAreAndSaysSoInTheStatusBar() throws {
+    @Test func yesOnAReceiptClosesItsInvoiceAndGoesToTheDashboardWithANote() throws {
         let model = try UIFixture.sampleModel()
         let id = try #require(model.library.invoices.first { $0.number == "INV-0003" }).id   // part paid
         #expect(model.library.invoice(id)?.receiptSentAt == nil)
@@ -119,8 +119,8 @@ import QuotePilotPDF
         model.send(.receipt(id))
         try answer("Yes, Sent", in: model)
         #expect(model.library.invoice(id)?.receiptSentAt != nil)
-        #expect(model.section == .invoices)
-        #expect(model.openInvoiceID == id)
+        #expect(model.section == .dashboard)
+        #expect(model.openInvoiceID == nil)
         #expect(model.statusNote?.text == "Receipt for INV-0003 marked as sent")
         #expect(statusCell(model) == "Receipt for INV-0003 marked as sent")
     }
