@@ -55,7 +55,6 @@ public struct Dashboard: Equatable, Sendable {
     public var financialYear: FinancialYear
     public var waiting: [Owing]
     public var waitingTotal: Money
-    public var overdueTotal: Money
     public var receivedThisMonth: Money
     public var receivedThisYear: Money
     public var invoicedThisYear: Money
@@ -63,6 +62,14 @@ public struct Dashboard: Equatable, Sendable {
     /// Open quotes that haven't expired.
     public var openQuotesTotal: Money
     public var toInvoice: [ToInvoice]
+    /// The money still to come from accepted work: for every accepted (or partly accepted) quote not
+    /// fully paid yet, its accepted total (with GST when the quote charges it) less every payment on
+    /// its live invoices. It covers what is invoiced but unpaid as well as what isn't invoiced yet.
+    public var acceptedWorkRemaining: Money
+    /// How many accepted jobs `acceptedWorkRemaining` covers.
+    public var acceptedJobsOpen: Int
+    /// The part of `acceptedWorkRemaining` not invoiced yet: the "Still to invoice" list's sum.
+    public var acceptedWorkNotInvoiced: Money
 
     public init(library: Library, today: Day) {
         self.today = today
@@ -82,7 +89,6 @@ public struct Dashboard: Equatable, Sendable {
                 return a.due < b.due
             }
         waitingTotal = sum(waiting.map(\.owing))
-        overdueTotal = sum(waiting.filter { $0.daysLate > 0 }.map(\.owing))
 
         let payments = sent.flatMap(\.payments)
         receivedThisMonth = sum(payments.filter { $0.date.year == today.year && $0.date.month == today.month }.map(\.amount))
@@ -102,6 +108,14 @@ public struct Dashboard: Equatable, Sendable {
                              accepted: $0.acceptedTotals.total, invoiced: library.invoicedAmount(forQuote: $0.id)) }
             .filter { $0.remaining > .zero }
             .sorted { $0.number < $1.number }
+
+        let leftOnJobs = library.quotes
+            .filter { $0.stage == .accepted }
+            .map { quote in quote.acceptedTotals.total - sum(library.invoices(forQuote: quote.id).map(\.paid)) }
+            .filter { $0 > .zero }
+        acceptedWorkRemaining = sum(leftOnJobs)
+        acceptedJobsOpen = leftOnJobs.count
+        acceptedWorkNotInvoiced = sum(toInvoice.map(\.remaining))
     }
 }
 

@@ -7,7 +7,7 @@ import Testing
         let library = try SampleLibrary.make(today: Fixture.today)
         let dashboard = Dashboard(library: library, today: Fixture.today)
         #expect(dashboard.waitingTotal == Money(dollars: 285))
-        #expect(dashboard.overdueTotal == Money(dollars: 150))
+        #expect(dashboard.waiting.filter { $0.daysLate > 0 }.map(\.owing) == [Money(dollars: 150)])
         #expect(dashboard.waiting.first?.daysLate == 5)
         #expect(dashboard.receivedThisMonth == Money(dollars: 1995))
         #expect(dashboard.receivedThisYear == Money(dollars: 1995))
@@ -16,6 +16,9 @@ import Testing
         #expect(dashboard.openQuotes.filter(\.expired).count == 1)
         #expect(dashboard.openQuotesTotal == Money(dollars: 620))
         #expect(dashboard.toInvoice.map(\.remaining) == [Money(dollars: 1935)])
+        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 1935))
+        #expect(dashboard.acceptedJobsOpen == 1)
+        #expect(dashboard.acceptedWorkNotInvoiced == Money(dollars: 1935))
         #expect(library.quotes.map { $0.status(on: Fixture.today) } == [.accepted(partly: true), .sent, .expired, .draft])
     }
 

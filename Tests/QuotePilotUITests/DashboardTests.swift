@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import Testing
@@ -6,11 +7,40 @@ import QuotePilotCore
 
 @MainActor
 @Suite struct DashboardTests {
-    @Test func theOverdueNoteNamesTheOldest() throws {
+    /// The Left on accepted jobs note counts the jobs not fully paid and says how much of them isn't
+    /// invoiced yet, which is the Still to invoice list's sum.
+    @Test func theAcceptedWorkNoteCountsJobsAndWhatsNotInvoiced() throws {
         let model = try UIFixture.sampleModel()
-        #expect(DashboardView.overdueNote(model.dashboard) == "1 invoice, 5 days late")
+        var dashboard = model.dashboard
+        // The sample's Q-0001: $3,870 accepted, the $1,935 deposit paid, the balance not invoiced.
+        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 1935))
+        #expect(DashboardView.acceptedWorkNote(dashboard, currencyCode: "AUD") == "1 job · $1,935.00 not invoiced yet")
+        dashboard.acceptedJobsOpen = 3
+        dashboard.acceptedWorkNotInvoiced = Money(dollars: 4500)
+        #expect(DashboardView.acceptedWorkNote(dashboard, currencyCode: "AUD") == "3 jobs · $4,500.00 not invoiced yet")
         let empty = Dashboard(library: Library(), today: UIFixture.today)
-        #expect(DashboardView.overdueNote(empty) == "Nothing overdue")
+        #expect(DashboardView.acceptedWorkNote(empty, currencyCode: "AUD") == "No accepted jobs open")
+    }
+
+    /// In the smallest window (980 wide, 778 beside the section tree) each of the four readouts has
+    /// (778 - 2 × 8 padding - 3 × 8 gaps) / 4 - 20 group box padding points inside it. A long note
+    /// shrinks to fit there instead of being cut off.
+    @Test func theAcceptedWorkNoteFitsTheSmallestWindow() {
+        _ = NSApplication.shared
+        let inside = (778 - 2 * DashboardView.gap - 3 * 8) / 4 - 20
+        let note = NSHostingView(rootView: Text("3 jobs · $4,500.00 not invoiced yet").font(Win95.body).fixedSize())
+        #expect(note.fittingSize.width * Readout.noteMinimumScale <= inside)
+    }
+
+    /// With the Overdue readout gone, an overdue invoice still shows in red in Waiting to be paid
+    /// ("Overdue 5 d"), and the status bar counts it.
+    @Test func overdueInvoicesStillShowInTheListAndStatusBar() throws {
+        let model = try UIFixture.sampleModel()
+        let late = try #require(model.dashboard.waiting.first)
+        let status = try #require(model.library.invoice(late.invoiceID)?.status(on: model.today))
+        #expect(status.listLabel == "Overdue 5 d")
+        #expect(status.isAlert)
+        #expect(StatusBarText.items(model.dashboard, lastSaved: nil, currencyCode: "AUD")[1] == "1 invoice overdue")
     }
 
     /// The Quotes out note counts the expired quotes the list under it shows, and keeps the plain
