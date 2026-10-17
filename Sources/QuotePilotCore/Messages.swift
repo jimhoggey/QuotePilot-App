@@ -50,6 +50,8 @@ extension LibraryError: LocalizedError {
             return "Only a draft's number can be changed. Once sent, the client has it with this number."
         case .notANumber(let text, let prefix):
             return "\"\(text)\" isn't a number like \(prefix)0012. Type the digits, with or without \(prefix)."
+        case .documentsStillThere:
+            return "Numbers can only start again when there are no quotes or invoices. Use File → Start Fresh… to remove them first."
         }
     }
 }

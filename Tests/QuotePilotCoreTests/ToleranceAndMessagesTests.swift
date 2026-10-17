@@ -105,7 +105,7 @@ import Testing
                                       .deductedByFinal("INV-0002"), .unknownLineCodes(["09"]),
                                       .notEditable, .noPayments, .paymentNotPositive,
                                       .paymentMoreThanOwing(Money(dollars: 300)), .numberInUse("Q-0003"),
-                                      .numberOnlyOnDrafts, .notANumber("abc", "Q-")]
+                                      .numberOnlyOnDrafts, .notANumber("abc", "Q-"), .documentsStillThere]
         for error in errors {
             #expect(!error.message.isEmpty)
             #expect(error.localizedDescription == error.message)

@@ -54,6 +54,10 @@ public struct QuotePilotCommands: Commands {
             Divider()
             Button("Start Fresh…") { model.whenFree { model.dialog = .startFresh } }
                 .disabled(!model.libraryIsOpen)
+            // Greyed out while any quote or invoice is there; its tooltip says why.
+            Button("Reset Quote and Invoice Numbers…") { model.whenFree { model.resetNumbers() } }
+                .disabled(model.resetNumbersBlockedReason != nil)
+                .help(model.resetNumbersBlockedReason ?? "Start numbering again at Q-0001 and INV-0001")
         }
         // The File menu's groups keep a fixed order (new, save, import/export, print), so everything
         // that sits above Close is in the first group and Close is alone in the next. Every change

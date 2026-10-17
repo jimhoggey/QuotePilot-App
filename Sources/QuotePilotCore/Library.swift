@@ -38,6 +38,8 @@ public enum LibraryError: Error, Equatable, Sendable {
     case numberOnlyOnDrafts
     /// Text (given) that isn't a number of the kind with that prefix.
     case notANumber(String, String)
+    /// Numbering can't start again while any quote or invoice is in the library.
+    case documentsStillThere
 }
 
 /// Everything Quote Pilot knows, saved as one file.
@@ -236,6 +238,17 @@ public struct Library: Codable, Sendable {
         log(removingClients
             ? "Started fresh: removed every quote, invoice, payment and client, and Activity"
             : "Started fresh: removed every quote, invoice and payment, and Activity", at: time)
+    }
+
+    /// Whether numbering can start again at 0001: only with no quotes or invoices at all, so no number
+    /// could be on two documents.
+    public var canResetNumbers: Bool { quotes.isEmpty && invoices.isEmpty }
+
+    /// File → Reset Quote and Invoice Numbers…: the next quote is Q-0001 and the next invoice INV-0001.
+    public mutating func resetNumbers(at time: Date = Date()) throws {
+        guard canResetNumbers else { throw LibraryError.documentsStillThere }
+        usedNumbers = []
+        log("Reset numbering: the next quote is \(nextNumber(.quote)) and the next invoice \(nextNumber(.invoice))", at: time)
     }
 
     // MARK: JSON

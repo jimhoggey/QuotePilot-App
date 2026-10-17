@@ -779,6 +779,28 @@ public final class AppModel {
         return name
     }
 
+    /// Why File → Reset Quote and Invoice Numbers… is greyed out, or nil when it can run: only with no
+    /// quotes or invoices, so no number could end up on two documents. The menu item's tooltip.
+    public var resetNumbersBlockedReason: String? {
+        guard libraryIsOpen else { return "The library isn't open" }
+        guard library.canResetNumbers else {
+            return "Only when there are no quotes or invoices. File → Start Fresh… removes them."
+        }
+        return nil
+    }
+
+    /// File → Reset Quote and Invoice Numbers…: one question, then numbering starts again at 0001.
+    public func resetNumbers() {
+        guard resetNumbersBlockedReason == nil else { return beep() }
+        confirm(title: "Reset Numbers",
+                text: "Start numbering again? The next quote will be Q-0001 and the next invoice INV-0001.",
+                confirm: "Reset") {
+            let time = self.now()
+            guard self.change("Couldn't reset the numbers", { try $0.resetNumbers(at: time) }) else { return }
+            self.note("Numbers start again at 0001")
+        }
+    }
+
     /// File → Start Fresh…: backs the library up, then removes every quote, invoice and payment, and
     /// Activity, and restarts numbering; Brand settings stay, and clients unless `removingClients`.
     /// If the backup can't be made, nothing is removed and the message box says why.
