@@ -83,6 +83,10 @@ struct InvoiceEditorView: View {
         let status = invoice.status(on: model.today)
         let showOwing = invoice.stage == .sent
         let figure = model.money(showOwing ? invoice.owing : invoice.amount)
+        // A deposit is only part of the job, so its readout says it's this invoice's, and the line
+        // under it says what's left on the whole job.
+        let label = showOwing ? (invoice.kind == .deposit ? "Owing on this invoice" : "Owing") : "Amount"
+        let leftToPay = model.leftToPayOnJob(invoice.id)
         return HStack(alignment: .center, spacing: 10) {
             Button("All Invoices") { model.openInvoiceID = nil }
                 .buttonStyle(.win95)
@@ -100,19 +104,32 @@ struct InvoiceEditorView: View {
                 }
             }
             StepBar(model: model, document: .invoice(invoiceID), defaults: stepDefaults)
-            Text(showOwing ? "Owing" : "Amount")
+            Text(label)
                 .font(Win95.label)
                 .foregroundStyle(Win95.text)
-                .accessibilityHidden(true)
-            Text(figure)
-                .font(Win95.readout)
-                .foregroundStyle(status.isAlert ? Win95.overdue : Win95.text)
                 .lineLimit(1)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .frame(minWidth: 190, alignment: .trailing)
-                .win95Sunken()
-                .accessibilityLabel("\(showOwing ? "Owing" : "Amount") \(figure)")
+                .fixedSize()
+                .accessibilityHidden(true)
+            // The line under the readout is about as tall as the title block's second line, so the
+            // row stays the same height.
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(figure)
+                    .font(Win95.readout)
+                    .foregroundStyle(status.isAlert ? Win95.overdue : Win95.text)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .frame(minWidth: 190, alignment: .trailing)
+                    .win95Sunken()
+                    .accessibilityLabel("\(label) \(figure)")
+                if let leftToPay {
+                    Text("Left to pay on this job: \(model.money(leftToPay))")
+                        .font(Win95.small)
+                        .foregroundStyle(Win95.text)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
         }
         .padding(8)
     }
@@ -128,7 +145,8 @@ struct InvoiceEditorView: View {
             }
             if let quote {
                 HStack(spacing: 8) {
-                    NoteBanner("Drafted from quote \(quote.number), as its \(current.kind.columnLabel.lowercased()) invoice.")
+                    NoteBanner(model.depositNote(invoiceID)
+                               ?? "Drafted from quote \(quote.number), as its \(current.kind.columnLabel.lowercased()) invoice.")
                     Button("Open Quote") { model.openQuote(quote.id) }
                         .buttonStyle(.win95)
                 }

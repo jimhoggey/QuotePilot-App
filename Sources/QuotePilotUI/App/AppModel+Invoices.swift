@@ -49,6 +49,42 @@ extension AppModel {
         library.invoice(id).map { InvoiceRules(invoice: $0, finalDeducting: library.finalDeducting(id)) }
     }
 
+    /// A deposit invoice's banner line: what the deposit is out of the job, what's paid, and when the
+    /// balance is billed. "Deposit for Q-0008: $750.00 of $1,500.00 paid. The $750.00 balance is
+    /// invoiced when the job is complete." Nil for any other invoice.
+    func depositNote(_ id: UUID) -> String? {
+        guard let invoice = library.invoice(id), invoice.kind == .deposit,
+              let quoteID = invoice.quoteID, let quote = library.quote(quoteID) else { return nil }
+        let total = invoice.lineTotals.total
+        let deposit = invoice.amount
+        let balance = total - deposit
+        var first = "Deposit for \(quote.number): \(money(deposit)) of \(money(total))"
+        if invoice.paid >= deposit && deposit > .zero {
+            first += " paid."
+        } else if invoice.paid > .zero {
+            first += ", \(money(invoice.paid)) paid so far."
+        } else {
+            first += "."
+        }
+        let second: String
+        if let closing = library.closingInvoice(forQuote: quoteID) {
+            second = "The \(money(balance)) balance is on \(closing.number)."
+        } else if quote.completedOn != nil {
+            second = "The job is complete, so the \(money(balance)) balance is invoiced next."
+        } else {
+            second = "The \(money(balance)) balance is invoiced when the job is complete."
+        }
+        return first + " " + second
+    }
+
+    /// Under a deposit invoice's readout: what's left to pay on the whole job. Nil for any other
+    /// invoice, and for a void deposit.
+    func leftToPayOnJob(_ id: UUID) -> Money? {
+        guard let invoice = library.invoice(id), invoice.kind == .deposit, invoice.stage != .void,
+              let quoteID = invoice.quoteID else { return nil }
+        return library.leftToPay(onQuote: quoteID)
+    }
+
     /// "Draft Invoice Now": the next invoice the quote's plan calls for.
     public func draftInvoiceNow(forQuote id: UUID) {
         var created: UUID?

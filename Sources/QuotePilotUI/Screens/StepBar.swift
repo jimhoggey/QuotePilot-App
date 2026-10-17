@@ -89,8 +89,13 @@ struct StepBar: View {
         }
     }
 
-    private func open(_ invoiceID: UUID) {
-        model.openInvoice(invoiceID)
+    /// Opens the invoice or quote the bar's button names.
+    private func open(_ id: UUID) {
+        if model.library.invoice(id) != nil {
+            model.openInvoice(id)
+        } else if model.library.quote(id) != nil {
+            model.openQuote(id)
+        }
     }
 }
 
@@ -144,11 +149,11 @@ struct StepBarRegion: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .help(next.sentence)
-            if case .openInvoice(let id, let number) = next.action {
+            if let target = next.openTarget {
                 // The bar's only button: small, plain, never the default.
-                Button("Open \(number)") { open(id) }
+                Button("Open \(target.number)") { open(target.id) }
                     .buttonStyle(.win95Small)
-                    .help("Open invoice \(number)")
+                    .help("Open \(target.kind) \(target.number)")
             }
         }
         .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, minHeight: Self.sentenceHeight, alignment: .leading)
