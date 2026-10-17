@@ -33,7 +33,8 @@ public struct DocumentContent: Equatable {
         public var text: String
         /// The brand setting this comes from, if any, for the Brand screen's highlight.
         public var source: BrandElement? = nil
-        /// A quote's Included and Not included lists, printed side by side in place of text.
+        /// A quote's Included and Not included lists, printed as a table in place of text, after the
+        /// totals and before Accepted by.
         public var lists: Lists? = nil
     }
 

@@ -96,7 +96,8 @@ struct PlacedField: Equatable {
     var rect: CGRect
 }
 
-/// Lays out one document: header, parties, amount, line table, totals, form, sections.
+/// Lays out one document: header, parties, amount, line table, totals, Included and Not included,
+/// form, sections.
 final class Layout {
     let content: DocumentContent
     let style: PDFStyle
@@ -196,6 +197,8 @@ final class Layout {
         drawAcceptAll()
         drawTable()
         drawTotals()
+        // The client sees what's included and what isn't before they sign.
+        for lists in content.sections.compactMap(\.lists) { drawLists(lists) }
         drawAcceptedBy()
         drawSections()
     }
@@ -511,11 +514,8 @@ final class Layout {
     }
 
     private func drawSections() {
-        for section in content.sections {
-            if let lists = section.lists {
-                drawLists(lists)
-                continue
-            }
+        // The Included and Not included table has already printed, before Accepted by.
+        for section in content.sections where section.lists == nil {
             let heading = PageWriter.text(section.heading, style.body(10, weight: .semibold), PDFStyle.ink)
             let headingHeight = PageWriter.height(of: heading, width: writer.width)
             let parts = Self.paragraphs(section.text)
@@ -584,18 +584,27 @@ final class Layout {
 
     /// The space between the Included and Not included columns.
     static let listGutter: CGFloat = 20
-    /// How wide each of the two columns is.
-    var listColumnWidth: CGFloat { (writer.width - Self.listGutter) / 2 }
+    /// The table's columns: Included and Not included side by side, or only the one with items,
+    /// alone at full width.
+    private var listColumns: [(heading: String, items: [String])] = []
+    /// How wide each column is.
+    var listColumnWidth: CGFloat {
+        let count = CGFloat(max(listColumns.count, 1))
+        return (writer.width - Self.listGutter * (count - 1)) / count
+    }
+    private func listColumnX(_ index: Int) -> CGFloat {
+        writer.left + CGFloat(index) * (listColumnWidth + Self.listGutter)
+    }
     private var listsHeadingFont: CTFont { style.body(10, weight: .semibold) }
     private var listsHeaderHeight: CGFloat { PageWriter.lineHeight(listsHeadingFont) + 3 + 4 }
 
-    /// The two column headings and the rule under them; again at the top of each page the table
+    /// The column headings and the rule under them; again at the top of each page the table
     /// carries on to.
     private func drawListsHeader() {
-        let width = listColumnWidth
-        writer.draw(PageWriter.text("Included", listsHeadingFont, PDFStyle.ink), x: writer.left, top: writer.y, width: width)
-        writer.draw(PageWriter.text("Not included", listsHeadingFont, PDFStyle.ink),
-                    x: writer.left + width + Self.listGutter, top: writer.y, width: width)
+        for (index, column) in listColumns.enumerated() {
+            writer.draw(PageWriter.text(column.heading, listsHeadingFont, PDFStyle.ink),
+                        x: listColumnX(index), top: writer.y, width: listColumnWidth)
+        }
         writer.y += PageWriter.lineHeight(listsHeadingFont) + 3
         writer.rule(top: writer.y, x: writer.left, width: writer.width, color: PDFStyle.ink, thickness: 1)
         writer.y += 4
@@ -605,33 +614,37 @@ final class Layout {
         PageWriter.wrapping(PageWriter.text(Self.printable(item ?? ""), style.body(9), PDFStyle.ink))
     }
 
-    private func listRowHeight(_ left: NSAttributedString, _ right: NSAttributedString) -> CGFloat {
-        max(PageWriter.height(of: left, width: listColumnWidth), PageWriter.height(of: right, width: listColumnWidth),
-            PageWriter.lineHeight(style.body(9))) + 9
+    private func listRowHeight(_ cells: [NSAttributedString]) -> CGFloat {
+        cells.map { PageWriter.height(of: $0, width: listColumnWidth) }
+            .reduce(PageWriter.lineHeight(style.body(9))) { max($0, $1) } + 9
     }
 
-    /// The Included and Not included lists side by side, one item a row. A long table goes over the
+    /// The Included and Not included lists side by side, one item a row; a list with no items
+    /// leaves its column out and the other prints alone at full width. A long table goes over the
     /// page row by row, with its headings again at the top.
     private func drawLists(_ lists: DocumentContent.Lists) {
-        let rows = (0..<max(lists.included.count, lists.notIncluded.count)).map { index in
-            (listCell(lists.included.indices.contains(index) ? lists.included[index] : nil),
-             listCell(lists.notIncluded.indices.contains(index) ? lists.notIncluded[index] : nil))
+        listColumns = [(heading: "Included", items: lists.included), (heading: "Not included", items: lists.notIncluded)]
+            .filter { !$0.items.isEmpty }
+        guard !listColumns.isEmpty else { return }
+        let rows = (0..<(listColumns.map(\.items.count).max() ?? 0)).map { index in
+            listColumns.map { listCell($0.items.indices.contains(index) ? $0.items[index] : nil) }
         }
         // The headings never end a page: they go over with the first row.
-        writer.ensureSpace(6 + listsHeaderHeight + (rows.first.map { listRowHeight($0.0, $0.1) } ?? 0))
+        writer.ensureSpace(6 + listsHeaderHeight + (rows.first.map(listRowHeight) ?? 0))
         writer.y += 6
         drawListsHeader()
         inLists = true
-        let rightX = writer.left + listColumnWidth + Self.listGutter
-        for (left, right) in rows {
-            let height = listRowHeight(left, right)
+        for cells in rows {
+            let height = listRowHeight(cells)
             writer.ensureSpace(height)
             let top = writer.y + 4
-            let words = PageWriter.lineFrames(of: left, x: writer.left, top: top, width: listColumnWidth)
-                + PageWriter.lineFrames(of: right, x: rightX, top: top, width: listColumnWidth)
+            let words = cells.enumerated().flatMap { index, cell in
+                PageWriter.lineFrames(of: cell, x: listColumnX(index), top: top, width: listColumnWidth)
+            }
             mark(.bodyFont, lines: words)
-            writer.draw(left, x: writer.left, top: top, width: listColumnWidth)
-            writer.draw(right, x: rightX, top: top, width: listColumnWidth)
+            for (index, cell) in cells.enumerated() {
+                writer.draw(cell, x: listColumnX(index), top: top, width: listColumnWidth)
+            }
             writer.y += height
             writer.rule(top: writer.y - 1, x: writer.left, width: writer.width, color: PDFStyle.rule)
         }
