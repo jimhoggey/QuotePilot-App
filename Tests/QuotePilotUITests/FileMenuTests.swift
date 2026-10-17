@@ -548,8 +548,8 @@ import QuotePilotPDF
         #expect(!model.canExportPDF)
     }
 
-    /// A void invoice no longer counts, so there is nothing to mail for it: ⌘S, the toolbar's Send and
-    /// the menu item are greyed out, whether it is selected in the list or open in the editor.
+    /// A void invoice no longer counts, so there is nothing to mail for it: ⌘S and the menu item are
+    /// greyed out, whether it is selected in the list or open in the editor.
     @Test func nothingCanBeSentForAVoidInvoice() throws {
         let model = try UIFixture.sampleModel()
         let care = try #require(model.library.invoices.first { $0.number == "INV-0002" })
@@ -571,8 +571,8 @@ import QuotePilotPDF
         #expect(model.sendableDocument != nil)
     }
 
-    /// A quote or invoice with no client has nobody to write to, so ⌘S, the toolbar's Send and the
-    /// menu item are greyed out (the editor's button too: it reads the same client). Choosing a client
+    /// A quote or invoice with no client has nobody to write to, so ⌘S and the menu item are greyed
+    /// out (the editor's button too: it reads the same client). Choosing a client
     /// turns them back on. `send` keeps its "No Client" box for any way in that is left.
     @Test func nothingCanBeSentForADocumentWithNoClient() throws {
         let mail = FakeMail()

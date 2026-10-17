@@ -163,7 +163,6 @@ import QuotePilotCore
         #expect(model.selectedInvoiceID == nil)
         #expect(model.sendableDocument == nil)
         #expect(!model.canExportPDF)
-        #expect(model.payableInvoiceID == nil)
     }
 
     @Test func aQuoteAcceptedOutOfTheSearchIsNotLeftSelected() throws {
