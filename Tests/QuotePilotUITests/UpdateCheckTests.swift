@@ -1,4 +1,6 @@
+import AppKit
 import Foundation
+import SwiftUI
 import Testing
 @testable import QuotePilotUI
 
@@ -128,30 +130,6 @@ import Testing
     }
 }
 
-@Suite struct UpdateThrottleTests {
-    let now = Date(timeIntervalSince1970: 1_800_000_000)
-
-    @Test func neverCheckedIsDue() {
-        #expect(UpdateThrottle.isDue(lastCheck: nil, now: now))
-    }
-
-    @Test func within24HoursIsNotDue() {
-        #expect(!UpdateThrottle.isDue(lastCheck: now, now: now))
-        #expect(!UpdateThrottle.isDue(lastCheck: now.addingTimeInterval(-3_600), now: now))
-        #expect(!UpdateThrottle.isDue(lastCheck: now.addingTimeInterval(-(24 * 3_600 - 1)), now: now))
-    }
-
-    @Test func after24HoursIsDue() {
-        #expect(UpdateThrottle.isDue(lastCheck: now.addingTimeInterval(-24 * 3_600), now: now))
-        #expect(UpdateThrottle.isDue(lastCheck: now.addingTimeInterval(-3 * 24 * 3_600), now: now))
-    }
-
-    /// A clock set back must not hold the next check off for days.
-    @Test func aCheckInTheFutureIsDue() {
-        #expect(UpdateThrottle.isDue(lastCheck: now.addingTimeInterval(3_600), now: now))
-    }
-}
-
 @MainActor
 @Suite struct UpdateCheckModelTests {
     func makeModel(_ script: FetchScript, version: String = "1.0.0", bundlePath: String = "/Applications/Quote Pilot.app",
@@ -165,7 +143,7 @@ import Testing
         (try? String(contentsOf: model.updates.log.url, encoding: .utf8)) ?? ""
     }
 
-    @Test func launchChecksOnceADayAndNotesANewerVersion() async throws {
+    @Test func launchChecksAndNotesANewerVersion() async throws {
         let script = FetchScript(json: UpdateFixture.releaseJSON())
         let (model, settings) = try makeModel(script)
         await model.start()
@@ -175,19 +153,21 @@ import Testing
         #expect(model.message == nil, "the automatic check never shows a box")
         #expect(settings.lastUpdateCheck == model.now())
         #expect(logText(model).contains("1.1.0 is available"))
-
-        // Started again within the day: no second request.
-        await model.start()
-        #expect(script.requests.count == 1)
     }
 
-    @Test func aDayLaterItChecksAgain() async throws {
+    /// No 24-hour wait: every launch asks, however recently the last one did.
+    @Test func everyLaunchChecksEvenRightAfterTheLastCheck() async throws {
         let script = FetchScript(json: UpdateFixture.releaseJSON())
         let settings = MemoryUpdateSettings()
-        let (model, _) = try makeModel(script, settings: settings)
-        settings.lastUpdateCheck = model.now().addingTimeInterval(-25 * 3_600)
-        await model.start()
+        settings.lastUpdateCheck = UIFixture.today.date()
+        let (first, _) = try makeModel(script, settings: settings)
+        await first.start()
         #expect(script.requests.count == 1)
+
+        // The next launch, a minute later: a new model on the same settings.
+        let (second, _) = try makeModel(script, settings: settings)
+        await second.start()
+        #expect(script.requests.count == 2)
     }
 
     @Test func nothingChecksOutsideARealApp() async throws {
@@ -264,5 +244,186 @@ import Testing
         #expect(lines[1].hasSuffix("  second line"))
         #expect(lines[0].range(of: #"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d  "#, options: .regularExpression) != nil)
         try? FileManager.default.removeItem(at: folder)
+    }
+}
+
+/// The strip under the toolbar that offers a newer version. GitHub is a script and the installer a
+/// fake, so nothing here reaches the network or the disk outside a temporary folder.
+@MainActor
+@Suite struct UpdateBannerTests {
+    /// A model that has just launched and asked a scripted GitHub.
+    func launched(_ json: String = UpdateFixture.releaseJSON(), installer: FakeInstaller = FakeInstaller(),
+                  quit: @escaping () -> Void = {}) async throws -> AppModel {
+        let model = try UIFixture.model()
+        model.updates = UpdateFixture.services(script: FetchScript(json: json), installer: installer, quit: quit)
+        await model.start()
+        return model
+    }
+
+    @Test func aNewerVersionShowsTheBannerAndKeepsTheStatusNote() async throws {
+        let model = try await launched()
+        #expect(model.showsUpdateBanner)
+        let banner = UpdateBanner(model: model)
+        #expect(banner.text == "Quote Pilot 1.1.0 is ready.")
+        #expect(banner.canInstall)
+        #expect(model.statusNote?.text == "Quote Pilot 1.1.0 is available. Help → Install Update…")
+        #expect(model.message == nil, "the banner never blocks the window")
+    }
+
+    @Test func theNewestVersionOrAFailedCheckShowsNoBanner() async throws {
+        #expect(try await !launched(UpdateFixture.releaseJSON(tag: "v1.0.0")).showsUpdateBanner)
+        let offline = try UIFixture.model()
+        await offline.start()
+        #expect(!offline.showsUpdateBanner)
+        #expect(offline.message == nil)
+    }
+
+    @Test func laterHidesTheBannerUntilTheNextLaunch() async throws {
+        let model = try await launched()
+        UpdateBanner(model: model).later()
+        #expect(!model.showsUpdateBanner)
+        #expect(model.message == nil)
+        #expect(model.canInstallUpdate, "Help → Install Update… stays on")
+        #expect(model.statusNote?.text == "Quote Pilot 1.1.0 is available. Help → Install Update…")
+
+        // Another check in the same launch finds it again, and the banner stays hidden.
+        await model.checkForUpdates(manual: false)
+        #expect(model.availableUpdate?.version == "1.1.0")
+        #expect(!model.showsUpdateBanner)
+
+        // The next launch is a new model: the banner is back.
+        #expect(try await launched().showsUpdateBanner)
+    }
+
+    @Test func installUpdateAsksOnceAndThenInstalls() async throws {
+        let installer = FakeInstaller()
+        var quits = 0
+        let model = try await launched(installer: installer, quit: { quits += 1 })
+        UpdateBanner(model: model).install()
+
+        let box = try #require(model.message)
+        #expect(box.title == "Install Update")
+        #expect(box.choices.map(\.title) == ["Update", "Not Now"])
+        #expect(installer.staged.isEmpty, "nothing happens before the click")
+
+        model.respond(try #require(box.choices.first))
+        for _ in 0..<200 where quits == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(installer.staged == [UpdateFixture.release("1.1.0")])
+        #expect(installer.handOvers.count == 1)
+        #expect(quits == 1)
+    }
+
+    @Test func notNowKeepsTheBanner() async throws {
+        let model = try await launched()
+        UpdateBanner(model: model).install()
+        model.respond(try #require(model.message?.choices.last))
+        #expect(model.message == nil)
+        #expect(model.showsUpdateBanner)
+    }
+
+    @Test func whileInstallingTheBannersInstallIsOff() async throws {
+        let model = try await launched()
+        model.isInstallingUpdate = true
+        #expect(!UpdateBanner(model: model).canInstall)
+    }
+
+    /// The banner moves the section down by its height and the gap under it, less the 4 the section
+    /// had above it. In the smallest window (980 x 620) the new library's Dashboard, Getting started
+    /// box and all, must still fit what is left of its 492 (see the Getting started fit test).
+    @Test func theSmallestWindowStillFitsTheDashboardUnderTheBanner() async throws {
+        let model = try await launched()
+        _ = NSApplication.shared
+        let taken = UpdateBanner.height + UpdateBanner.gapBelow - 4
+        let area = CGSize(width: 778, height: 620 - 28 - 66 - 26 - 8 - taken)
+        let needed = NSHostingView(rootView: DashboardView(model: model).frame(width: area.width)).fittingSize
+        #expect(needed.height <= area.height, "the Dashboard needs \(needed.height) of \(area.height)")
+
+        let bannerSize = NSHostingView(rootView: UpdateBanner(model: model)).fittingSize
+        #expect(bannerSize.height == UpdateBanner.height)
+        #expect(bannerSize.width <= 980 - 8, "one line across the window")
+
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 980, height: 620), name: "update-banner-small")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+}
+
+/// Brand → Settings: Check for Updates answers on the tab, in a line of text, and never in a box.
+@MainActor
+@Suite struct UpdateSettingsTabTests {
+    func model(_ script: FetchScript) throws -> AppModel {
+        let model = try UIFixture.model()
+        model.updates = UpdateFixture.services(script: script)
+        return model
+    }
+
+    @Test func theSettingsTabComesAfterEmails() {
+        #expect(BrandView.tabs.map(\.1) == ["Business", "Look", "Documents", "Emails", "Settings"])
+    }
+
+    @Test func beforeAnyCheckTheLineIsEmptyAndWhileCheckingItSaysSo() throws {
+        let model = try model(FetchScript(json: UpdateFixture.releaseJSON()))
+        #expect(model.updateLine == .notChecked)
+        #expect(model.updateLine.text == "")
+        model.isCheckingForUpdates = true
+        #expect(model.updateLine == .checking)
+        #expect(model.updateLine.text == "Checking for updates…")
+    }
+
+    @Test func theNewestVersionIsSaidOnTheTab() async throws {
+        let script = FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.0"))
+        let model = try model(script)
+        await model.checkForUpdates(manual: true, inline: true)
+        #expect(script.requests.count == 1)
+        #expect(model.updateLine == .newest)
+        #expect(model.updateLine.text == "You have the newest version.")
+        #expect(model.message == nil, "no pop-up")
+    }
+
+    @Test func aNewerVersionIsOfferedOnTheTabAndInstallAsksOnce() async throws {
+        let model = try model(FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.9")))
+        await model.checkForUpdates(manual: true, inline: true)
+        #expect(model.updateLine == .available("1.0.9"))
+        #expect(model.updateLine.text == "1.0.9 is available.")
+        #expect(model.message == nil, "not offered in a box")
+        #expect(model.showsUpdateBanner)
+        #expect(model.canInstallUpdate)
+
+        model.installUpdate()
+        #expect(model.message?.title == "Install Update")
+    }
+
+    @Test func aFailedCheckIsSaidOnTheTab() async throws {
+        let model = try model(FetchScript(.success((Data(), 500))))
+        await model.checkForUpdates(manual: true, inline: true)
+        #expect(model.updateLine == .failed("GitHub answered with an error (500)."))
+        #expect(model.updateLine.text == "Couldn't check for updates. GitHub answered with an error (500).")
+        #expect(model.message == nil, "no pop-up")
+    }
+
+    /// The launch check stays silent when it fails, here too; when it answers, the tab shows that.
+    @Test func theLaunchChecksAnswerShowsButItsFailureDoesNot() async throws {
+        let offline = try model(FetchScript(.failure(FetchScript.Failure.offline)))
+        await offline.start()
+        #expect(offline.updateLine == .notChecked)
+
+        let newest = try model(FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.0")))
+        await newest.start()
+        #expect(newest.updateLine == .newest)
+    }
+
+    /// The Help menu's check still answers in a box, and the tab shows the same answer.
+    @Test func theHelpMenusCheckStillAnswersInABox() async throws {
+        let model = try model(FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.0")))
+        await model.checkForUpdates(manual: true)
+        #expect(model.message?.text == "You have the newest version (1.0.0).")
+        #expect(model.updateLine == .newest)
+    }
+
+    @Test func theSettingsTabDraws() throws {
+        let model = try UIFixture.sampleModel()
+        model.availableUpdate = UpdateFixture.release("1.0.9")
+        let rep = Snapshot.render(BrandView(model: model, tab: .settings).background(Win95.face),
+                                  size: CGSize(width: 778, height: 492), name: "brand-settings-small")
+        #expect(rep.map(Snapshot.hasContent) == true)
     }
 }

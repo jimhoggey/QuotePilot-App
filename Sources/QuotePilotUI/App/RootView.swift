@@ -26,6 +26,12 @@ public struct RootView: View {
                 // behind it takes a click, a Tab or a key, as with the menus (`whenFree`).
                 Win95Toolbar(model: model)
                     .disabled(model.isBusy)
+                // A newer version: a strip right under the toolbar that moves the rest down rather
+                // than covering any of it.
+                if model.showsUpdateBanner {
+                    UpdateBanner(model: model)
+                        .disabled(model.isBusy)
+                }
                 HStack(spacing: 4) {
                     SectionTree(model: model)
                         .frame(width: 190)
@@ -37,7 +43,8 @@ public struct RootView: View {
                         .clipped()
                         .disabled(model.isBusy)
                 }
-                .padding(4)
+                .padding([.horizontal, .bottom], 4)
+                .padding(.top, model.showsUpdateBanner ? UpdateBanner.gapBelow : 4)
                 StatusBar(model: model)
             case .unreadable(let reason):
                 UnreadableLibraryView(model: model, reason: reason)
@@ -157,6 +164,51 @@ struct Win95Toolbar: View {
         .help(help)
         .accessibilityLabel(title)
         .accessibilityHint(help)
+    }
+}
+
+/// The strip under the toolbar once a check has found a newer version, in a note's pale yellow
+/// (`NoteBanner`). Install Update is Help → Install Update…, which still asks once; Later hides the
+/// strip until the next launch. One slim line across the window, so the smallest window (980 x 620)
+/// keeps every section whole, the new library's Dashboard with Getting started included.
+struct UpdateBanner: View {
+    /// "Quote Pilot 1.1.0 is ready."
+    let text: String
+    let canInstall: Bool
+    let install: () -> Void
+    let later: () -> Void
+
+    static let height: CGFloat = 22
+    /// The gap between the strip and the section tree, in place of the usual 4: so the strip takes
+    /// `height + gapBelow - 4` (20) from the section.
+    static let gapBelow: CGFloat = 2
+
+    init(model: AppModel) {
+        text = "Quote Pilot \(model.availableUpdate?.version ?? "") is ready."
+        canInstall = model.canInstallUpdate
+        install = { model.installUpdate() }
+        later = { model.hideUpdateBanner() }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            PixelIconView(.info)
+            Text(text)
+                .font(Win95.body)
+                .foregroundStyle(Win95.text)
+                .lineLimit(1)
+            Button("Install Update", action: install)
+                .buttonStyle(.win95Small)
+                .disabled(!canInstall)
+            Button("Later", action: later)
+                .buttonStyle(.win95Small)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: Self.height)
+        .background(Win95.tooltip)
+        .overlay(Rectangle().strokeBorder(Win95.dark, lineWidth: 1))
+        .accessibilityElement(children: .contain)
     }
 }
 

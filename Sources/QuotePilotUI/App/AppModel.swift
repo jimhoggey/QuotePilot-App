@@ -129,6 +129,11 @@ public final class AppModel {
     public internal(set) var isCheckingForUpdates = false
     /// True from the click on Update until Quote Pilot quits, or the install fails.
     public internal(set) var isInstallingUpdate = false
+    /// Set by the update banner's Later; only a new launch shows the banner again.
+    public internal(set) var isUpdateBannerHidden = false
+    /// What the last check said when it found nothing newer, for Brand → Settings (`updateLine`):
+    /// `.newest`, or `.failed` for a check the user asked for. Nil after one that found an update.
+    public internal(set) var lastUpdateAnswer: UpdateLine?
     /// How the updater reaches GitHub, the settings and the log; tests swap it for fakes.
     @ObservationIgnored var updates: UpdateServices = .live
     /// Opens Mail drafts; tests use a fake.
@@ -192,6 +197,17 @@ public final class AppModel {
 
     public func money(_ amount: Money) -> String {
         amount.formatted(currencyCode: currencyCode)
+    }
+
+    /// Brand → Settings' Quote Pilot fee figures for today: this month's line and last month's, or
+    /// none while the fee isn't calculated. A figure only; nothing is charged.
+    public var appFeeLines: [String] {
+        guard let figures = AppFeeFigures(library: library, today: today) else { return [] }
+        let percent = FieldParser.percentText(figures.percent)
+        return [
+            "Received this month: \(money(figures.receivedThisMonth)) · Fee at \(percent)%: \(money(figures.feeThisMonth))",
+            "Last month: received \(money(figures.receivedLastMonth)) · fee \(money(figures.feeLastMonth))",
+        ]
     }
 
     // MARK: The change path
@@ -519,6 +535,8 @@ public final class AppModel {
         brand.paymentDueDays = min(max(brand.paymentDueDays, days.lowerBound), days.upperBound)
         brand.quoteValidDays = min(max(brand.quoteValidDays, days.lowerBound), days.upperBound)
         brand.hourlyRate = brand.hourlyRate.map { Money(cents: min(max($0.cents, 0), Library.amountLimit.cents)) }
+        let percents = AppFee.percentLimit
+        brand.appFee.percent = min(max(brand.appFee.percent, percents.lowerBound), percents.upperBound)
         change("Couldn't save the brand") { $0.brand = brand }
     }
 

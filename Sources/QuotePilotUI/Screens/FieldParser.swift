@@ -29,16 +29,34 @@ enum FieldParser {
 
     /// "1", "1.5", "0.25": zero or more, with at most two decimal places (what documents print).
     static func quantity(_ text: String) -> Decimal? {
-        let trimmed = text.trimmingCharacters(in: .whitespaces)
-        let parts = trimmed.split(separator: ".", omittingEmptySubsequences: false)
-        guard (1...2).contains(parts.count),
-              !parts[0].isEmpty,
-              parts.allSatisfy({ part in part.allSatisfy { $0.isASCII && $0.isNumber } }),
-              parts.count == 1 || (1...2).contains(parts[1].count),
-              let value = Decimal(string: trimmed, locale: Locale(identifier: "en_US_POSIX")),
+        guard let value = plainDecimal(text.trimmingCharacters(in: .whitespaces)),
               value <= Library.quantityLimit
         else { return nil }
         return value
+    }
+
+    /// The Quote Pilot fee: "3", "2.5" or "2.5%", from 0 to 100, with at most two decimal places.
+    static func percent(_ text: String) -> Decimal? {
+        var trimmed = text.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasSuffix("%") { trimmed = String(trimmed.dropLast()).trimmingCharacters(in: .whitespaces) }
+        guard let value = plainDecimal(trimmed), AppFee.percentLimit.contains(value) else { return nil }
+        return value
+    }
+
+    /// "3", "2.5": a percentage as the fee field shows it.
+    static func percentText(_ value: Decimal) -> String {
+        NSDecimalNumber(decimal: value).stringValue
+    }
+
+    /// Digits with at most one point and at most two digits after it: "12", "1.5", "0.25".
+    private static func plainDecimal(_ text: String) -> Decimal? {
+        let parts = text.split(separator: ".", omittingEmptySubsequences: false)
+        guard (1...2).contains(parts.count),
+              !parts[0].isEmpty,
+              parts.allSatisfy({ part in part.allSatisfy { $0.isASCII && $0.isNumber } }),
+              parts.count == 1 || (1...2).contains(parts[1].count)
+        else { return nil }
+        return Decimal(string: text, locale: Locale(identifier: "en_US_POSIX"))
     }
 
     /// A whole number of days from 0 to 365.

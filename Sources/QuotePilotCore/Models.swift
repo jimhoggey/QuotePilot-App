@@ -91,6 +91,8 @@ public struct Brand: Codable, Hashable, Sendable {
     public var quoteValidDays = 30
     /// The one rate that new lines in hours start at (`LineItem.withHourlyRate`); nil when none is set.
     public var hourlyRate: Money?
+    /// Quote Pilot's own fee setting (Brand → Settings), kept with the library. Prints nowhere.
+    public var appFee = AppFee()
 
     public init() {}
 }
@@ -363,7 +365,7 @@ extension Brand {
     enum CodingKeys: String, CodingKey {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
-        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle
+        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee
     }
 
     public init(from decoder: Decoder) throws {
@@ -388,6 +390,7 @@ extension Brand {
         headingFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .headingFontStyle)
         bodyFontFile = try c.decodeIfPresent(String.self, forKey: .bodyFontFile)
         bodyFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .bodyFontStyle)
+        appFee = try c.value(.appFee, or: d.appFee)
     }
 }
 

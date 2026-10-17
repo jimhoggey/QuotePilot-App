@@ -95,7 +95,7 @@ public struct Dashboard: Equatable, Sendable {
         waitingTotal = sum(waiting.map(\.owing))
 
         let payments = sent.flatMap(\.payments)
-        receivedThisMonth = sum(payments.filter { $0.date.year == today.year && $0.date.month == today.month }.map(\.amount))
+        receivedThisMonth = library.received(in: CalendarMonth(containing: today))
         receivedThisYear = sum(payments.filter { year.contains($0.date) }.map(\.amount))
         invoicedThisYear = sum(sent.filter { year.contains($0.issued) }.map(\.amount))
 

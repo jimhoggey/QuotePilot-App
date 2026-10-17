@@ -650,7 +650,7 @@ import Testing
         let s = try setup(available: false)
         s.model.updates.version = "1.1.0"
         s.settings.updateExpectedVersion = "1.1.0"
-        s.settings.lastUpdateCheck = s.model.now()
+        // The launch check runs too; offline, it fails without a word, so the note stays.
         await s.model.start()
         #expect(s.model.statusNote?.text == "Updated to 1.1.0")
     }
