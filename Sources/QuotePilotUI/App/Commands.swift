@@ -45,6 +45,7 @@ public struct QuotePilotCommands: Commands {
                 .disabled(!model.libraryIsOpen)
             Button("Export Payments for Tax Time…") { model.whenFree { model.dialog = .taxExport } }
                 .disabled(!model.libraryIsOpen)
+            Button("Show Money Records") { model.whenFree { model.showMoneyRecords() } }
             Divider()
             Button("Back Up To…") { model.whenFree { model.exportBackupCopy() } }
                 .disabled(!model.canBackUp)
