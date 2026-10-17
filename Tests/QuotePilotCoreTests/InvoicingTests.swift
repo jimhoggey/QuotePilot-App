@@ -208,7 +208,13 @@ import Testing
 
     @Test func duplicatingAQuoteClearsTheClientsDecisions() throws {
         var (library, id) = Fixture.acceptedLibrary()
+        var original = try #require(library.quote(id))
+        original.included = ["Design"]
+        original.notIncluded = ["Printing"]
+        try library.update(original)
         let copy = try library.duplicateQuote(id, on: today)
+        #expect(copy.included == ["Design"])
+        #expect(copy.notIncluded == ["Printing"])
         #expect(copy.number == "Q-0002")
         #expect(copy.stage == .draft)
         #expect(copy.acceptance == nil)

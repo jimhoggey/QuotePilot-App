@@ -103,6 +103,7 @@ final class Layout {
     let writer: PageWriter
     private(set) var fields: [PlacedField] = []
     private var inTable = false
+    private var inLists = false
 
     // Line-table columns, measured from the left of the page.
     private let tickX: CGFloat
@@ -185,6 +186,7 @@ final class Layout {
         writer.onNewPage = { [unowned self] _ in
             self.drawContinuationHeader()
             if self.inTable { self.drawTableHeader() }
+            if self.inLists { self.drawListsHeader() }
         }
         writer.onEndPage = { [unowned self] _ in self.drawFooter() }
         writer.newPage()
@@ -510,6 +512,10 @@ final class Layout {
 
     private func drawSections() {
         for section in content.sections {
+            if let lists = section.lists {
+                drawLists(lists)
+                continue
+            }
             let heading = PageWriter.text(section.heading, style.body(10, weight: .semibold), PDFStyle.ink)
             let headingHeight = PageWriter.height(of: heading, width: writer.width)
             let parts = Self.paragraphs(section.text)
@@ -572,6 +578,65 @@ final class Layout {
             start += count
             if start < lines.count { writer.newPage() }
         }
+    }
+
+    // MARK: Included and Not included
+
+    /// The space between the Included and Not included columns.
+    static let listGutter: CGFloat = 20
+    /// How wide each of the two columns is.
+    var listColumnWidth: CGFloat { (writer.width - Self.listGutter) / 2 }
+    private var listsHeadingFont: CTFont { style.body(10, weight: .semibold) }
+    private var listsHeaderHeight: CGFloat { PageWriter.lineHeight(listsHeadingFont) + 3 + 4 }
+
+    /// The two column headings and the rule under them; again at the top of each page the table
+    /// carries on to.
+    private func drawListsHeader() {
+        let width = listColumnWidth
+        writer.draw(PageWriter.text("Included", listsHeadingFont, PDFStyle.ink), x: writer.left, top: writer.y, width: width)
+        writer.draw(PageWriter.text("Not included", listsHeadingFont, PDFStyle.ink),
+                    x: writer.left + width + Self.listGutter, top: writer.y, width: width)
+        writer.y += PageWriter.lineHeight(listsHeadingFont) + 3
+        writer.rule(top: writer.y, x: writer.left, width: writer.width, color: PDFStyle.ink, thickness: 1)
+        writer.y += 4
+    }
+
+    private func listCell(_ item: String?) -> NSAttributedString {
+        PageWriter.wrapping(PageWriter.text(Self.printable(item ?? ""), style.body(9), PDFStyle.ink))
+    }
+
+    private func listRowHeight(_ left: NSAttributedString, _ right: NSAttributedString) -> CGFloat {
+        max(PageWriter.height(of: left, width: listColumnWidth), PageWriter.height(of: right, width: listColumnWidth),
+            PageWriter.lineHeight(style.body(9))) + 9
+    }
+
+    /// The Included and Not included lists side by side, one item a row. A long table goes over the
+    /// page row by row, with its headings again at the top.
+    private func drawLists(_ lists: DocumentContent.Lists) {
+        let rows = (0..<max(lists.included.count, lists.notIncluded.count)).map { index in
+            (listCell(lists.included.indices.contains(index) ? lists.included[index] : nil),
+             listCell(lists.notIncluded.indices.contains(index) ? lists.notIncluded[index] : nil))
+        }
+        // The headings never end a page: they go over with the first row.
+        writer.ensureSpace(6 + listsHeaderHeight + (rows.first.map { listRowHeight($0.0, $0.1) } ?? 0))
+        writer.y += 6
+        drawListsHeader()
+        inLists = true
+        let rightX = writer.left + listColumnWidth + Self.listGutter
+        for (left, right) in rows {
+            let height = listRowHeight(left, right)
+            writer.ensureSpace(height)
+            let top = writer.y + 4
+            let words = PageWriter.lineFrames(of: left, x: writer.left, top: top, width: listColumnWidth)
+                + PageWriter.lineFrames(of: right, x: rightX, top: top, width: listColumnWidth)
+            mark(.bodyFont, lines: words)
+            writer.draw(left, x: writer.left, top: top, width: listColumnWidth)
+            writer.draw(right, x: rightX, top: top, width: listColumnWidth)
+            writer.y += height
+            writer.rule(top: writer.y - 1, x: writer.left, width: writer.width, color: PDFStyle.rule)
+        }
+        inLists = false
+        writer.y += 16
     }
 
     /// Where the footer's rule sits, measured down from the top of the page: in the bottom margin,

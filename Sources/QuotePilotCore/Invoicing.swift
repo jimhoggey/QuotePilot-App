@@ -231,6 +231,8 @@ extension Library {
         var copy = Quote(number: takeNumber(.quote), clientID: original.clientID, title: original.title,
                          issued: day, validUntil: day.adding(days: brand.quoteValidDays), plan: original.plan,
                          taxed: original.taxed, summary: original.summary, terms: original.terms)
+        copy.included = original.included
+        copy.notIncluded = original.notIncluded
         for line in original.lines {
             copy.addLine(line.freshCopy)
         }

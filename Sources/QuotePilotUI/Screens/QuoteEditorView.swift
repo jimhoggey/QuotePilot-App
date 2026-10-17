@@ -168,6 +168,18 @@ struct QuoteEditorView: View {
                         .foregroundStyle(Win95.text)
                 }
             }
+            GroupBox("Included / Not included") {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: 8) {
+                        ListBox(label: "Included:", items: quote.included)
+                        ListBox(label: "Not included:", items: quote.notIncluded)
+                    }
+                    Text("Optional. One item per line. The quote prints them side by side when either box has items.")
+                        .font(Win95.small)
+                        .foregroundStyle(Win95.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             GroupBox("Terms") {
                 Win95TextEditor(text: quote.terms)
                     .frame(height: 60)
@@ -270,6 +282,43 @@ struct CommitField<Value: Equatable>: View {
         // The stored value: what was committed while typing, or the old one if an edit was refused.
         text = leaving.text
         editEnded()
+    }
+}
+
+/// One of a quote's Included / Not included boxes: one item per line. What's typed is saved as you
+/// type, as items with any dot-point marker stripped (`Quote.listItems`). The text itself is left
+/// alone while you type, so a new empty line stays; when you leave the box it is tidied to the items.
+struct ListBox: View {
+    let label: String
+    @Binding var items: [String]
+    @State private var text = ""
+    @Environment(\.textEditEnded) private var editEnded
+
+    /// The box's text for `items`.
+    static func text(_ items: [String]) -> String { items.joined(separator: "\n") }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(Win95.body)
+                .foregroundStyle(Win95.text)
+            Win95TextEditor(label, text: $text)
+                .frame(height: 80)
+                .environment(\.textEditEnded) {
+                    text = Self.text(items)
+                    editEnded()
+                }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { text = Self.text(items) }
+        .onChange(of: text) { _, newText in
+            let parsed = Quote.listItems(from: newText)
+            if parsed != items { items = parsed }
+        }
+        .onChange(of: items) { _, newItems in
+            // Changed elsewhere, not by typing here: show it.
+            if Quote.listItems(from: text) != newItems { text = Self.text(newItems) }
+        }
     }
 }
 
