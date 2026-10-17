@@ -15,6 +15,31 @@ import QuotePilotCore
         #expect(model.message?.text == LibraryError.alreadyInvoiced.message)
     }
 
+    /// The Number field: a free number is taken and saved; one another document has is refused with
+    /// one message box, and the quote keeps its number.
+    @Test func aDraftsNumberCanBeTypedButNotOneInUse() throws {
+        let model = try UIFixture.model()
+        model.newQuote()
+        let first = try #require(model.library.quotes.first)
+        model.newQuote()
+        let second = try #require(model.library.quotes.last)
+        model.renumberQuote(second.id, to: "Q-0030")
+        #expect(model.library.quote(second.id)?.number == "Q-0030")
+        #expect(model.message == nil)
+        model.renumberQuote(second.id, to: first.number)
+        #expect(model.library.quote(second.id)?.number == "Q-0030")
+        #expect(model.message?.text == LibraryError.numberInUse(first.number).message)
+    }
+
+    @Test func aNumberFieldSavesOnlyWhenTheEditEnds() {
+        // Typing "Q-0001" on the way to "Q-0012" must not take Q-0001: the Number field doesn't
+        // commit while typing, and on leaving keeps whatever parses.
+        #expect(Library.parseNumber("Q-001", .quote) == "Q-0001")
+        let field = CommitField<String>(label: "Number", value: "Q-0002", format: { $0 },
+                                        parse: { Library.parseNumber($0, .quote) }, commitsWhileTyping: false) { _ in }
+        #expect(!field.commitsWhileTyping)
+    }
+
     @Test func wordingStillChangesOnAnInvoicedQuote() throws {
         let (library, quoteID) = try UIFixture.invoicedLibrary()
         let model = try UIFixture.model(library)

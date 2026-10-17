@@ -32,6 +32,12 @@ public enum LibraryError: Error, Equatable, Sendable {
     case depositStillDeducted(String)
     /// A quote (its number) with invoices (their numbers), deleted without saying they go with it.
     case quoteHasInvoices(quote: String, invoices: [String])
+    /// A number (given) another quote or invoice in the library already has.
+    case numberInUse(String)
+    /// Only a draft's number can be changed: a sent one has gone out with it.
+    case numberOnlyOnDrafts
+    /// Text (given) that isn't a number of the kind with that prefix.
+    case notANumber(String, String)
 }
 
 /// Everything Quote Pilot knows, saved as one file.

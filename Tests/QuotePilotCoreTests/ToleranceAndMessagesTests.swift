@@ -104,7 +104,8 @@ import Testing
                                       .nothingLeftToInvoice, .alreadyInvoiced, .isVoid, .hasPayments,
                                       .deductedByFinal("INV-0002"), .unknownLineCodes(["09"]),
                                       .notEditable, .noPayments, .paymentNotPositive,
-                                      .paymentMoreThanOwing(Money(dollars: 300))]
+                                      .paymentMoreThanOwing(Money(dollars: 300)), .numberInUse("Q-0003"),
+                                      .numberOnlyOnDrafts, .notANumber("abc", "Q-")]
         for error in errors {
             #expect(!error.message.isEmpty)
             #expect(error.localizedDescription == error.message)

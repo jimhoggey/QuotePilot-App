@@ -125,6 +125,13 @@ struct QuoteEditorView: View {
             }
             GroupBox("Quote") {
                 VStack(alignment: .leading, spacing: 6) {
+                    DocumentNumberRow(model: model, number: current.number, kind: .quote,
+                                      editable: current.stage == .draft,
+                                      help: current.stage == .draft
+                                        ? "Type a number no other quote has, then press Return"
+                                        : "Only a draft's number can be changed") {
+                        model.renumberQuote(quoteID, to: $0)
+                    }
                     Win95FieldRow("Client:") {
                         ClientPicker(clients: model.library.clients, selection: quote.clientID)
                             .disabled(locked)
@@ -203,6 +210,9 @@ struct CommitField<Value: Equatable>: View {
     var alignment: TextAlignment = .trailing
     /// What an empty field says, grey; the label (which VoiceOver reads) when nil.
     var prompt: String?
+    /// False for a field whose every committed value counts, such as a document number: it saves
+    /// only on Return or leaving, never a half-typed value.
+    var commitsWhileTyping = true
     let commit: (Value) -> Void
     @State private var text = ""
     @FocusState private var focused: Bool
@@ -247,7 +257,7 @@ struct CommitField<Value: Equatable>: View {
             .onChange(of: text) { _, newText in
                 // Only what's typed here: not the text the field is given when it appears or when
                 // the stored value changes elsewhere.
-                guard focused, let parsed = Self.liveCommit(text: newText, stored: value, parse: parse) else { return }
+                guard commitsWhileTyping, focused, let parsed = Self.liveCommit(text: newText, stored: value, parse: parse) else { return }
                 commit(parsed)
             }
             .onChange(of: focused) { _, isFocused in
@@ -318,6 +328,37 @@ struct ListBox: View {
         .onChange(of: items) { _, newItems in
             // Changed elsewhere, not by typing here: show it.
             if Quote.listItems(from: text) != newItems { text = Self.text(newItems) }
+        }
+    }
+}
+
+/// A draft's "Number:" row. The number saves on Return or leaving, so a half-typed one is never
+/// taken; text that isn't a number beeps and goes back. Greyed out once sent. A number used before
+/// (by a document since deleted or renumbered) says so in grey beside it.
+struct DocumentNumberRow: View {
+    let model: AppModel
+    let number: String
+    let kind: DocumentKind
+    let editable: Bool
+    let help: String
+    let commit: (String) -> Void
+
+    var body: some View {
+        Win95FieldRow("Number:") {
+            HStack(spacing: 8) {
+                CommitField(label: "Number", value: number, format: { $0 },
+                            parse: { Library.parseNumber($0, kind) }, alignment: .leading,
+                            commitsWhileTyping: false, commit: commit)
+                    .frame(width: 110)
+                    .disabled(!editable)
+                    .help(help)
+                if model.library.numberUsedBefore(number) {
+                    Text("Used before")
+                        .font(Win95.small)
+                        .foregroundStyle(Win95.shadow)
+                        .help("\(number) was on another document before, since deleted or renumbered")
+                }
+            }
         }
     }
 }

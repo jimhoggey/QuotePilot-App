@@ -231,6 +231,9 @@ struct InvoiceRules: Equatable {
 
     var canDelete: Bool { invoice.stage == .draft && !isDeducted }
 
+    /// A draft's number. A deposit the final invoice deducts keeps its number, as the final names it.
+    var canRenumber: Bool { invoice.stage == .draft && !isDeducted }
+
     /// What has to happen to the final invoice before this deposit can change, as a sentence: void or
     /// delete it, or, when it has payments (a sent invoice with payments can be neither), remove them
     /// and then void it.

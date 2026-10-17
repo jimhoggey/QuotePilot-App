@@ -388,6 +388,16 @@ public final class AppModel {
             set: { self.updateQuote($0) })
     }
 
+    /// The Number field of a draft quote or invoice: a number another document has is refused with
+    /// one message box, and the field shows the stored number again.
+    public func renumberQuote(_ id: UUID, to number: String) {
+        change("Couldn't change the number") { try $0.renumber(quote: id, to: number) }
+    }
+
+    public func renumberInvoice(_ id: UUID, to number: String) {
+        change("Couldn't change the number") { try $0.renumber(invoice: id, to: number) }
+    }
+
     public func duplicateQuote(_ id: UUID) {
         var created: UUID?
         guard change("Couldn't duplicate the quote", { library in

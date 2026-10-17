@@ -140,6 +140,13 @@ struct InvoiceEditorView: View {
             }
             GroupBox("Invoice") {
                 VStack(alignment: .leading, spacing: 6) {
+                    DocumentNumberRow(model: model, number: current.number, kind: .invoice,
+                                      editable: rules.canRenumber,
+                                      help: rules.canRenumber
+                                        ? "Type a number no other invoice has, then press Return"
+                                        : rules.deductedHelp ?? "Only a draft's number can be changed") {
+                        model.renumberInvoice(invoiceID, to: $0)
+                    }
                     Win95FieldRow("Client:") {
                         ClientPicker(clients: model.library.clients, selection: invoice.clientID)
                             .disabled(quote != nil)

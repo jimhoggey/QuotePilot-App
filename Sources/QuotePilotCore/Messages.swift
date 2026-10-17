@@ -44,6 +44,12 @@ extension LibraryError: LocalizedError {
             return "\(final) deducts this deposit. Delete \(final) first."
         case .quoteHasInvoices(let quote, let invoices):
             return "\(quote) has invoices (\(invoices.joined(separator: ", "))), so they have to be deleted with it."
+        case .numberInUse(let number):
+            return "\(number) is already on another document. Choose a number nothing else has."
+        case .numberOnlyOnDrafts:
+            return "Only a draft's number can be changed. Once sent, the client has it with this number."
+        case .notANumber(let text, let prefix):
+            return "\"\(text)\" isn't a number like \(prefix)0012. Type the digits, with or without \(prefix)."
         }
     }
 }
