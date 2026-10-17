@@ -197,15 +197,19 @@ import QuotePilotCore
 
     @Test func withDataTheEmptyListsKeepTheirWording() throws {
         var (library, quoteID) = try UIFixture.invoicedLibrary()
-        // The deposit is drafted and the balance is not, so there is still something to invoice.
+        // The deposit is only drafted, so the whole job is still to invoice.
         #expect(Dashboard(library: library, today: UIFixture.today).toInvoice.count == 1)
         try library.completeJob(quote: quoteID, on: UIFixture.today)
+        // Drafts aren't invoiced yet: the job leaves the list once its invoices are sent.
+        #expect(Dashboard(library: library, today: UIFixture.today).toInvoice.count == 1)
+        for invoice in library.invoices {
+            try library.markSent(invoice: invoice.id)
+        }
         #expect(Dashboard(library: library, today: UIFixture.today).toInvoice.isEmpty)
         #expect(DashboardView.toInvoiceEmptyText(library) == "Every accepted job is fully invoiced.")
 
-        // Sent and paid in full: nothing is waiting, but invoices have gone out.
+        // Paid in full: nothing is waiting, but invoices have gone out.
         for invoice in library.invoices {
-            try library.markSent(invoice: invoice.id)
             try library.recordPayment(Payment(date: UIFixture.today, amount: invoice.amount), toInvoice: invoice.id)
         }
         #expect(Dashboard(library: library, today: UIFixture.today).waiting.isEmpty)

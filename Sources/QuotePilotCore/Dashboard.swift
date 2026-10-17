@@ -22,6 +22,14 @@ public struct FinancialYear: Hashable, Sendable {
 }
 
 /// The main screen's figures, worked out from the library for one day.
+///
+/// The four headline totals are the stages of the money pipeline, and no dollar is in two of them:
+/// - `openQuotesTotal`: quoted, waiting on a reply (sent quotes not expired);
+/// - `toInvoiceTotal`: accepted, not invoiced yet (accepted totals less what sent invoices ask for);
+/// - `waitingTotal`: invoiced, not paid yet (what sent invoices still owe, one-offs included);
+/// - `receivedThisYear`: paid this financial year.
+/// For an accepted quote, its part of `toInvoiceTotal`, what its invoices still owe and what they've
+/// been paid add up to its accepted total. Each total is the sum of the list behind it.
 public struct Dashboard: Equatable, Sendable {
     public struct Owing: Equatable, Sendable {
         public var invoiceID: UUID
@@ -47,6 +55,7 @@ public struct Dashboard: Equatable, Sendable {
         public var number: String
         public var client: String
         public var accepted: Money
+        /// What the quote's sent invoices ask for. A draft invoice is still "not invoiced yet".
         public var invoiced: Money
         public var remaining: Money { accepted - invoiced }
     }
@@ -61,7 +70,10 @@ public struct Dashboard: Equatable, Sendable {
     public var openQuotes: [OpenQuote]
     /// Open quotes that haven't expired.
     public var openQuotesTotal: Money
+    /// Accepted (or partly accepted) quotes whose sent invoices don't add up to the accepted total yet.
     public var toInvoice: [ToInvoice]
+    /// Accepted work not invoiced yet: the "Still to invoice" list's sum.
+    public var toInvoiceTotal: Money
     /// The money still to come from accepted work: for every accepted (or partly accepted) quote not
     /// fully paid yet, its accepted total (with GST when the quote charges it) less every payment on
     /// its live invoices. It covers what is invoiced but unpaid as well as what isn't invoiced yet.
@@ -105,9 +117,10 @@ public struct Dashboard: Equatable, Sendable {
         toInvoice = library.quotes
             .filter { $0.stage == .accepted }
             .map { ToInvoice(quoteID: $0.id, number: $0.number, client: clientName($0.clientID),
-                             accepted: $0.acceptedTotals.total, invoiced: library.invoicedAmount(forQuote: $0.id)) }
+                             accepted: $0.acceptedTotals.total, invoiced: library.sentInvoicedAmount(forQuote: $0.id)) }
             .filter { $0.remaining > .zero }
             .sorted { $0.number < $1.number }
+        toInvoiceTotal = sum(toInvoice.map(\.remaining))
 
         let leftOnJobs = library.quotes
             .filter { $0.stage == .accepted }

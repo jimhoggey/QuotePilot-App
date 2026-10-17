@@ -16,9 +16,8 @@ import Testing
         #expect(dashboard.openQuotes.filter(\.expired).count == 1)
         #expect(dashboard.openQuotesTotal == Money(dollars: 620))
         #expect(dashboard.toInvoice.map(\.remaining) == [Money(dollars: 1935)])
-        #expect(dashboard.acceptedWorkRemaining == Money(dollars: 1935))
-        #expect(dashboard.acceptedJobsOpen == 1)
-        #expect(dashboard.acceptedWorkNotInvoiced == Money(dollars: 1935))
+        #expect(dashboard.toInvoiceTotal == Money(dollars: 1935))
+        #expect(dashboard.waiting.map(\.owing) == [Money(dollars: 150), Money(dollars: 135)])
         #expect(library.quotes.map { $0.status(on: Fixture.today) } == [.accepted(partly: true), .sent, .expired, .draft])
     }
 

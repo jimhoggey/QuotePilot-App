@@ -148,8 +148,9 @@ QuotePilotApp depends on the other two; QuotePilotPDF depends on QuotePilotCore;
   "FY 2026–27").
 - **Invoiced this financial year:** totals of invoices issued this FY that aren't Draft or Void.
 - **Quotes waiting on a reply:** Sent quotes not yet accepted or declined, with their value.
-- **Still to invoice:** accepted quotes whose invoices don't yet add up to the accepted total (the
-  second half of a 50/50 job, for example).
+- **Still to invoice:** accepted quotes whose sent invoices don't yet add up to the accepted total
+  (the second half of a 50/50 job, for example). A draft invoice is not invoiced yet; a void one
+  doesn't count.
 - **Left on accepted jobs** (replaced the Overdue readout, 17 Oct 2026): for every accepted quote not
   fully paid, its accepted total (with GST when charged) less every payment on its live invoices. A
   $5,000 job with a paid $500 deposit leaves $4,500. The note counts the jobs and gives the part not
