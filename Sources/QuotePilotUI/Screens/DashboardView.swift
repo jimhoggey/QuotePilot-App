@@ -1,9 +1,10 @@
 import QuotePilotCore
 import SwiftUI
 
-/// The main screen: the Getting started box while the library is new, four big readouts, then three
-/// lists in the order the work happens (quotes waiting on a reply, what's still to invoice, what's
-/// waiting to be paid). Double-click a row to open it.
+/// The main screen: the Getting started box while the library is new, four big readouts (the money
+/// pipeline: quoted, accepted but not invoiced, invoiced but not paid, paid), then three lists in the
+/// order the work happens (quotes waiting on a reply, what's still to invoice, what's waiting to be
+/// paid). Double-click a row to open it.
 struct DashboardView: View {
     let model: AppModel
     @State private var selectedInvoice: UUID?
@@ -14,15 +15,17 @@ struct DashboardView: View {
         let dashboard = model.dashboard
         VStack(alignment: .leading, spacing: 8) {
             GettingStartedBox(model: model)
+            // One stage of the money each, left to right, so no dollar is in two boxes. Each total is the
+            // sum of the list behind it.
             HStack(alignment: .top, spacing: 8) {
-                Readout(title: "Waiting to be paid", value: model.money(dashboard.waitingTotal),
-                        note: Self.count(dashboard.waiting.count, "invoice", "invoices"))
-                Readout(title: "Left on accepted jobs", value: model.money(dashboard.acceptedWorkRemaining),
-                        note: Self.acceptedWorkNote(dashboard, currencyCode: model.currencyCode))
-                Readout(title: "Received \(dashboard.financialYear.label)", value: model.money(dashboard.receivedThisYear),
-                        note: "This month: \(model.money(dashboard.receivedThisMonth))")
                 Readout(title: "Quotes out", value: model.money(dashboard.openQuotesTotal),
                         note: Self.quotesOutNote(dashboard))
+                Readout(title: "Not invoiced yet", value: model.money(dashboard.toInvoiceTotal),
+                        note: Self.notInvoicedNote(dashboard))
+                Readout(title: "Waiting to be paid", value: model.money(dashboard.waitingTotal),
+                        note: Self.waitingNote(dashboard))
+                Readout(title: "Received \(dashboard.financialYear.label)", value: model.money(dashboard.receivedThisYear),
+                        note: Self.receivedNote(dashboard, currencyCode: model.currencyCode))
             }
             // The lists in the order the work happens: a quote goes out, is accepted and invoiced,
             // then waits to be paid.
@@ -143,23 +146,29 @@ struct DashboardView: View {
             + gap + boxWidth(jobColumns(currencyCode: "AUD"), scroller: scroller) + gap
     }
 
-    /// "3 jobs · $4,500.00 not invoiced yet": how many accepted jobs aren't fully paid, and how much of
-    /// them is still to invoice (the "Still to invoice" list's sum). Overdue invoices show in red in the
-    /// "Waiting to be paid" list and are counted in the status bar.
-    static func acceptedWorkNote(_ dashboard: Dashboard, currencyCode: String) -> String {
-        guard dashboard.acceptedJobsOpen > 0 else { return "No accepted jobs open" }
-        return count(dashboard.acceptedJobsOpen, "job", "jobs") + " · "
-            + dashboard.acceptedWorkNotInvoiced.formatted(currencyCode: currencyCode) + " not invoiced yet"
-    }
-
-    /// "1 quote waiting on a reply", or "1 waiting on a reply · 2 expired" once some have expired. The
-    /// list under it shows expired quotes too, so the note counts them rather than leaving them out.
-    /// (Its total counts only the live ones: an expired quote is no longer money on offer.)
+    /// "Quoted, waiting on a reply", with "· 2 expired" once some have expired. The list under it shows
+    /// expired quotes too, so the note counts them rather than leaving them out. (The total counts only
+    /// the live ones: an expired quote is no longer money on offer.)
     static func quotesOutNote(_ dashboard: Dashboard) -> String {
         let expired = dashboard.openQuotes.filter(\.expired).count
-        let live = dashboard.openQuotes.count - expired
-        guard expired > 0 else { return count(live, "quote", "quotes") + " waiting on a reply" }
-        return "\(live) waiting on a reply · \(expired) expired"
+        let note = "Quoted, waiting on a reply"
+        return expired > 0 ? note + " · \(expired) expired" : note
+    }
+
+    /// "Accepted, not invoiced yet · 1 job": the rows of the "Still to invoice" list.
+    static func notInvoicedNote(_ dashboard: Dashboard) -> String {
+        "Accepted, not invoiced yet · " + count(dashboard.toInvoice.count, "job", "jobs")
+    }
+
+    /// "Invoiced, not paid yet · 2 invoices": the rows of the "Waiting to be paid" list. Overdue
+    /// invoices show in red there and are counted in the status bar.
+    static func waitingNote(_ dashboard: Dashboard) -> String {
+        "Invoiced, not paid yet · " + count(dashboard.waiting.count, "invoice", "invoices")
+    }
+
+    /// "Paid this financial year · This month $1,995.00".
+    static func receivedNote(_ dashboard: Dashboard, currencyCode: String) -> String {
+        "Paid this financial year · This month " + dashboard.receivedThisMonth.formatted(currencyCode: currencyCode)
     }
 
     static func count(_ number: Int, _ one: String, _ many: String) -> String {
@@ -179,9 +188,9 @@ struct Readout: View {
     let note: String
 
     /// How far a long note may shrink before it is cut off. In the smallest window (980 wide) each
-    /// readout has about 164 points inside its frame, less than "3 jobs · $4,500.00 not invoiced yet"
-    /// needs at full size.
-    static let noteMinimumScale: CGFloat = 0.7
+    /// readout has about 164 points inside its frame, and "Paid this financial year · This month
+    /// $12,345.00" needs about 286 at full size.
+    static let noteMinimumScale: CGFloat = 0.55
 
     var body: some View {
         GroupBox(title) {

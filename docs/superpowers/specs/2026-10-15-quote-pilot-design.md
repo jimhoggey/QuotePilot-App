@@ -151,10 +151,21 @@ QuotePilotApp depends on the other two; QuotePilotPDF depends on QuotePilotCore;
 - **Still to invoice:** accepted quotes whose sent invoices don't yet add up to the accepted total
   (the second half of a 50/50 job, for example). A draft invoice is not invoiced yet; a void one
   doesn't count.
-- **Left on accepted jobs** (replaced the Overdue readout, 17 Oct 2026): for every accepted quote not
-  fully paid, its accepted total (with GST when charged) less every payment on its live invoices. A
-  $5,000 job with a paid $500 deposit leaves $4,500. The note counts the jobs and gives the part not
-  invoiced yet (the Still to invoice sum).
+- **The four readouts** (17 Oct 2026) are the stages of the money, left to right, and no dollar is
+  in two of them. Each total is the sum of the list behind it, and each note says what the box
+  counts:
+  - **Quotes out:** sent quotes not expired, accepted or declined. Note: "Quoted, waiting on a
+    reply", plus "· 2 expired" when the list also shows expired ones.
+  - **Not invoiced yet** (replaced v1.0.6's "Left on accepted jobs", which counted invoiced but
+    unpaid money twice): the Still to invoice sum, each accepted quote's accepted total (with GST
+    when charged) less its sent invoices. Note: "Accepted, not invoiced yet · 1 job".
+  - **Waiting to be paid:** what sent invoices still owe, one-offs included. Note: "Invoiced, not
+    paid yet · 2 invoices". Overdue ones show in red in the list and are counted in the status bar.
+  - **Received FY 2026–27:** payments this financial year. Note: "Paid this financial year · This
+    month $1,995.00".
+  - For an accepted quote, not invoiced yet + what its invoices owe + what they've been paid = its
+    accepted total. A $5,000 job with a paid $500 deposit shows $4,500 not invoiced yet and $0
+    waiting; sending the $4,500 final invoice moves it to Waiting to be paid.
 - **Tax-time export:** a CSV of payments received in a chosen FY (date, client, invoice, amount,
   method).
 
