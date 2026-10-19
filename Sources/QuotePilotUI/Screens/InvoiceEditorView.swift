@@ -70,7 +70,7 @@ struct InvoiceEditorView: View {
                     Button("Duplicate") { model.duplicateInvoice(invoiceID) }
                         .help("A new draft with the same lines, for repeat work")
                 }
-                Button("Save PDF…") { model.exportPDF() }
+                // No Save PDF… here: the toolbar's Save PDF, right above, is the one control for it.
                 Spacer()
             }
             .buttonStyle(.win95)

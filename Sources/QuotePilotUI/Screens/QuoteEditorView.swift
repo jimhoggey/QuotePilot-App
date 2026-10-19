@@ -68,7 +68,7 @@ struct QuoteEditorView: View {
                 if quote.stage == .draft {
                     Button("Delete Draft") { model.deleteDraftQuote(quoteID) }
                 }
-                Button("Save PDF…") { model.exportPDF() }
+                // No Save PDF… here: the toolbar's Save PDF, right above, is the one control for it.
                 Spacer()
             }
             .buttonStyle(.win95)
@@ -200,7 +200,7 @@ struct QuoteEditorView: View {
 }
 
 /// A number field that saves as you type, but only text `parse` accepts. Each time the text becomes
-/// a different valid value it is committed at once, so clicking Save PDF… or another button while
+/// a different valid value it is committed at once, so clicking Save PDF or another button while
 /// the cursor is still in the field uses what is showing. Half-typed text ("1.", "$") is left alone
 /// and the text itself is never rewritten while you type. When you press Return or leave the field,
 /// text that doesn't parse beeps and the stored value is put back, so it never reaches the library;

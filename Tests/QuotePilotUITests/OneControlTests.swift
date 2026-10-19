@@ -81,6 +81,22 @@ import QuotePilotCore
         #expect(QuoteSourceBanner.openTitle(quote) == "Open \(target.number)")
     }
 
+    // MARK: Save PDF
+
+    /// The editors have no Save PDF… of their own: the toolbar's Save PDF is on with any quote or
+    /// invoice open, so it is the one control.
+    @Test func theToolbarsSavePDFServesEveryOpenEditor() throws {
+        let model = try UIFixture.sampleModel()
+        for quote in model.library.quotes {
+            model.openQuote(quote.id)
+            #expect(model.canExportPDF, "\(quote.number) open")
+        }
+        for invoice in model.library.invoices {
+            model.openInvoice(invoice.id)
+            #expect(model.canExportPDF, "\(invoice.number) open")
+        }
+    }
+
     // MARK: One outlined button
 
     /// Send by Mail… has the heavy outline only on a draft. On a sent invoice with money owing the
