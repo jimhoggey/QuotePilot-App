@@ -4,11 +4,13 @@ import QuotePilotCore
 /// Where a quote or an invoice is on its way, and the one thing to do next, worked out from the
 /// library alone. The step bar in an editor's header draws it; nothing here changes anything.
 ///
-/// This is a learning aid, not a control: the actions are hints, and no button or key depends on them.
+/// This is a learning aid, not a control: the actions are hints, and no key depends on them. One button
+/// does: an invoice's quote banner leaves out its own Open button while the bar shows the same one
+/// (`StepBar.offersOpen`, one control per action).
 /// To take the aid out, delete this file, `StepBar.swift` and `GettingStarted.swift`, the one line in
 /// each editor and in the Dashboard that adds them (`StepBar(...)`, which takes the place of a `Spacer()`
-/// in each editor's header, and `GettingStartedBox(...)`), and the View → Show Steps item in
-/// `Commands.swift`.
+/// in each editor's header, and `GettingStartedBox(...)`), the View → Show Steps item in
+/// `Commands.swift`, and the check in `QuoteSourceBanner` (its button then always shows).
 struct NextStep: Equatable {
     enum State: Equatable {
         /// Passed: it gets a tick.

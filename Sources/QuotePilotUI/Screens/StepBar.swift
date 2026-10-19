@@ -35,7 +35,13 @@ enum StepProgress {
 /// bold, and one plain sentence on what to do next. It lives in the first row of an editor's header,
 /// in the space between the title block and the total, and takes the place of the `Spacer()` there
 /// (with Show Steps off it is that spacer, so the header looks exactly as it did before the step bar).
-/// It is a hint. It changes no button, no default and no key.
+/// It is a hint. It changes no default and no key.
+///
+/// **One control per action.** On any one screen an action has exactly one button. When the bar is
+/// shown and has a button for an action (its Open button), that is the action's control, and the
+/// screen's own button for it is left out (`offersOpen`); with View → Show Steps off, or when the bar
+/// has no button for it, the screen's own button shows instead. The same action has the same label
+/// everywhere: "Open Q-0001", naming the document, never a generic "Open Quote".
 struct StepBar: View {
     enum Document {
         case quote(UUID)
@@ -87,6 +93,12 @@ struct StepBar: View {
         } else {
             Spacer()
         }
+    }
+
+    /// Whether the bar shows a button that opens `id`: it is on (`stepsShown`) and its next step opens
+    /// that document. While it does, a screen leaves out its own button for the same document.
+    static func offersOpen(_ id: UUID, next: NextStep?, stepsShown: Bool) -> Bool {
+        stepsShown && next?.openTarget?.id == id
     }
 
     /// Opens the invoice or quote the bar's button names.

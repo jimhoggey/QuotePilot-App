@@ -32,6 +32,10 @@ The engine the app runs on is written and covered by automated tests. Everything
 A Windows 95-style window: a navy title bar, bevelled buttons and pixel icons, built to be read at a
 glance.
 
+**One button per action:** on any one screen an action has exactly one control, with the same label
+everywhere ("Open Q-0001", naming the document). The step bar's button is that control while it
+shows; with View → Show Steps off, the screen's own button takes its place.
+
 - **Dashboard:** what you're waiting to be paid, what's overdue, what's come in this financial year
   and what's quoted, in big numbers, with the lists behind them.
 - **Quotes:** an editor with a live preview of the PDF the client will tick. Quote Pilot never sends
