@@ -43,7 +43,9 @@ struct InvoiceEditorView: View {
     static func sendIsDefault(_ invoice: Invoice) -> Bool { invoice.stage == .draft }
 
     /// Two rows, like the quote's: the name, status and amount above, with the step bar in the space
-    /// between them; the actions below. (Not private: a test measures it at the smallest window.)
+    /// between them; the actions below, on the same left edge as All Invoices. 8 pt above the first
+    /// row, between the rows and below the actions. (Not private: a test measures it at the smallest
+    /// window.)
     func header(_ invoice: Invoice) -> some View {
         let rules = rulesFor(invoice)
         return VStack(spacing: 0) {
@@ -76,22 +78,17 @@ struct InvoiceEditorView: View {
             .buttonStyle(.win95)
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
+            // Under the padding, not over it, so the 8 pt below the buttons is as clear as the 8 pt
+            // above the first row and between the rows.
+            EtchedLine()
         }
         .background(Win95.face)
-        .overlay(alignment: .bottom) { EtchedLine() }
     }
 
     /// The header's first row. The step bar sits between the title block and the amount, where the
     /// spacer was; with View → Show Steps off it is that spacer. (Not private: a test measures it.)
     func titleRow(_ invoice: Invoice) -> some View {
-        let status = invoice.status(on: model.today)
-        let showOwing = invoice.stage == .sent
-        let figure = model.money(showOwing ? invoice.owing : invoice.amount)
-        // A deposit is only part of the job, so its readout says it's this invoice's, and the line
-        // under it says what's left on the whole job.
-        let label = showOwing ? (invoice.kind == .deposit ? "Owing on this invoice" : "Owing") : "Amount"
-        let leftToPay = model.leftToPayOnJob(invoice.id)
-        return HStack(alignment: .owingRow, spacing: 10) {
+        HStack(alignment: .owingRow, spacing: 10) {
             Button("All Invoices") { model.openInvoiceID = nil }
                 .buttonStyle(.win95)
                 .help("Back to the list of invoices")
@@ -101,65 +98,72 @@ struct InvoiceEditorView: View {
                     .font(Win95.title)
                     .foregroundStyle(Win95.text)
                 HStack(spacing: 8) {
-                    StatusLabel.cell(status, selected: false)
+                    StatusLabel.cell(invoice.status(on: model.today), selected: false)
                     Text(invoice.kind.columnLabel)
                         .font(Win95.body)
                         .foregroundStyle(Win95.text)
                 }
             }
             StepBar(model: model, document: .invoice(invoiceID), defaults: stepDefaults)
-            // The readouts, right-aligned: the invoice's figure, and under it, smaller, what's left on
-            // the whole job. The job's row is narrower than the one above it, so the row doesn't widen.
-            VStack(alignment: .trailing, spacing: 4) {
-                HStack(spacing: 10) {
-                    Text(label)
-                        .font(Win95.label)
-                        .foregroundStyle(Win95.text)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .accessibilityHidden(true)
-                    Text(figure)
-                        .font(Win95.readout)
-                        .foregroundStyle(status.isAlert ? Win95.overdue : Win95.text)
-                        .lineLimit(1)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .frame(minWidth: 190, alignment: .trailing)
-                        .win95Sunken()
-                        .accessibilityLabel("\(label) \(figure)")
-                }
-                // The row is centred on the Owing row, so the title and the step bar stay level with
-                // it and the job readout hangs below (the row grows downward, as the step bar's does).
-                .alignmentGuide(.owingRow) { $0[VerticalAlignment.center] }
-                if let leftToPay {
-                    jobReadout(model.money(leftToPay))
-                }
-            }
+            readouts(invoice)
         }
         .padding(8)
     }
 
-    /// "Left to pay on this job" under a deposit's readout: a bold label and the amount in a smaller
-    /// sunken box of the same kind. (Not private: a test measures it.)
-    func jobReadout(_ amount: String) -> some View {
-        HStack(spacing: 10) {
-            Text(Self.jobReadoutLabel)
-                .font(Win95.label.weight(.bold))
-                .foregroundStyle(Win95.text)
-                .lineLimit(1)
-                .fixedSize()
-            Text(amount)
-                .font(Win95.smallReadout)
-                .foregroundStyle(Win95.text)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 6)
-                .padding(.vertical, 1)
-                .frame(minWidth: 120, alignment: .trailing)
-                .win95Sunken()
+    /// The readouts at the right of the first row, in a two-row grid: the invoice's figure, and under
+    /// it, smaller, what's left on the whole job. The labels share one column, right-aligned, each
+    /// centred on its box; the boxes share the other, so they are one width (the wider of the two)
+    /// with their edges lined up. The first row is centred on the header's `.owingRow`, so the title
+    /// and the step bar stay level with it and the job's row hangs below. (Not private: a test
+    /// measures it.)
+    func readouts(_ invoice: Invoice) -> some View {
+        let status = invoice.status(on: model.today)
+        let showOwing = invoice.stage == .sent
+        let figure = model.money(showOwing ? invoice.owing : invoice.amount)
+        // A deposit is only part of the job, so its readout says it's this invoice's, and the line
+        // under it says what's left on the whole job.
+        let label = showOwing ? (invoice.kind == .deposit ? "Owing on this invoice" : "Owing") : "Amount"
+        let leftToPay = model.leftToPayOnJob(invoice.id).map { model.money($0) }
+        return Grid(alignment: .trailing, horizontalSpacing: 10, verticalSpacing: 4) {
+            GridRow {
+                readoutLabel(label, font: Win95.label)
+                Text(figure)
+                    .font(Win95.readout)
+                    .foregroundStyle(status.isAlert ? Win95.overdue : Win95.text)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .frame(minWidth: 190, maxWidth: .infinity, alignment: .trailing)
+                    .win95Sunken()
+                    .alignmentGuide(.owingRow) { $0[VerticalAlignment.center] }
+                    .accessibilityLabel("\(label) \(figure)")
+            }
+            if let leftToPay {
+                GridRow {
+                    readoutLabel(Self.jobReadoutLabel, font: Win95.label.weight(.bold))
+                    Text(leftToPay)
+                        .font(Win95.smallReadout)
+                        .foregroundStyle(Win95.text)
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 1)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .win95Sunken()
+                        .accessibilityLabel("\(Self.jobReadoutLabel) \(leftToPay)")
+                }
+            }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Self.jobReadoutLabel) \(amount)")
+        // As wide as the grid needs and no wider, so the step bar has the rest of the row.
+        .fixedSize()
+    }
+
+    private func readoutLabel(_ text: String, font: Font) -> some View {
+        Text(text)
+            .font(font)
+            .foregroundStyle(Win95.text)
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityHidden(true)
     }
 
     static let jobReadoutLabel = "Left to pay on this job"

@@ -40,8 +40,9 @@ struct QuoteEditorView: View {
     static func sendIsDefault(_ quote: Quote) -> Bool { quote.stage == .draft }
 
     /// Two rows: the quote's name, status and total above, with the step bar in the space between
-    /// them; the actions below, where a long set of buttons has the whole width to itself. (Not
-    /// private: a test measures it at the smallest window.)
+    /// them; the actions below, where a long set of buttons has the whole width to itself. 8 pt above
+    /// the first row, between the rows and below the actions. (Not private: a test measures it at the
+    /// smallest window.)
     func header(_ quote: Quote) -> some View {
         VStack(spacing: 0) {
             titleRow(quote)
@@ -74,9 +75,11 @@ struct QuoteEditorView: View {
             .buttonStyle(.win95)
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
+            // Under the padding, not over it, so the 8 pt below the buttons is as clear as the 8 pt
+            // above the first row and between the rows.
+            EtchedLine()
         }
         .background(Win95.face)
-        .overlay(alignment: .bottom) { EtchedLine() }
     }
 
     /// The header's first row. The step bar sits between the title block and the total, where the

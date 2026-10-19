@@ -111,8 +111,9 @@ struct StepBar: View {
     }
 }
 
-/// The bar's two lines, leading-aligned: the progress on line 1 and the "Next: …" sentence on line 2.
-/// Their heights are the title block's, so the two lines sit level with the title and its status.
+/// The bar's two lines, leading-aligned: the progress on line 1 and the "Next: …" sentence on line 2,
+/// with its button (when it has one) under the sentence. The two lines' heights are the title block's,
+/// so they sit level with the title and its status; the button hangs below them.
 struct StepBarRegion: View {
     let next: NextStep
     /// Whether line 1 is the short form ("Sent (step 2 of 5)") instead of every step.
@@ -130,6 +131,8 @@ struct StepBarRegion: View {
     static let progressHeight: CGFloat = 16
     static let sentenceHeight: CGFloat = 16
     static let lineGap: CGFloat = 2
+    /// Between the sentence and the button under it.
+    static let buttonGap: CGFloat = 4
     /// Halfway down the two lines: where the title block's own centre is.
     static let centreOfTwoLines: CGFloat = (progressHeight + lineGap + sentenceHeight) / 2
 
@@ -149,26 +152,30 @@ struct StepBarRegion: View {
         .padding(.leading, Self.leadingGap)
     }
 
-    /// Line 2. Its ideal width is 0: the sentence takes the width it is given, so a long one wraps
-    /// (to two lines at most) instead of making the bar ask for more room than the header has.
+    /// Line 2, and under it the bar's button on a line of its own, both on the same left edge as line
+    /// 1. Its ideal width is 0: the sentence takes the width it is given, so a long one wraps (to two
+    /// lines at most) instead of making the bar ask for more room than the header has.
     private var sentence: some View {
-        HStack(alignment: .center, spacing: 6) {
+        VStack(alignment: .leading, spacing: Self.buttonGap) {
             Text(next.sentence)
                 .font(Win95.small)
                 .foregroundStyle(Win95.text)
                 // Two lines at the most, so it never pushes the total or the buttons. What doesn't
                 // fit is cut with "…", and the whole sentence is in the tooltip.
                 .lineLimit(2)
+                .truncationMode(.tail)
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, minHeight: Self.sentenceHeight, alignment: .leading)
                 .help(next.sentence)
             if let target = next.openTarget {
                 // The bar's only button: small, plain, never the default.
                 Button("Open \(target.number)") { open(target.id) }
                     .buttonStyle(.win95Small)
+                    .fixedSize()
                     .help("Open \(target.kind) \(target.number)")
             }
         }
-        .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, minHeight: Self.sentenceHeight, alignment: .leading)
+        .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 }
 

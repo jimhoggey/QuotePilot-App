@@ -62,8 +62,8 @@ import QuotePilotCore
     }
 
     /// "Left to pay on this job" is a readout of its own: the amount in a sunken box at about two
-    /// thirds of the Owing figure's size, so Owing stays the one read first, and its row is no wider
-    /// than the Owing row above it, so the header doesn't grow.
+    /// thirds of the Owing figure's size, so Owing stays the one read first. The two readouts are a
+    /// grid: their boxes are one width, with left and right edges lined up.
     @Test func theJobReadoutIsASmallerReadoutUnderOwing() throws {
         #expect((0.6...0.7).contains(Win95.smallReadoutSize / Win95.readoutSize))
         // Monospaced type is as wide as it is big, so the drawn widths say the same.
@@ -77,17 +77,47 @@ import QuotePilotCore
 
         let model = try UIFixture.sampleModel()
         let deposit = try #require(model.library.invoices.first { $0.number == "INV-0001" })
-        let left = try #require(model.leftToPayOnJob(deposit.id), "the sample's paid deposit has the balance left")
+        #expect(model.leftToPayOnJob(deposit.id) != nil, "the sample's paid deposit has the balance left")
         let editor = InvoiceEditorView(model: model, invoiceID: deposit.id)
-        let job = width(editor.jobReadout(model.money(left)))
-        let owing = width(HStack(spacing: 10) {
-            Text("Owing on this invoice").font(Win95.label).fixedSize()
-            Text(model.money(deposit.owing)).font(Win95.readout).padding(.horizontal, 8)
-                .frame(minWidth: 190).win95Sunken()
-        })
-        #expect(job <= owing, "the job readout is \(job) wide, the Owing row \(owing)")
-        let rep = Snapshot.render(editor.header(deposit), size: CGSize(width: 778, height: 140), name: "invoice-header-job-readout")
-        #expect(rep.map(Snapshot.hasContent) == true)
+        let rep = try #require(Snapshot.render(editor.header(deposit).frame(maxHeight: .infinity, alignment: .top),
+                                               size: CGSize(width: 778, height: 140), name: "invoice-header-job-readout"))
+        #expect(Snapshot.hasContent(rep))
+        // The boxes are the only white in the right half: down a column just inside their right
+        // edge there are two runs of it, and across the middle of each, the white spans the same columns.
+        func isWhite(_ x: Int, _ y: Int) -> Bool {
+            guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return false }
+            return color.redComponent > 0.95 && color.greenComponent > 0.95 && color.blueComponent > 0.95
+        }
+        // Only the header's own rows: below it is the window's background.
+        let height = Int(NSHostingView(rootView: editor.header(deposit).frame(width: 778)).fittingSize.height)
+        let column = rep.pixelsWide - 14
+        var runs: [Range<Int>] = []
+        var start: Int?
+        for y in 0...height {
+            let white = y < height && isWhite(column, y)
+            if white, start == nil { start = y }
+            if !white, let begun = start { runs.append(begun..<y); start = nil }
+        }
+        // (One-row runs are the bevels' highlight lines and the etched line under the header.)
+        runs = runs.filter { $0.count > 4 }
+        try #require(runs.count == 2, "expected the two readout boxes, found white runs \(runs)")
+        let spans = runs.map { run -> ClosedRange<Int> in
+            let y = (run.lowerBound + run.upperBound) / 2
+            let xs = (rep.pixelsWide / 2..<rep.pixelsWide).filter { isWhite($0, y) }
+            return xs.first!...xs.last!
+        }
+        #expect(spans[0] == spans[1], "the Owing box spans \(spans[0]), the job's \(spans[1])")
+        #expect(runs[0].count > runs[1].count, "the Owing box is the taller one")
+    }
+
+    /// A paid deposit's editor at the usual window and at the smallest, for people to look at.
+    @Test func aPaidDepositsEditorAtBothSizes() throws {
+        let model = try UIFixture.sampleModel()
+        model.openInvoice(try #require(model.library.invoices.first { $0.number == "INV-0001" }).id)
+        for (width, height, name) in [(1240, 800, "invoice-paid-deposit"), (980, 620, "invoice-paid-deposit-small")] {
+            let rep = Snapshot.render(RootView(model: model), size: CGSize(width: width, height: height), name: name)
+            #expect(rep.map(Snapshot.hasContent) == true)
+        }
     }
 
     @Test func aPaidDepositsNextStepIsJobCompleteOnTheQuote() throws {
