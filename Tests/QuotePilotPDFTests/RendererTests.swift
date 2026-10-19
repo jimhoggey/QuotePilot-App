@@ -140,6 +140,46 @@ import QuotePilotCore
         #expect(content.meta.map(\.label) == ["Invoice no.", "Date", "Invoice issued"])
     }
 
+    /// An invoice from a quote, and its receipt, say which part of the plan it is. A one-off doesn't.
+    @Test func invoicesFromAQuoteSayWhichPartOfThePlanTheyAre() {
+        var quote = Sample.quote()
+        quote.lines[0].decision = .accepted
+        quote.lines[1].decision = .accepted
+        var deposit = Sample.invoice(.deposit)
+        deposit.depositPercent = 50
+        var final = Sample.invoice(.final)
+        final.number = "INV-0002"
+        final.deductions = [Deduction(label: "Less deposit", invoiceNumber: "INV-0001", amount: deposit.amount)]
+        let brand = Sample.brand, client = Sample.client
+        // Words only, so a line break in the PDF doesn't matter.
+        func words(_ content: DocumentContent) -> String {
+            Sample.text(Sample.pdf(content)).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        }
+
+        let depositContent = DocumentContent.invoice(deposit, client: client, brand: brand, quoteNumber: "Q-0001",
+                                                     quote: quote, deposit: deposit)
+        #expect(depositContent.sections.first?.text == "Quote Q-0001 ($1,080.00) is paid in two parts: 50% when the "
+                + "quote is accepted and 50% when the job is complete. This is the deposit, part 1 of 2.")
+        #expect(words(depositContent).contains("part 1 of 2"))
+        #expect(words(.invoice(final, client: client, brand: brand, quoteNumber: "Q-0001", quote: quote, deposit: deposit))
+                    .contains("part 2 of 2; the $540.00 deposit is invoiced as INV-0001."))
+
+        deposit.payments = [Payment(date: Sample.today, amount: deposit.amount)]
+        #expect(words(.receipt(deposit, client: client, brand: brand, quote: quote, deposit: deposit)).contains("part 1 of 2"))
+        #expect(words(.invoice(final, client: client, brand: brand, quoteNumber: "Q-0001", quote: quote, deposit: deposit))
+                    .contains("This is the final 50%, part 2 of 2; the $540.00 deposit is already paid."))
+
+        var fullQuote = quote
+        fullQuote.plan = .fullAmount
+        #expect(DocumentContent.invoice(Sample.invoice(.full), client: client, brand: brand, quoteNumber: "Q-0001",
+                                        quote: fullQuote).sections.first?.text
+                == "Quote Q-0001 ($1,080.00) is paid in full when the job is complete.")
+
+        let oneOff = Sample.invoice(.standalone)
+        #expect(!words(.invoice(oneOff, client: client, brand: brand, quoteNumber: nil)).contains("Payment plan"))
+        #expect(!words(.receipt(oneOff, client: client, brand: brand, quote: quote)).contains("Payment plan"))
+    }
+
     /// Quote and invoice numbers are separate sequences, so an invoice from a quote names the quote
     /// in its details, beside its own number and dates. A one-off invoice doesn't.
     @Test func anInvoiceFromAQuoteNamesTheQuote() throws {

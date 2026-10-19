@@ -44,13 +44,17 @@ func samples(into folder: URL) throws {
     try library.recordAcceptance(Acceptance(source: .byHand, accepted: ["01", "02"], declined: ["03"]), forQuote: quoteID)
     let deposit = try library.draftNextInvoice(forQuote: quoteID, on: today)
     try library.markSent(invoice: deposit.id)
-    try write(.invoice(deposit, client: client, brand: library.brand, quoteNumber: "Q-0001"), to: folder, style: style)
+    let accepted = library.quote(quoteID)
+    try write(.invoice(deposit, client: client, brand: library.brand, quoteNumber: "Q-0001", quote: accepted),
+              to: folder, style: style)
 
     try library.recordPayment(Payment(date: today, amount: deposit.amount), toInvoice: deposit.id)
-    try write(.receipt(library.invoice(deposit.id)!, client: client, brand: library.brand), to: folder, style: style)
+    let paidDeposit = library.invoice(deposit.id)!
+    try write(.receipt(paidDeposit, client: client, brand: library.brand, quote: accepted), to: folder, style: style)
 
     if let closing = try library.completeJob(quote: quoteID, on: today) {
-        try write(.invoice(closing, client: client, brand: library.brand, quoteNumber: "Q-0001"), to: folder, style: style)
+        try write(.invoice(closing, client: client, brand: library.brand, quoteNumber: "Q-0001",
+                           quote: library.quote(quoteID), deposit: paidDeposit), to: folder, style: style)
     }
 }
 

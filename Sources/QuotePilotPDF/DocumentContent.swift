@@ -113,7 +113,9 @@ extension DocumentContent {
             fileName: fileName(quote.number, client))
     }
 
-    public static func invoice(_ invoice: Invoice, client: Client?, brand: Brand, quoteNumber: String?) -> DocumentContent {
+    /// `quote` and `deposit` (the quote's live deposit invoice) give the Payment plan note.
+    public static func invoice(_ invoice: Invoice, client: Client?, brand: Brand, quoteNumber: String?,
+                               quote: Quote? = nil, deposit: Invoice? = nil) -> DocumentContent {
         let currency = brand.currencyCode
         func money(_ amount: Money) -> String { amount.formatted(currencyCode: currency) }
         let lineTotals = invoice.lineTotals
@@ -151,6 +153,7 @@ extension DocumentContent {
         if !invoice.title.trimmed.isEmpty { meta.append(Meta(label: "Reference", value: invoice.title)) }
 
         var sections: [Section] = []
+        if let plan = planSection(invoice, quote: quote, deposit: deposit, money: money) { sections.append(plan) }
         if !brand.paymentDetails.trimmed.isEmpty {
             sections.append(Section(heading: "Payment details", text: brand.paymentDetails, source: .paymentDetails))
         }
@@ -173,7 +176,8 @@ extension DocumentContent {
             fileName: fileName(invoice.number, client))
     }
 
-    public static func receipt(_ invoice: Invoice, client: Client?, brand: Brand) -> DocumentContent {
+    public static func receipt(_ invoice: Invoice, client: Client?, brand: Brand,
+                               quote: Quote? = nil, deposit: Invoice? = nil) -> DocumentContent {
         let currency = brand.currencyCode
         func money(_ amount: Money) -> String { amount.formatted(currencyCode: currency) }
 
@@ -201,9 +205,32 @@ extension DocumentContent {
             showCodes: false,
             rows: invoice.lines.map { row($0, currency) },
             totals: totals,
-            sections: [],
+            sections: planSection(invoice, quote: quote, deposit: deposit, money: money).map { [$0] } ?? [],
             formQuoteNumber: nil,
             fileName: fileName("Receipt \(invoice.number)", client))
+    }
+
+    /// Which part of its quote's plan an invoice (or its receipt) is. A one-off invoice has none.
+    /// `deposit` is the quote's live deposit invoice, which a final invoice names.
+    static func planSection(_ invoice: Invoice, quote: Quote?, deposit: Invoice?,
+                            money: (Money) -> String) -> Section? {
+        guard let quote, invoice.kind != .standalone else { return nil }
+        let opening = "Quote \(quote.number) (\(money(quote.acceptedTotals.total)))"
+        let percent = invoice.depositPercent ?? deposit?.depositPercent ?? quote.plan.depositPercent
+        // A full-amount invoice, or a final one with no deposit before it, bills the whole total.
+        guard let percent, invoice.kind == .deposit || (invoice.kind == .final && deposit != nil) else {
+            return Section(heading: "Payment plan", text: "\(opening) is paid in full when the job is complete.")
+        }
+        var text = "\(opening) is paid in two parts: \(percent)% when the quote is accepted and "
+            + "\(100 - percent)% when the job is complete. "
+        if let deposit, invoice.kind == .final {
+            let paid = deposit.paid > .zero && deposit.owing <= .zero
+            text += "This is the final \(100 - percent)%, part 2 of 2; the \(money(deposit.amount)) deposit is "
+                + (paid ? "already paid." : "invoiced as \(deposit.number).")
+        } else {
+            text += "This is the deposit, part 1 of 2."
+        }
+        return Section(heading: "Payment plan", text: text)
     }
 
     static func row(_ line: LineItem, _ currency: String) -> Row {

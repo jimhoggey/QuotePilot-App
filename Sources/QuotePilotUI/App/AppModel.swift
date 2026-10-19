@@ -754,8 +754,15 @@ public final class AppModel {
 
     public func invoiceContent(_ id: UUID) -> DocumentContent? {
         guard let invoice = library.invoice(id) else { return nil }
-        let quoteNumber = invoice.quoteID.flatMap { library.quote($0)?.number }
-        return .invoice(invoice, client: library.client(invoice.clientID), brand: library.brand, quoteNumber: quoteNumber)
+        let plan = planSources(invoice)
+        return .invoice(invoice, client: library.client(invoice.clientID), brand: library.brand,
+                        quoteNumber: plan.quote?.number, quote: plan.quote, deposit: plan.deposit)
+    }
+
+    /// The quote an invoice belongs to and that quote's live deposit invoice, for the Payment plan note.
+    func planSources(_ invoice: Invoice) -> (quote: Quote?, deposit: Invoice?) {
+        guard let quote = invoice.quoteID.flatMap({ library.quote($0) }) else { return (nil, nil) }
+        return (quote, library.invoices(forQuote: quote.id).first { $0.kind == .deposit })
     }
 
     /// A made-up quote in the current brand, for the Brand screen's preview. Its hours line is at the
