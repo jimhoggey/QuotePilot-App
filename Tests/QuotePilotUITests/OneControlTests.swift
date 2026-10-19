@@ -97,6 +97,23 @@ import QuotePilotCore
         }
     }
 
+    // MARK: New Quote
+
+    /// Getting started's third step points at the toolbar's New Quote instead of having a second one.
+    @Test func gettingStartedLeavesNewQuoteToTheToolbar() {
+        #expect(GettingStarted.Item.quote.buttonTitle == nil)
+        #expect(GettingStarted.Item.quote.detail.contains("New Quote in the toolbar"))
+        #expect(GettingStarted.Item.business.buttonTitle == "Go to Brand")
+        #expect(GettingStarted.Item.client.buttonTitle == "New Client")
+        // The longer sentence still fits on its one line at the smallest window: the tick box, the
+        // title, the sentence and the button's room, with the gaps and the box's padding.
+        _ = NSApplication.shared
+        func width(_ text: Text) -> CGFloat { NSHostingView(rootView: text.fixedSize()).fittingSize.width }
+        let needed = 13 + width(Text("3. \(GettingStarted.Item.quote.title)").font(Win95.label))
+            + width(Text(GettingStarted.Item.quote.detail).font(Win95.small)) + 104 + 8 * 4 + 40
+        #expect(needed <= StepBarTests.smallSection, "the row needs \(needed)")
+    }
+
     // MARK: One outlined button
 
     /// Send by Mail… has the heavy outline only on a draft. On a sent invoice with money owing the

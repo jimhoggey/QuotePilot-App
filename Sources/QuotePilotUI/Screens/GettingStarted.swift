@@ -19,15 +19,17 @@ struct GettingStarted: Equatable {
             switch self {
             case .business: return "Your name and payment details print on every document."
             case .client: return "Who the quote is for. Add more any time."
-            case .quote: return "Add the work as lines, then send it to the client."
+            case .quote: return "Press New Quote in the toolbar, add the work as lines, then send it."
             }
         }
 
-        var buttonTitle: String {
+        /// The row's button, or none when the toolbar already has one for the same thing: New Quote
+        /// is the toolbar's, right above the box (one control per action).
+        var buttonTitle: String? {
             switch self {
             case .business: return "Go to Brand"
             case .client: return "New Client"
-            case .quote: return "New Quote"
+            case .quote: return nil
             }
         }
     }
@@ -167,9 +169,14 @@ struct GettingStartedBox: View {
             Spacer(minLength: 8)
             // The first step still to do gets the heavy outline. As with Send by Mail… in the editors
             // this is a mark only: Return on the Dashboard still does nothing it did not do before.
-            Button(item.buttonTitle) { GettingStarted.perform(item, in: model) }
-                .buttonStyle(Win95ButtonStyle(isDefault: isFirst))
-                .frame(width: 104, alignment: .trailing)
+            // A step without a button keeps the button's room, so the rows stay the same height.
+            if let title = item.buttonTitle {
+                Button(title) { GettingStarted.perform(item, in: model) }
+                    .buttonStyle(Win95ButtonStyle(isDefault: isFirst))
+                    .frame(width: 104, alignment: .trailing)
+            } else {
+                Color.clear.frame(width: 104, height: 23)
+            }
         }
     }
 }
