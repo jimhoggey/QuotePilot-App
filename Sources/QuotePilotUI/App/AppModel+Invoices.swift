@@ -50,7 +50,7 @@ extension AppModel {
     }
 
     /// A deposit invoice's banner line: what the deposit is out of the job, what's paid, and when the
-    /// balance is billed. "Deposit for Q-0008: $750.00 of $1,500.00 paid. The $750.00 balance is
+    /// rest is billed. "Deposit for Q-0008: $750.00 of $1,500.00 paid. The remaining $750.00 will be
     /// invoiced when the job is complete." Nil for any other invoice.
     func depositNote(_ id: UUID) -> String? {
         guard let invoice = library.invoice(id), invoice.kind == .deposit,
@@ -68,11 +68,11 @@ extension AppModel {
         }
         let second: String
         if let closing = library.closingInvoice(forQuote: quoteID) {
-            second = "The \(money(balance)) balance is on \(closing.number)."
+            second = "The remaining \(money(balance)) is on \(closing.number)."
         } else if quote.completedOn != nil {
-            second = "The job is complete, so the \(money(balance)) balance is invoiced next."
+            second = "The job is complete, so the remaining \(money(balance)) will be invoiced next."
         } else {
-            second = "The \(money(balance)) balance is invoiced when the job is complete."
+            second = "The remaining \(money(balance)) will be invoiced when the job is complete."
         }
         return first + " " + second
     }
