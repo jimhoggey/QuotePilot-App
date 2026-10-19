@@ -276,6 +276,8 @@ private struct SizeRecorder: Layout {
         model.startHandTicking(quote.id)
         #expect(try review(model).source == .byHand)
         #expect(try review(model).clientDate == "15/10/2026")
+        // Nor a name: it starts as the client's contact.
+        #expect(try review(model).clientName == "Alex Sample")
 
         // So does a PDF with no tick boxes.
         model.dialog = nil
