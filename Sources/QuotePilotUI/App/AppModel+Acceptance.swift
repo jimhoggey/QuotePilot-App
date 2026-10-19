@@ -160,10 +160,16 @@ extension AppModel {
 
     /// The review for a quote. An empty Date field (hand-ticking has none, and a client may leave it
     /// blank on the PDF) starts as today, written the way people fill in the PDF's Date field
-    /// ("16/10/2026"). A date the client filled in is kept as it is.
+    /// ("16/10/2026"). A date the client filled in is kept as it is. An empty name starts as the
+    /// client's contact, or the business name when there's no contact; a name the client wrote is kept.
     private func acceptanceReview(_ quote: Quote, proposal: AcceptanceProposal, source: AcceptanceSource,
                                   fileName: String?) -> AcceptanceReview {
         var review = AcceptanceReview(quote: quote, proposal: proposal, source: source, fileName: fileName)
+        if review.clientName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           let client = library.client(quote.clientID) {
+            let contact = client.contactName.trimmingCharacters(in: .whitespacesAndNewlines)
+            review.clientName = contact.isEmpty ? client.name : contact
+        }
         if review.clientDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let day = today
             review.clientDate = String(format: "%02d/%02d/%04d", day.day, day.month, day.year)
