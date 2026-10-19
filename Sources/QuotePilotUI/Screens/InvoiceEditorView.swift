@@ -38,6 +38,10 @@ struct InvoiceEditorView: View {
         model.invoiceRules(invoice.id) ?? InvoiceRules(invoice: invoice, finalDeducting: nil)
     }
 
+    /// Whether Send by Mail… has the heavy outline: only while sending is the next step (a draft). A
+    /// sent invoice's outlined button is Record Payment, so the screen never has two.
+    static func sendIsDefault(_ invoice: Invoice) -> Bool { invoice.stage == .draft }
+
     /// Two rows, like the quote's: the name, status and amount above, with the step bar in the space
     /// between them; the actions below. (Not private: a test measures it at the smallest window.)
     func header(_ invoice: Invoice) -> some View {
@@ -47,7 +51,7 @@ struct InvoiceEditorView: View {
             HStack(spacing: 6) {
                 if invoice.stage != .void {
                     Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
-                        .buttonStyle(.win95Default)
+                        .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(invoice)))
                         .disabled(invoice.clientID == nil)
                         .help(invoice.clientID == nil ? "Choose a client first" : "Open a Mail draft with this invoice attached (⌘S)")
                 }
@@ -66,7 +70,7 @@ struct InvoiceEditorView: View {
                     Button("Duplicate") { model.duplicateInvoice(invoiceID) }
                         .help("A new draft with the same lines, for repeat work")
                 }
-                Button("Save PDF…") { model.exportPDF() }
+                // No Save PDF… here: the toolbar's Save PDF, right above, is the one control for it.
                 Spacer()
             }
             .buttonStyle(.win95)
@@ -170,12 +174,10 @@ struct InvoiceEditorView: View {
                 NoteBanner(note.text, warning: note.warning)
             }
             if let quote {
-                HStack(spacing: 8) {
-                    NoteBanner(model.depositNote(invoiceID)
-                               ?? "Drafted from quote \(quote.number), as its \(current.kind.columnLabel.lowercased()) invoice.")
-                    Button("Open Quote") { model.openQuote(quote.id) }
-                        .buttonStyle(.win95)
-                }
+                QuoteSourceBanner(model: model, invoice: current, quote: quote,
+                                  text: model.depositNote(invoiceID)
+                                    ?? "Drafted from quote \(quote.number), as its \(current.kind.columnLabel.lowercased()) invoice.",
+                                  defaults: stepDefaults)
             }
             // Payments are what you do with a sent invoice, so the box sits first, where it shows
             // without scrolling; the invoice's own boxes are the record below it.
@@ -225,6 +227,47 @@ struct InvoiceEditorView: View {
                     .frame(height: 60)
             }
             .disabled(!rules.canEditAmounts)
+        }
+    }
+}
+
+/// An invoice's line about the quote it came from, with the button that opens that quote. The button
+/// is "Open Q-0001", as the step bar's is. One control per action (see `StepBar`): while the step bar
+/// shows its own Open Q-0001 (a paid deposit's next step), the banner leaves its button out.
+struct QuoteSourceBanner: View {
+    let model: AppModel
+    let invoice: Invoice
+    let quote: Quote
+    let text: String
+    @AppStorage private var showSteps: Bool
+
+    init(model: AppModel, invoice: Invoice, quote: Quote, text: String, defaults: UserDefaults = .standard) {
+        self.model = model
+        self.invoice = invoice
+        self.quote = quote
+        self.text = text
+        _showSteps = AppStorage(wrappedValue: true, StepPreferences.showStepsKey, store: defaults)
+    }
+
+    /// The button's label, the same as the step bar's.
+    static func openTitle(_ quote: Quote) -> String { "Open \(quote.number)" }
+
+    /// Whether the banner has its own Open button: only while the step bar isn't offering it.
+    static func showsOpenButton(_ invoice: Invoice, quote: Quote, in library: Library, today: Day,
+                                stepsShown: Bool) -> Bool {
+        let next = NextStep.forInvoice(invoice, in: library, today: today)
+        return !StepBar.offersOpen(quote.id, next: next, stepsShown: stepsShown)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            NoteBanner(text)
+            if Self.showsOpenButton(invoice, quote: quote, in: model.library, today: model.today,
+                                    stepsShown: showSteps) {
+                Button(Self.openTitle(quote)) { model.openQuote(quote.id) }
+                    .buttonStyle(.win95)
+                    .help("Open quote \(quote.number)")
+            }
         }
     }
 }

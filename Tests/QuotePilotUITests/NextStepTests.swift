@@ -235,9 +235,24 @@ import QuotePilotCore
         #expect(next.action == .jobComplete)
     }
 
-    @Test func aFullAmountQuoteWithNothingInvoicedCallsForTheInvoice() throws {
+    /// The full amount is billed when the job is done, as the acceptance box says ("the invoice is
+    /// drafted when you click Job Complete"), so the step names Job Complete, not Draft Invoice Now.
+    @Test func aFullAmountQuoteWithNothingInvoicedWaitsForJobComplete() throws {
         let next = try self.next(try accepted(try library(plan: .fullAmount)))
         #expect(states(next) == [.done, .done, .current, .todo, .todo])
+        #expect(next.sentence == "Next: when the job is done, press Job Complete.")
+        #expect(next.action == .jobComplete)
+        #expect(AcceptanceReviewView.planNote(plan: .fullAmount, accepted: Money(dollars: 1), ticked: true,
+                                              currencyCode: "AUD").contains("Job Complete"))
+    }
+
+    /// Once the job is marked complete and its invoice voided, Job Complete is gone: Draft Invoice Now.
+    @Test func aCompletedFullAmountQuoteWithItsInvoiceVoidedCallsForDraftInvoiceNow() throws {
+        var (library, id) = try accepted(try self.library(plan: .fullAmount))
+        let full = try #require(try library.completeJob(quote: id, on: today))
+        try library.markSent(invoice: full.id)
+        try library.voidInvoice(full.id)
+        let next = try self.next((library, id))
         #expect(next.sentence == "Next: Draft Invoice Now.")
         #expect(next.action == .draftInvoiceNow)
     }
@@ -298,7 +313,8 @@ import QuotePilotCore
         try library.voidInvoice(full.id)
         let next = try self.next((library, id))
         #expect(states(next) == [.done, .done, .current, .todo, .todo])
-        #expect(next.sentence == "Next: Draft Invoice Now.")
+        // Drafted early and voided: the job isn't marked complete, so Job Complete is still the step.
+        #expect(next.sentence == "Next: when the job is done, press Job Complete.")
     }
 
     @Test func aPartlyAcceptedQuoteFollowsTheSameSteps() throws {

@@ -53,9 +53,8 @@ struct QuoteListView: View {
         let rows = Self.visibleRows(model)
         let selected = model.selectedQuoteID.flatMap { model.library.quote($0) }
         VStack(alignment: .leading, spacing: 6) {
+            // No New Quote here: the toolbar's, right above, is the one control for it.
             HStack(spacing: 6) {
-                Button("New Quote") { model.newQuote() }
-                    .buttonStyle(.win95)
                 Button("Open") { if let selected { model.openQuote(selected.id) } }
                     .buttonStyle(.win95)
                     .disabled(selected == nil)
@@ -100,10 +99,10 @@ struct QuoteListView: View {
         Button("Open") { model.openQuote(id) }
         Button("Duplicate") { model.duplicateQuote(id) }
         Divider()
-        // A draft keeps its own Delete Draft… (and its own question); any other quote, whatever its
-        // stage, can be deleted here, with its invoices.
+        // A draft keeps its own Delete Draft (and its own question), named as the button above the
+        // list names it; any other quote, whatever its stage, can be deleted here, with its invoices.
         if model.library.quote(id)?.stage == .draft {
-            Button("Delete Draft…") { model.deleteDraftQuote(id) }
+            Button("Delete Draft") { model.deleteDraftQuote(id) }
         } else {
             Button("Delete…") {
                 model.selectedQuoteID = id

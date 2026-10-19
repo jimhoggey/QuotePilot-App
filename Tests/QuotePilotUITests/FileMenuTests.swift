@@ -254,7 +254,7 @@ import QuotePilotPDF
         #expect(try UIFixture.sampleModel().canBackUp)
     }
 
-    /// The menu items read `libraryIsOpen` (Read Returned Quote…, Import from Invoice Generator Backup…,
+    /// The menu items read `libraryIsOpen` (Read Reply…, Import from Invoice Generator Backup…,
     /// Export Payments for Tax Time…, and the New commands) and `canRestoreBackup` (Restore Backup…):
     /// on the unreadable-library screen only restoring is on offer, and only when there is a backup.
     @Test func theFileMenuOffersOnlyRestoreWhileTheLibraryCantBeRead() throws {

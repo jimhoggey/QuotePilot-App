@@ -23,14 +23,14 @@ import QuotePilotCore
         try library.markSent(invoice: depositID)
         let model = try UIFixture.model(library)
         #expect(model.depositNote(depositID) ==
-                "Deposit for Q-0001: $900.00 of $1,800.00. The $900.00 balance is invoiced when the job is complete.")
+                "Deposit for Q-0001: $900.00 of $1,800.00. The remaining $900.00 will be invoiced when the job is complete.")
         try library.recordPayment(Payment(date: today, amount: Money(dollars: 300)), toInvoice: depositID)
         let partPaid = try UIFixture.model(library)
         #expect(partPaid.depositNote(depositID)?.hasPrefix("Deposit for Q-0001: $900.00 of $1,800.00, $300.00 paid so far.") == true)
         try library.recordPayment(Payment(date: today, amount: Money(dollars: 600)), toInvoice: depositID)
         let paid = try UIFixture.model(library)
         #expect(paid.depositNote(depositID) ==
-                "Deposit for Q-0001: $900.00 of $1,800.00 paid. The $900.00 balance is invoiced when the job is complete.")
+                "Deposit for Q-0001: $900.00 of $1,800.00 paid. The remaining $900.00 will be invoiced when the job is complete.")
     }
 
     @Test func onceTheFinalIsDraftedTheBannerNamesIt() throws {
@@ -38,7 +38,7 @@ import QuotePilotCore
         try library.markSent(invoice: depositID)
         let final = try library.draftNextInvoice(forQuote: quoteID, on: today)
         let model = try UIFixture.model(library)
-        #expect(model.depositNote(depositID)?.hasSuffix("The $900.00 balance is on \(final.number).") == true)
+        #expect(model.depositNote(depositID)?.hasSuffix("The remaining $900.00 is on \(final.number).") == true)
         // Not for the final itself.
         #expect(model.depositNote(final.id) == nil)
     }

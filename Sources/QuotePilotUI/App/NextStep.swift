@@ -4,11 +4,13 @@ import QuotePilotCore
 /// Where a quote or an invoice is on its way, and the one thing to do next, worked out from the
 /// library alone. The step bar in an editor's header draws it; nothing here changes anything.
 ///
-/// This is a learning aid, not a control: the actions are hints, and no button or key depends on them.
+/// This is a learning aid, not a control: the actions are hints, and no key depends on them. One button
+/// does: an invoice's quote banner leaves out its own Open button while the bar shows the same one
+/// (`StepBar.offersOpen`, one control per action).
 /// To take the aid out, delete this file, `StepBar.swift` and `GettingStarted.swift`, the one line in
 /// each editor and in the Dashboard that adds them (`StepBar(...)`, which takes the place of a `Spacer()`
-/// in each editor's header, and `GettingStartedBox(...)`), and the View → Show Steps item in
-/// `Commands.swift`.
+/// in each editor's header, and `GettingStartedBox(...)`), the View → Show Steps item in
+/// `Commands.swift`, and the check in `QuoteSourceBanner` (its button then always shows).
 struct NextStep: Equatable {
     enum State: Equatable {
         /// Passed: it gets a tick.
@@ -111,7 +113,17 @@ struct NextStep: Equatable {
         case .deposit?:
             return NextStep(steps: progress(titles, at: step),
                             sentence: "Next: Draft Invoice Now for the deposit.", action: .draftInvoiceNow)
-        case .full?, .standalone?:
+        case .full?:
+            // The full amount is billed when the job is done, as the acceptance box says, so the step
+            // is Job Complete; Draft Invoice Now beside it is for billing early. If the job is already
+            // marked complete (its invoice was voided), Job Complete is gone and Draft Invoice Now it is.
+            if quote.completedOn == nil {
+                return NextStep(steps: progress(titles, at: step),
+                                sentence: "Next: when the job is done, press Job Complete.", action: .jobComplete)
+            }
+            return NextStep(steps: progress(titles, at: step),
+                            sentence: "Next: Draft Invoice Now.", action: .draftInvoiceNow)
+        case .standalone?:
             // (A quote never calls for a standalone invoice; it is listed so the switch is complete.)
             return NextStep(steps: progress(titles, at: step),
                             sentence: "Next: Draft Invoice Now.", action: .draftInvoiceNow)

@@ -465,18 +465,18 @@ import QuotePilotCore
             let found = try invoice(model, number)
             return idealWidth(InvoiceEditorView(model: model, invoiceID: found.id).header(found))
         }
-        // Sent and unpaid: Send by Mail…, Void…, Duplicate and Save PDF…, with an overdue status.
+        // Sent and unpaid: Send by Mail…, Void… and Duplicate, with an overdue status. (Save PDF is the
+        // toolbar's.)
         let sentOneOff = try width("INV-0002")
-        // INV-0003 is a one-off too, part paid, so it has only Send by Mail… and Save PDF…. (INV-0001,
-        // the paid deposit, has the longest top row instead: "Owing on this invoice" and the line
-        // under the readout.)
+        // INV-0003 is a one-off too, part paid, so it has no Void…. (INV-0001, the paid deposit, has
+        // the longest top row instead: "Owing on this invoice" and the line under the readout.)
         let partPaid = try width("INV-0003")
-        #expect(sentOneOff > partPaid, "the four-button row should be the wider one, or this isn't measuring the buttons")
+        #expect(sentOneOff > partPaid, "the three-button row should be the wider one, or this isn't measuring the buttons")
         for number in ["INV-0001", "INV-0002", "INV-0003"] {
             let needed = try width(number)
             #expect(needed <= Self.sectionWidth, "\(number)'s header needs \(needed) pt of \(Self.sectionWidth)")
         }
-        // A draft: Send by Mail…, Delete Draft, Duplicate and Save PDF….
+        // A draft: Send by Mail…, Delete Draft and Duplicate.
         model.newInvoice()
         let draft = try #require(model.openInvoiceID.flatMap { model.library.invoice($0) })
         let draftWidth = idealWidth(InvoiceEditorView(model: model, invoiceID: draft.id).header(draft))

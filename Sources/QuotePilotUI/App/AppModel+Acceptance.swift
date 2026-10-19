@@ -131,7 +131,7 @@ public enum FileChoice: Equatable {
 }
 
 extension AppModel {
-    /// File → Read Returned Quote…, or a PDF dropped on the window.
+    /// File → Read Reply… (the toolbar's Read Reply), or a PDF dropped on the window.
     public func readReturnedQuote(at url: URL) {
         guard loadState == .ready else { return }
         guard let data = try? Data(contentsOf: url) else {

@@ -26,7 +26,8 @@ public struct QuotePilotCommands: Commands {
                 .keyboardShortcut("n", modifiers: [.command, .option])
                 .disabled(!model.libraryIsOpen)
             Divider()
-            Button("Read Returned Quote…") { model.whenFree { model.choosingFile = .returnedQuote } }
+            // The toolbar's name for it, so the one action has one name.
+            Button("Read Reply…") { model.whenFree { model.choosingFile = .returnedQuote } }
                 .keyboardShortcut("o")
                 .disabled(!model.libraryIsOpen)
             Divider()
