@@ -132,7 +132,9 @@ extension AppModel {
             return (invoice.number, "invoice", invoice.clientID, draft, content)
         case .receipt(let id):
             guard let invoice = library.invoice(id), let draft = library.mailDraft(forReceipt: id) else { return nil }
-            let content = DocumentContent.receipt(invoice, client: library.client(invoice.clientID), brand: library.brand)
+            let plan = planSources(invoice)
+            let content = DocumentContent.receipt(invoice, client: library.client(invoice.clientID), brand: library.brand,
+                                                  quote: plan.quote, deposit: plan.deposit)
             return (invoice.number, "the receipt for", invoice.clientID, draft, content)
         }
     }
