@@ -113,7 +113,17 @@ struct NextStep: Equatable {
         case .deposit?:
             return NextStep(steps: progress(titles, at: step),
                             sentence: "Next: Draft Invoice Now for the deposit.", action: .draftInvoiceNow)
-        case .full?, .standalone?:
+        case .full?:
+            // The full amount is billed when the job is done, as the acceptance box says, so the step
+            // is Job Complete; Draft Invoice Now beside it is for billing early. If the job is already
+            // marked complete (its invoice was voided), Job Complete is gone and Draft Invoice Now it is.
+            if quote.completedOn == nil {
+                return NextStep(steps: progress(titles, at: step),
+                                sentence: "Next: when the job is done, press Job Complete.", action: .jobComplete)
+            }
+            return NextStep(steps: progress(titles, at: step),
+                            sentence: "Next: Draft Invoice Now.", action: .draftInvoiceNow)
+        case .standalone?:
             // (A quote never calls for a standalone invoice; it is listed so the switch is complete.)
             return NextStep(steps: progress(titles, at: step),
                             sentence: "Next: Draft Invoice Now.", action: .draftInvoiceNow)
