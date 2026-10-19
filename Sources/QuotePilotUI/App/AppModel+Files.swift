@@ -7,7 +7,7 @@ extension AppModel {
     // MARK: What the File menu can run
 
     /// Whether the library can be worked with. While it can't be read (`loadState` is unreadable) the
-    /// File menu greys out Read Returned Quote…, Import from Invoice Generator Backup… and Export Payments
+    /// File menu greys out Read Reply…, Import from Invoice Generator Backup… and Export Payments
     /// for Tax Time…, and the New commands: nothing they would make can be saved. Restore Backup… is
     /// the one command that stays on, since it is the way out (`canRestoreBackup`).
     public var libraryIsOpen: Bool { loadState == .ready }

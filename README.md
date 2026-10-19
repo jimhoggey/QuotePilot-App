@@ -41,8 +41,8 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Quotes:** an editor with a live preview of the PDF the client will tick. Quote Pilot never sends
   email itself. **Send by Mail** opens a Mail draft with the PDF attached; you press Send in Mail,
   then Quote Pilot asks "Did you send it?".
-- **Returned quotes:** drop the client's PDF anywhere on the window, or use File → Read Returned
-  Quote…. Check the ticks and confirm. A 50/50 quote then drafts its deposit invoice. If the
+- **Returned quotes:** drop the client's PDF anywhere on the window, or use Read Reply (the
+  toolbar, or File → Read Reply…). Check the ticks and confirm. A 50/50 quote then drafts its deposit invoice. If the
   client's app lost the ticks, tick the lines by hand.
 - **Invoices:** deposits and balances from quotes (**Draft Invoice Now**, **Job Complete**), one-off
   invoices, payments, receipts, and voiding. Payments are entered in the invoice screen, with no
