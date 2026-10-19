@@ -227,7 +227,7 @@ import QuotePilotCore
     }
 
     @Test func theListsFollowTheOrderTheWorkHappens() {
-        #expect(DashboardView.listTitles == ["Quotes waiting on a reply", "Still to invoice", "Waiting to be paid"])
+        #expect(DashboardView.listTitles == ["Waiting to be paid", "Still to invoice", "Quotes waiting on a reply"])
         #expect(DashboardView.listTitles.allSatisfy { $0.first?.isNumber == false })
     }
 }

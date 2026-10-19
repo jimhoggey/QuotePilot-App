@@ -27,16 +27,19 @@ struct DashboardView: View {
                 Readout(title: "Received \(dashboard.financialYear.label)", value: model.money(dashboard.receivedThisYear),
                         note: Self.receivedNote(dashboard, currencyCode: model.currencyCode))
             }
-            // The lists in the order the work happens: a quote goes out, is accepted and invoiced,
-            // then waits to be paid.
+            // The money closest to hand on top: what's waiting to be paid and what's still to invoice,
+            // side by side; the quotes waiting on a reply below them (the user's order, 19 Oct 2026).
             HStack(alignment: .top, spacing: Self.gap) {
-                let quoteColumns = Self.quoteColumns(currencyCode: model.currencyCode)
+                let owingColumns = Self.owingColumns(currencyCode: model.currencyCode) { row in
+                    model.library.invoice(row.invoiceID)?.status(on: model.today) ?? .sent
+                }
                 let jobColumns = Self.jobColumns(currencyCode: model.currencyCode)
                 GroupBox(Self.listTitles[0]) {
-                    DetailsList(dashboard.openQuotes, id: \.quoteID, columns: quoteColumns, selection: $selectedQuote,
-                                emptyText: "No quotes out.", onOpen: { model.openQuote($0) })
+                    DetailsList(dashboard.waiting, id: \.invoiceID, columns: owingColumns, selection: $selectedInvoice,
+                                emptyText: Self.waitingEmptyText(model.library),
+                                onOpen: { model.openInvoice($0) })
                 }
-                .frame(minWidth: Self.boxWidth(quoteColumns, scroller: DetailsLayout.legacyScrollerWidth))
+                .frame(minWidth: Self.boxWidth(owingColumns, scroller: DetailsLayout.legacyScrollerWidth))
                 GroupBox(Self.listTitles[1]) {
                     DetailsList(dashboard.toInvoice, id: \.quoteID, columns: jobColumns, selection: $selectedJob,
                                 emptyText: Self.toInvoiceEmptyText(model.library), onOpen: { model.openQuote($0) })
@@ -45,9 +48,8 @@ struct DashboardView: View {
             }
             .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
             GroupBox(Self.listTitles[2]) {
-                DetailsList(dashboard.waiting, id: \.invoiceID, columns: owingColumns, selection: $selectedInvoice,
-                            emptyText: Self.waitingEmptyText(model.library),
-                            onOpen: { model.openInvoice($0) })
+                DetailsList(dashboard.openQuotes, id: \.quoteID, columns: Self.quoteColumns(currencyCode: model.currencyCode),
+                            selection: $selectedQuote, emptyText: "No quotes out.", onOpen: { model.openQuote($0) })
             }
             .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
             Text("Invoiced \(dashboard.financialYear.label): \(model.money(dashboard.invoicedThisYear))")
@@ -75,30 +77,35 @@ struct DashboardView: View {
             ? "Nothing waiting. Every sent invoice is paid." : "Nothing waiting to be paid."
     }
 
-    /// The three lists, in the order the work happens. No numbers: "1 · Quotes waiting" read as
-    /// a count ("one quote waiting"), as the step bar's numbers did.
-    static let listTitles = ["Quotes waiting on a reply", "Still to invoice", "Waiting to be paid"]
+    /// The three lists: the two side by side on top, then the one below. No numbers: "1 · Quotes
+    /// waiting" read as a count ("one quote waiting"), as the step bar's numbers did.
+    static let listTitles = ["Waiting to be paid", "Still to invoice", "Quotes waiting on a reply"]
 
     /// The least height a row of lists gets: its title and padding (26), the column header and two
     /// rows. With the Getting started box showing, this keeps the lists from being squeezed away in the
     /// smallest window (980 x 620), where the Dashboard has 492 points.
     static let listMinHeight: CGFloat = 90
 
-    private var owingColumns: [DetailsColumn<Dashboard.Owing>] {
+    // The two lists that share the top row (waiting and jobs) share the window's width, so their columns are
+    // narrow: the client column gives way first, and `boxWidth` keeps the rest whole down to the smallest
+    // window. Invoice (72) holds "INV-0002", Due (92) "10 Oct 2026", Status (112) the icon and
+    // "Overdue 12 d"; on the jobs list Invoiced (64) its bar and Left to invoice (100) its header.
+    // Together they fill the 778 points of the smallest window exactly (`bottomRowMinimum`).
+    static func owingColumns(currencyCode: String,
+                             status: @escaping (Dashboard.Owing) -> InvoiceStatus) -> [DetailsColumn<Dashboard.Owing>] {
         [
-            .text("Invoice", width: .fixed(90)) { $0.number },
-            .text("Client", width: .flexible(min: 140)) { $0.client },
-            .day("Due") { $0.due },
-            DetailsColumn("Status", width: .fixed(140), sortValue: { .number($0.daysLate) }) { row, selected in
-                StatusLabel.cell(model.library.invoice(row.invoiceID)?.status(on: model.today) ?? .sent, selected: selected)
+            .text("Invoice", width: .fixed(72)) { $0.number },
+            .text("Client", width: .flexible(min: 40)) { $0.client },
+            .day("Due", width: 92) { $0.due },
+            DetailsColumn("Status", width: .fixed(112), sortValue: { .number($0.daysLate) }) { row, selected in
+                StatusLabel.cell(status(row), selected: selected)
             },
-            .money("Owing", currencyCode: model.currencyCode) { $0.owing },
+            .money("Owing", width: 88, currencyCode: currencyCode) { $0.owing },
         ]
     }
 
-    // The two lists that share a row (quotes and jobs) share the window's width, so their columns are narrow: the
-    // client column gives way first, and `boxWidth` keeps the rest whole down to the smallest window.
-    // Status (80) just holds the icon and "Expired"; Invoiced (76) its header and sort arrow.
+    // The quotes list sits alone on its row, so its client column has the room; Status (80) holds the
+    // icon and "Expired".
     static func quoteColumns(currencyCode: String) -> [DetailsColumn<Dashboard.OpenQuote>] {
         [
             .text("Quote", width: .fixed(64)) { $0.number },
@@ -115,12 +122,12 @@ struct DashboardView: View {
         [
             .text("Quote", width: .fixed(64)) { $0.number },
             .text("Client", width: .flexible(min: 40)) { $0.client },
-            DetailsColumn("Invoiced", width: .fixed(76), sortValue: { .number(Int(share($0) * 1000)) }) { row, _ in
+            DetailsColumn("Invoiced", width: .fixed(64), sortValue: { .number(Int(share($0) * 1000)) }) { row, _ in
                 AnyView(Win95Progress(fraction: share(row))
                     .frame(height: 14)
                     .accessibilityLabel("Invoiced \(Int((share(row) * 100).rounded())) percent"))
             },
-            .money("Left to invoice", width: 112, currencyCode: currencyCode) { $0.remaining },
+            .money("Left to invoice", width: 100, currencyCode: currencyCode) { $0.remaining },
         ]
     }
 
@@ -142,7 +149,7 @@ struct DashboardView: View {
     /// either side. It has to fit in the 778 points the smallest window (980 wide) leaves beside
     /// the section tree, with a classic scroller in each list.
     static func bottomRowMinimum(scroller: CGFloat) -> CGFloat {
-        gap + boxWidth(quoteColumns(currencyCode: "AUD"), scroller: scroller)
+        gap + boxWidth(owingColumns(currencyCode: "AUD") { _ in .sent }, scroller: scroller)
             + gap + boxWidth(jobColumns(currencyCode: "AUD"), scroller: scroller) + gap
     }
 
