@@ -107,6 +107,13 @@ extension AppModel {
         return lastUpdateAnswer ?? .notChecked
     }
 
+    /// Whether Brand → Settings has its own Install Update beside the line: a newer version is there and
+    /// the update banner, which has the same button, is hidden (Later). One control per action.
+    public var settingsOffersInstall: Bool {
+        guard case .available = updateLine else { return false }
+        return !showsUpdateBanner
+    }
+
     /// Asks GitHub for the newest release. A newer one shows the update banner, goes in the status bar
     /// and turns on Install Update…. A check the user asked for also answers in a box (unless it is
     /// `inline`, from Brand → Settings, which answers on the tab): it offers the update, says this is

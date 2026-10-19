@@ -392,6 +392,18 @@ import Testing
         #expect(model.message?.title == "Install Update")
     }
 
+    /// One control per action: while the banner shows its Install Update, the tab has none of its own;
+    /// once Later hides the banner, the tab's is back.
+    @Test func theTabsInstallUpdateShowsOnlyWithoutTheBanner() async throws {
+        let model = try model(FetchScript(json: UpdateFixture.releaseJSON(tag: "v1.0.9")))
+        #expect(model.settingsOffersInstall == false, "nothing found yet")
+        await model.checkForUpdates(manual: true, inline: true)
+        #expect(model.showsUpdateBanner)
+        #expect(model.settingsOffersInstall == false, "the banner has the button")
+        model.hideUpdateBanner()
+        #expect(model.settingsOffersInstall, "Later hid the banner")
+    }
+
     @Test func aFailedCheckIsSaidOnTheTab() async throws {
         let model = try model(FetchScript(.success((Data(), 500))))
         await model.checkForUpdates(manual: true, inline: true)

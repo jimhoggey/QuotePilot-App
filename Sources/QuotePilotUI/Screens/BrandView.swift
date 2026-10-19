@@ -504,7 +504,8 @@ struct SettingsTab: View {
 }
 
 /// The answer to Check for Updates on the Settings tab: a line of text, with Install Update beside
-/// a newer version. Install Update asks once, as Help → Install Update… does.
+/// a newer version. Install Update asks once, as Help → Install Update… does. While the update banner
+/// shows its own Install Update, this one is left out (`settingsOffersInstall`).
 struct UpdateLineView: View {
     let model: AppModel
 
@@ -514,7 +515,7 @@ struct UpdateLineView: View {
             HStack(spacing: 8) {
                 Text(line.text)
                     .fixedSize(horizontal: false, vertical: true)
-                if case .available = line {
+                if model.settingsOffersInstall {
                     Button("Install Update") { model.installUpdate() }
                         .buttonStyle(.win95)
                         .disabled(!model.canInstallUpdate)
