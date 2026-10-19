@@ -35,6 +35,10 @@ struct QuoteEditorView: View {
         .groupBoxStyle(.win95)
     }
 
+    /// Whether Send by Mail… has the heavy outline: only while sending is the next step (a draft).
+    /// Once the quote is out, the next step is the client's reply or invoicing, not sending again.
+    static func sendIsDefault(_ quote: Quote) -> Bool { quote.stage == .draft }
+
     /// Two rows: the quote's name, status and total above, with the step bar in the space between
     /// them; the actions below, where a long set of buttons has the whole width to itself. (Not
     /// private: a test measures it at the smallest window.)
@@ -43,7 +47,7 @@ struct QuoteEditorView: View {
             titleRow(quote)
             HStack(spacing: 6) {
                 Button("Send by Mail…") { model.send(.quote(quoteID)) }
-                    .buttonStyle(.win95Default)
+                    .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(quote)))
                     .disabled(quote.clientID == nil)
                     .help(quote.clientID == nil ? "Choose a client first" : "Open a Mail draft with this quote attached (⌘S)")
                 if quote.stage != .draft, model.library.invoices(forQuote: quoteID).isEmpty {

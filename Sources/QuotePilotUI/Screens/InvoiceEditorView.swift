@@ -38,6 +38,10 @@ struct InvoiceEditorView: View {
         model.invoiceRules(invoice.id) ?? InvoiceRules(invoice: invoice, finalDeducting: nil)
     }
 
+    /// Whether Send by Mail… has the heavy outline: only while sending is the next step (a draft). A
+    /// sent invoice's outlined button is Record Payment, so the screen never has two.
+    static func sendIsDefault(_ invoice: Invoice) -> Bool { invoice.stage == .draft }
+
     /// Two rows, like the quote's: the name, status and amount above, with the step bar in the space
     /// between them; the actions below. (Not private: a test measures it at the smallest window.)
     func header(_ invoice: Invoice) -> some View {
@@ -47,7 +51,7 @@ struct InvoiceEditorView: View {
             HStack(spacing: 6) {
                 if invoice.stage != .void {
                     Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
-                        .buttonStyle(.win95Default)
+                        .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(invoice)))
                         .disabled(invoice.clientID == nil)
                         .help(invoice.clientID == nil ? "Choose a client first" : "Open a Mail draft with this invoice attached (⌘S)")
                 }

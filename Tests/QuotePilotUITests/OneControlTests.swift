@@ -81,6 +81,35 @@ import QuotePilotCore
         #expect(QuoteSourceBanner.openTitle(quote) == "Open \(target.number)")
     }
 
+    // MARK: One outlined button
+
+    /// Send by Mail… has the heavy outline only on a draft. On a sent invoice with money owing the
+    /// outlined button is Record Payment (the New payment area shows), so there is never a second.
+    @Test func anInvoiceOutlinesSendOnlyWhileItIsADraft() throws {
+        var (library, _, depositID) = try depositLibrary()
+        let draft = try #require(library.invoice(depositID))
+        #expect(InvoiceEditorView.sendIsDefault(draft))
+        try library.markSent(invoice: depositID)
+        let sent = try #require(library.invoice(depositID))
+        #expect(InvoiceEditorView.sendIsDefault(sent) == false)
+        #expect(try UIFixture.model(library).newPaymentEntry(for: depositID) != nil, "Record Payment shows")
+    }
+
+    /// A quote: Send by Mail… is outlined while it is a draft and not once it is sent or accepted, when
+    /// the next step is the reply or invoicing.
+    @Test func aQuoteOutlinesSendOnlyWhileItIsADraft() throws {
+        let (library, quoteID) = try UIFixture.invoicedLibrary()
+        let accepted = try #require(library.quote(quoteID))
+        #expect(accepted.stage == .accepted)
+        #expect(QuoteEditorView.sendIsDefault(accepted) == false)
+        var sent = accepted
+        sent.stage = .sent
+        #expect(QuoteEditorView.sendIsDefault(sent) == false)
+        var draft = accepted
+        draft.stage = .draft
+        #expect(QuoteEditorView.sendIsDefault(draft))
+    }
+
     /// The bar's Open button has to be on screen for the banner to leave its own out: at the smallest
     /// window, the paid deposit's first row still leaves the bar room for at least its short form.
     @Test func theBarsOpenButtonFitsTheSmallestWindow() throws {
