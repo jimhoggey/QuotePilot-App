@@ -30,16 +30,15 @@ struct InvoicesView: View {
             let columns = Self.columns(showKind: layout.showKind, currencyCode: model.currencyCode)
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 6) {
+                    // No New Invoice here: the toolbar's, right above, is the one control for it.
                     HStack(spacing: 6) {
-                        Button("New Invoice") { model.newInvoice() }
-                            .buttonStyle(.win95)
                         Button("Open") { if let id = model.selectedInvoiceID { model.openInvoice(id) } }
                             .buttonStyle(.win95)
                             .disabled(model.selectedInvoiceID == nil)
                         FindField(text: model.findBinding(.invoices), request: model.findRequest)
                         Spacer()
                     }
-                    NoteBanner("Double-click an invoice to open it. New Invoice (⇧⌘N) starts a one-off invoice; invoices for a job come from its quote.")
+                    NoteBanner("Double-click an invoice to open it. New Invoice in the toolbar (⇧⌘N) starts a one-off invoice; invoices for a job come from its quote.")
                     DetailsList(rows, id: \.id, columns: columns, selection: $model.selectedInvoiceID,
                                 sort: DetailsSort(column: 0, ascending: false),
                                 emptyText: model.findText[.invoices, default: ""].isEmpty

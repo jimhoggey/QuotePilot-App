@@ -53,9 +53,8 @@ struct QuoteListView: View {
         let rows = Self.visibleRows(model)
         let selected = model.selectedQuoteID.flatMap { model.library.quote($0) }
         VStack(alignment: .leading, spacing: 6) {
+            // No New Quote here: the toolbar's, right above, is the one control for it.
             HStack(spacing: 6) {
-                Button("New Quote") { model.newQuote() }
-                    .buttonStyle(.win95)
                 Button("Open") { if let selected { model.openQuote(selected.id) } }
                     .buttonStyle(.win95)
                     .disabled(selected == nil)
