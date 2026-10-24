@@ -16,20 +16,21 @@ public struct QuotePilotCommands: Commands {
 
     public var body: some Commands {
         CommandGroup(replacing: .newItem) {
+            // Everything that changes the library is greyed out while the fee lock is on (`canEdit`).
             Button("New Quote") { model.whenFree { model.newQuote() } }
                 .keyboardShortcut("n")
-                .disabled(!model.libraryIsOpen)
+                .disabled(!model.canEdit)
             Button("New Invoice") { model.whenFree { model.newInvoice() } }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
-                .disabled(!model.libraryIsOpen)
+                .disabled(!model.canEdit)
             Button("New Client") { model.whenFree { model.newClient() } }
                 .keyboardShortcut("n", modifiers: [.command, .option])
-                .disabled(!model.libraryIsOpen)
+                .disabled(!model.canEdit)
             Divider()
             // The toolbar's name for it, so the one action has one name.
             Button("Read Reply…") { model.whenFree { model.choosingFile = .returnedQuote } }
                 .keyboardShortcut("o")
-                .disabled(!model.libraryIsOpen)
+                .disabled(!model.canEdit)
             Divider()
             Button("Send by Mail…") {
                 model.whenFree {
@@ -43,7 +44,7 @@ public struct QuotePilotCommands: Commands {
                 .disabled(!model.canExportPDF)
             Divider()
             Button("Import from Invoice Generator Backup…") { model.whenFree { model.choosingFile = .legacyBackup } }
-                .disabled(!model.libraryIsOpen)
+                .disabled(!model.canEdit)
             Button("Export Payments for Tax Time…") { model.whenFree { model.dialog = .taxExport } }
                 .disabled(!model.libraryIsOpen)
             Button("Show Money Records") { model.whenFree { model.showMoneyRecords() } }
@@ -55,7 +56,7 @@ public struct QuotePilotCommands: Commands {
                 .disabled(!model.canRestoreBackup)
             Divider()
             Button("Start Fresh…") { model.whenFree { model.dialog = .startFresh } }
-                .disabled(!model.libraryIsOpen)
+                .disabled(!model.canEdit)
             // Greyed out while any quote or invoice is there; its tooltip says why.
             Button("Reset Quote and Invoice Numbers…") { model.whenFree { model.resetNumbers() } }
                 .disabled(model.resetNumbersBlockedReason != nil)

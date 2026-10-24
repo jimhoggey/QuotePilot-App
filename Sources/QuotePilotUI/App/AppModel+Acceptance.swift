@@ -133,7 +133,7 @@ public enum FileChoice: Equatable {
 extension AppModel {
     /// File → Read Reply… (the toolbar's Read Reply), or a PDF dropped on the window.
     public func readReturnedQuote(at url: URL) {
-        guard loadState == .ready else { return }
+        guard canEdit else { return }
         guard let data = try? Data(contentsOf: url) else {
             return show(title: "Can't Read That PDF", text: ReturnedQuoteError.unreadable.message, kind: .warning)
         }
@@ -267,7 +267,8 @@ extension AppModel {
     /// nothing a drop could do; both return false. A message box, dialog or panel that's already up is
     /// modal, so a drop behind it beeps and does nothing.
     public func dropped(_ urls: [URL]) -> Bool {
-        guard loadState == .ready,
+        // The fee lock stops Read Reply, so a drop does nothing then either.
+        guard canEdit,
               let pdf = urls.first(where: { $0.isFileURL && $0.pathExtension.lowercased() == "pdf" })
         else { return false }
         var handled = false

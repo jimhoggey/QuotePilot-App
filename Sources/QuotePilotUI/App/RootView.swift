@@ -26,6 +26,11 @@ public struct RootView: View {
                 // behind it takes a click, a Tab or a key, as with the menus (`whenFree`).
                 Win95Toolbar(model: model)
                     .disabled(model.isBusy)
+                // The Quote Pilot fee, while it's calculated: on top when both strips show.
+                if let text = model.feeBarText {
+                    FeeBar(text: text, canPay: model.appFeeState?.monthToPay != nil) { model.markFeePaid() }
+                        .disabled(model.isBusy)
+                }
                 // A newer version: a strip right under the toolbar that moves the rest down rather
                 // than covering any of it.
                 if model.showsUpdateBanner {
@@ -44,7 +49,7 @@ public struct RootView: View {
                         .disabled(model.isBusy)
                 }
                 .padding([.horizontal, .bottom], 4)
-                .padding(.top, model.showsUpdateBanner ? UpdateBanner.gapBelow : 4)
+                .padding(.top, model.showsUpdateBanner || model.feeBarText != nil ? UpdateBanner.gapBelow : 4)
                 StatusBar(model: model)
             case .unreadable(let reason):
                 UnreadableLibraryView(model: model, reason: reason)
@@ -132,12 +137,14 @@ struct Win95Toolbar: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 2) {
-                tool("New Quote", .quote, help: "Start a new quote (⌘N)") { model.newQuote() }
-                tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)") { model.newInvoice() }
+                // Greyed out while the fee lock is on (`canEdit`); Save PDF stays.
+                tool("New Quote", .quote, help: "Start a new quote (⌘N)", enabled: model.canEdit) { model.newQuote() }
+                tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)", enabled: model.canEdit) { model.newInvoice() }
                 ToolbarSeparator()
                 // Sending and payments live on the quote and invoice screens (Send by Mail… and the
                 // Payments box), so the toolbar keeps to making documents and PDFs in and out.
-                tool("Read Reply", .folder, help: "Read a returned quote PDF, or drop one on the window (⌘O)") {
+                tool("Read Reply", .folder, help: "Read a returned quote PDF, or drop one on the window (⌘O)",
+                     enabled: model.canEdit) {
                     model.choosingFile = .returnedQuote
                 }
                 tool("Save PDF", .pdf, help: "Save the open quote or invoice as a PDF (⌘P)",
@@ -207,6 +214,38 @@ struct UpdateBanner: View {
         .padding(.horizontal, 8)
         .frame(height: Self.height)
         .background(Win95.tooltip)
+        .overlay(Rectangle().strokeBorder(Win95.dark, lineWidth: 1))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// The Quote Pilot fee strip under the toolbar, while the fee is calculated: one line of white on the
+/// overdue red, as slim as the update banner, with I've paid once a closed month is owed. Only the
+/// amount shows; there are no payment details.
+struct FeeBar: View {
+    let text: String
+    let canPay: Bool
+    let pay: () -> Void
+
+    static let height = UpdateBanner.height
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(text)
+                .font(Win95.label)
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+                .help(text)
+            if canPay {
+                Button("I've paid", action: pay)
+                    .buttonStyle(.win95Small)
+                    .help("Mark this month's Quote Pilot fee paid")
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .frame(height: Self.height)
+        .background(Win95.overdue)
         .overlay(Rectangle().strokeBorder(Win95.dark, lineWidth: 1))
         .accessibilityElement(children: .contain)
     }

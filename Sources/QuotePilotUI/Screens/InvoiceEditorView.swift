@@ -76,6 +76,7 @@ struct InvoiceEditorView: View {
                 Spacer()
             }
             .buttonStyle(.win95)
+            .disabled(!model.canEdit)
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
             // Under the padding, not over it, so the 8 pt below the buttons is as clear as the 8 pt
@@ -184,9 +185,11 @@ struct InvoiceEditorView: View {
                                   defaults: stepDefaults)
             }
             // Payments are what you do with a sent invoice, so the box sits first, where it shows
-            // without scrolling; the invoice's own boxes are the record below it.
+            // without scrolling; the invoice's own boxes are the record below it. Everything from here
+            // down is greyed out while the fee lock is on (`canEdit`); the banners above stay.
             if current.stage != .draft {
                 PaymentsBox(model: model, invoice: current)
+                    .disabled(!model.canEdit)
             }
             GroupBox("Invoice") {
                 VStack(alignment: .leading, spacing: 6) {
@@ -215,7 +218,7 @@ struct InvoiceEditorView: View {
                     }
                 }
             }
-            .disabled(!rules.canEditDetails)
+            .disabled(!rules.canEditDetails || !model.canEdit)
             GroupBox("Lines") {
                 LinesEditor(model: model, lines: invoice.lines, showCodes: false, editable: rules.canEditAmounts,
                             onAdd: {
@@ -226,11 +229,12 @@ struct InvoiceEditorView: View {
                     DocumentTotals(totals: model.invoiceContent(invoiceID)?.totals ?? [])
                 }
             }
+            .disabled(!model.canEdit)
             GroupBox("Terms") {
                 Win95TextEditor("Terms", text: invoice.terms)
                     .frame(height: 60)
             }
-            .disabled(!rules.canEditAmounts)
+            .disabled(!rules.canEditAmounts || !model.canEdit)
         }
     }
 }

@@ -174,6 +174,8 @@ struct GettingStartedBox: View {
                 Button(title) { GettingStarted.perform(item, in: model) }
                     .buttonStyle(Win95ButtonStyle(isDefault: isFirst))
                     .frame(width: 104, alignment: .trailing)
+                    // New Client and New Quote wait for the fee lock; the Brand step only goes there.
+                    .disabled(item != .business && !model.canEdit)
             } else {
                 Color.clear.frame(width: 104, height: 23)
             }

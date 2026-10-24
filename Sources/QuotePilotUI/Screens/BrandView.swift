@@ -40,6 +40,8 @@ struct BrandView: View {
                         case .settings: SettingsTab(model: model, brand: brand, typing: typing)
                         }
                     }
+                    // While the fee lock is on only Settings can change, so the fee can be turned off.
+                    .disabled(!model.canEdit && tab != .settings)
                     .padding(.trailing, 6)
                 }
             }
@@ -491,7 +493,7 @@ struct SettingsTab: View {
                         Text(line)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("A percentage of the payments recorded each calendar month, 0 to 100%. A figure only: nothing is charged.")
+                    Text("A percentage of the payments recorded each calendar month, 0 to 100%, counted from the month it's turned on. Each month's fee is due on the 1st of the next; from the 5th an unpaid fee locks editing until you press I've paid in the red bar.")
                         .font(Win95.small)
                         .fixedSize(horizontal: false, vertical: true)
                 }
