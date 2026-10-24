@@ -28,8 +28,8 @@ import QuotePilotCore
         let (model, id) = try sentDepositModel()
         #expect(model.recordPayment(entry(id, "900", on: Day(year: 2026, month: 6, day: 30))))
         let lastYear = try record(model, 2025)
-        #expect(lastYear.contains("2026-06-20,Invoice sent,INV-0001,Q-0001"))
-        #expect(lastYear.contains(#"2026-06-30,Payment received,INV-0001,Q-0001,Sample Client Pty Ltd,"Design, Build",900.00,0.00,900.00,Bank transfer,0.00,"#))
+        #expect(lastYear.contains("2026-06-20,Income,Invoice sent,INV-0001,Q-0001"))
+        #expect(lastYear.contains(#"2026-06-30,Income,Payment received,INV-0001,Q-0001,Sample Client Pty Ltd,"Design, Build",,900.00,0.00,900.00,Bank transfer,0.00,"#))
         // This year's file is kept too, with nothing in it yet.
         #expect(try record(model, 2026) == Library.moneyRecordHeader + "\n")
     }
