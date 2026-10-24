@@ -54,6 +54,7 @@ extension AppModel {
         let day = today
         guard change("Couldn't mark the fee paid", whileLocked: true, { $0.markAppFeePaid(month, on: day, at: time) })
         else { return }
+        if let paid = library.brand.appFee.paidMonths[month.key] { track(.feePaid, feeProps(month, paid.amount)) }
         note("Marked the \(month.name) fee paid")
     }
 }

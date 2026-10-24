@@ -21,6 +21,7 @@ extension AppModel {
         let expense = Expense(date: today)
         let time = now()
         guard change("Couldn't add an expense", { try $0.addExpense(expense, at: time) }) else { return }
+        track(.expenseCreated)
         section = .expenses
         selectedExpenseID = expense.id
     }
@@ -47,6 +48,7 @@ extension AppModel {
             guard let self else { return }
             let time = now()
             guard change("Couldn't delete the expense", { try $0.deleteExpense(id, at: time) }) else { return }
+            track(.deleted, ["kind": "expense"])
             if selectedExpenseID == id { selectedExpenseID = nil }
         }
     }

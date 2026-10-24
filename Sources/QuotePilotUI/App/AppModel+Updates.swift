@@ -42,6 +42,7 @@ extension AppModel {
     /// does the automatic check for updates.
     public func start() async {
         finishPendingUpdate()
+        if libraryIsOpen { track(.appStarted, feeSettingProps) }
         await checkForUpdatesAtLaunch()
     }
 
@@ -78,6 +79,7 @@ extension AppModel {
         case .updated(let version):
             updates.log.append("Next launch: Quote Pilot \(version) is running, as expected. The update worked")
             _ = tryChange { $0.log("Updated Quote Pilot to \(version)") }
+            track(.updated)
             note("Updated to \(version)")
         case .didNotFinish:
             updates.log.append("Next launch: Quote Pilot \(updates.version) is running, but \(expected) was expected. The update did not finish")

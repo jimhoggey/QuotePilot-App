@@ -499,6 +499,16 @@ struct SettingsTab: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            GroupBox("Usage") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Send anonymous usage counts", isOn: Bindable(model.usage).isOn)
+                        .toggleStyle(.win95)
+                    Text("Which features are used, the app and macOS versions, and each month's Quote Pilot fee, so the developer can improve Quote Pilot. Never client names, documents or amounts received.")
+                        .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .font(Win95.body)
         .foregroundStyle(Win95.text)

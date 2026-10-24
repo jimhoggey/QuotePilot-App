@@ -215,6 +215,7 @@ extension AppModel {
             }
         }
         guard saved else { return }
+        track(.replyRead)
         dialog = nil
         if let deposit { openInvoice(deposit) }
     }

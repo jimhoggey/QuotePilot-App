@@ -35,6 +35,7 @@ extension AppModel {
                 guard change("Couldn't delete \(preview.number)", {
                     try $0.deleteQuote(id, includingInvoices: !preview.invoiceNumbers.isEmpty)
                 }) else { return }
+                track(.deleted, ["kind": "quote"])
                 if openQuoteID == id { openQuoteID = nil }
                 if selectedQuoteID == id { selectedQuoteID = nil }
                 if let open = openInvoiceID, invoiceIDs.contains(open) { openInvoiceID = nil }
@@ -54,6 +55,7 @@ extension AppModel {
             }
             confirm(title: "Delete Invoice", text: Self.deleteInvoiceText(preview), confirm: "Delete") { [weak self] in
                 guard let self, change("Couldn't delete \(preview.number)", { try $0.deleteInvoice(id) }) else { return }
+                track(.deleted, ["kind": "invoice"])
                 if openInvoiceID == id { openInvoiceID = nil }
                 if selectedInvoiceID == id { selectedInvoiceID = nil }
                 note("Deleted \(preview.number)")
