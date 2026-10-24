@@ -329,7 +329,6 @@ extension Library {
         if !Library.dayCountLimit.contains(brand.quoteValidDays) {
             found.append("Brand: quotes are valid for \(brand.quoteValidDays) days, outside 0 to 365.")
         }
-        let over = "over the \(Library.amountLimit.formatted(currencyCode: currency)) limit"
         // The same limit as a line's rate, but never below 0: a discount is a line, not an hourly rate.
         if let rate = brand.hourlyRate, rate < .zero || !Library.allows(rate) {
             found.append("Brand: the hourly rate is \(rate.formatted(currencyCode: currency)), outside "
@@ -338,6 +337,10 @@ extension Library {
         // A NaN is outside the range too: every comparison with it is false.
         if !AppFee.percentLimit.contains(brand.appFee.percent) {
             found.append("Brand: the Quote Pilot fee is \(brand.appFee.percent)%, outside 0 to 100%.")
+        }
+        let over = "over the \(Library.amountLimit.formatted(currencyCode: currency)) limit"
+        for (month, paid) in brand.appFee.paidMonths.sorted(by: { $0.key < $1.key }) where !Library.allows(paid.amount) {
+            found.append("Brand: the Quote Pilot fee paid for \(month) is \(paid.amount.formatted(currencyCode: currency)), \(over).")
         }
         func check(_ lines: [LineItem], of number: String) {
             for (index, line) in lines.enumerated() {
