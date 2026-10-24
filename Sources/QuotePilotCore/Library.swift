@@ -40,6 +40,8 @@ public enum LibraryError: Error, Equatable, Sendable {
     case notANumber(String, String)
     /// Numbering can't start again while any quote or invoice is in the library.
     case documentsStillThere
+    /// An expense whose GST is more than its total.
+    case gstMoreThanTotal
 }
 
 /// Everything Quote Pilot knows, saved as one file.
@@ -55,6 +57,8 @@ public struct Library: Codable, Sendable {
     public var activity: [ActivityEntry]
     /// Every number ever issued, so deleting a draft never frees its number.
     public var usedNumbers: [String]
+    /// What the business paid for, in the order added.
+    public var expenses: [Expense]
 
     public init(brand: Brand = Brand()) {
         format = Library.currentFormat
@@ -64,6 +68,7 @@ public struct Library: Codable, Sendable {
         invoices = []
         activity = []
         usedNumbers = []
+        expenses = []
     }
 
     // MARK: Numbering
@@ -368,6 +373,14 @@ extension Library {
                 found.append("\(invoice.number) takes off \(deduction.amount.formatted(currencyCode: currency)) for \(deduction.invoiceNumber), \(over).")
             }
         }
+        for expense in expenses {
+            let name = "The expense from \(expense.supplier.isEmpty ? "(no supplier)" : expense.supplier) on \(expense.date.short)"
+            if !Library.allows(expense.total) || !Library.allows(expense.gst) {
+                found.append("\(name) is \(expense.total.formatted(currencyCode: currency)) with \(expense.gst.formatted(currencyCode: currency)) GST, \(over).")
+            } else if expense.gst > expense.total {
+                found.append("\(name) has more GST (\(expense.gst.formatted(currencyCode: currency))) than its total (\(expense.total.formatted(currencyCode: currency))).")
+            }
+        }
         return found
     }
 
@@ -388,7 +401,7 @@ extension KeyedDecodingContainer {
 
 extension Library {
     enum CodingKeys: String, CodingKey {
-        case format, brand, clients, quotes, invoices, activity, usedNumbers
+        case format, brand, clients, quotes, invoices, activity, usedNumbers, expenses
     }
 
     public init(from decoder: Decoder) throws {
@@ -400,5 +413,6 @@ extension Library {
         invoices = try c.value(.invoices, or: [])
         activity = try c.value(.activity, or: [])
         usedNumbers = try c.value(.usedNumbers, or: [])
+        expenses = try c.value(.expenses, or: [])
     }
 }

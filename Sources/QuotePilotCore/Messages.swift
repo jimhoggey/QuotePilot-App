@@ -52,6 +52,8 @@ extension LibraryError: LocalizedError {
             return "\"\(text)\" isn't a number like \(prefix)0012. Type the digits, with or without \(prefix)."
         case .documentsStillThere:
             return "Numbers can only start again when there are no quotes or invoices. Use File → Start Fresh… to remove them first."
+        case .gstMoreThanTotal:
+            return "The GST can't be more than the total."
         }
     }
 }
