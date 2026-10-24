@@ -19,6 +19,7 @@ extension AppModel {
         guard change("Couldn't start a new invoice", { library in
             created = library.newInvoice(on: today, clientID: clientID).id
         }), let created else { return }
+        track(.invoiceCreated)
         openInvoice(created)
     }
 
@@ -122,6 +123,7 @@ extension AppModel {
         guard change("Couldn't complete the job", { library in
             created = try library.completeJob(quote: quoteID, on: today)?.id
         }) else { return }
+        track(.jobCompleted)
         // The one just drafted, or the one the quote already had.
         if let closing = created ?? library.closingInvoice(forQuote: quoteID)?.id { openInvoice(closing) }
     }
@@ -156,6 +158,7 @@ extension AppModel {
                 text: "Delete draft invoice \(invoice.number)? Its number won't be used again.",
                 confirm: "Delete") {
             guard self.change("Couldn't delete \(invoice.number)", { try $0.deleteDraft(invoice: id) }) else { return }
+            self.track(.deleted, ["kind": "invoice"])
             if self.openInvoiceID == id { self.openInvoiceID = nil }
             if self.selectedInvoiceID == id { self.selectedInvoiceID = nil }
         }
@@ -186,6 +189,7 @@ extension AppModel {
         guard change("Couldn't record the payment", { try $0.recordPayment(payment, toInvoice: entry.invoiceID) }),
               let invoice = library.invoice(entry.invoiceID)
         else { return false }
+        track(.paymentRecorded, ["method": entry.method.rawValue])
         note("Recorded \(money(amount)) for \(invoice.number)")
         return true
     }

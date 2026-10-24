@@ -32,6 +32,7 @@ extension AppModel {
             report = try LegacyImport.importBackup(data, into: &library, today: today)
         }
         guard saved, var report else { return }
+        track(.imported)
         if let logo = report.logoData, library.brand.logoFile == nil, let problem = useImportedLogo(logo) {
             report.notes.append("The old tool's logo \(problem). Add your logo on the Brand page.")
         }
@@ -128,6 +129,7 @@ extension AppModel {
     public func showMoneyRecords() {
         if libraryIsOpen { try? writeMoneyRecords(before: library) }
         try? FileManager.default.createDirectory(at: recordsFolder, withIntermediateDirectories: true)
+        track(.recordsOpened)
         openInFinder(recordsFolder)
     }
 

@@ -102,18 +102,21 @@ extension AppModel {
         case .quote(let id):
             guard change("Couldn't mark it sent", { try $0.markSent(quote: id, at: now()) }),
                   let number = library.quote(id)?.number else { return }
+            track(.sent, ["kind": "quote"])
             openQuoteID = nil
             go(to: .dashboard)
             note("\(number) marked as sent")
         case .invoice(let id):
             guard change("Couldn't mark it sent", { try $0.markSent(invoice: id, at: now()) }),
                   let number = library.invoice(id)?.number else { return }
+            track(.sent, ["kind": "invoice"])
             openInvoiceID = nil
             go(to: .dashboard)
             note("\(number) marked as sent")
         case .receipt(let id):
             guard change("Couldn't mark it sent", { try $0.markReceiptSent(invoice: id, at: now()) }),
                   let number = library.invoice(id)?.number else { return }
+            track(.sent, ["kind": "receipt"])
             openInvoiceID = nil
             go(to: .dashboard)
             note("Receipt for \(number) marked as sent")

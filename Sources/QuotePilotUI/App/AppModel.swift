@@ -138,6 +138,9 @@ public final class AppModel {
     public internal(set) var lastUpdateAnswer: UpdateLine?
     /// How the updater reaches GitHub, the settings and the log; tests swap it for fakes.
     @ObservationIgnored var updates: UpdateServices = .live
+    /// Anonymous usage counts for the developer (see `Usage`). Only the installed app sends; tests
+    /// swap it for a recorder.
+    @ObservationIgnored public internal(set) var usage: Usage = .live()
     /// Opens Mail drafts; tests use a fake.
     @ObservationIgnored public let mail: any MailComposer
     /// Where copies of mailed PDFs go: `~/Documents/Quote Pilot`, or a temporary folder in tests.
@@ -328,8 +331,13 @@ public final class AppModel {
 
     /// Called when the save panel closes. Cancelling it is not an error.
     public func finishExport(_ result: Result<URL, Error>) {
-        if case .failure(let error) = result, (error as? CocoaError)?.code != .userCancelled {
+        switch result {
+        case .success:
+            track(.fileSaved, ["kind": (pendingExport ?? lastExport)?.kindName ?? "file"])
+        case .failure(let error) where (error as? CocoaError)?.code != .userCancelled:
             show(error, title: "Couldn't save the \((pendingExport ?? lastExport)?.kindName ?? "file")")
+        case .failure:
+            break
         }
         pendingExport = nil
         lastExport = nil
@@ -416,6 +424,7 @@ public final class AppModel {
         guard change("Couldn't start a new quote", { library in
             created = library.newQuote(on: today, clientID: clientID).id
         }), let created else { return }
+        track(.quoteCreated)
         openQuote(created)
     }
 
@@ -458,6 +467,7 @@ public final class AppModel {
         confirm(title: "Delete Draft", text: "Delete draft quote \(quote.number)? Its number won't be used again.",
                 confirm: "Delete") {
             guard self.change("Couldn't delete \(quote.number)", { try $0.deleteDraft(quote: id) }) else { return }
+            self.track(.deleted, ["kind": "quote"])
             if self.openQuoteID == id { self.openQuoteID = nil }
             if self.selectedQuoteID == id { self.selectedQuoteID = nil }
         }
@@ -468,6 +478,7 @@ public final class AppModel {
     public func newClient() {
         let client = Client(name: "New client")
         guard change("Couldn't add a client", { $0.addClient(client) }) else { return }
+        track(.clientCreated)
         section = .clients
         selectedClientID = client.id
     }
@@ -525,6 +536,7 @@ public final class AppModel {
                 guard let self,
                       change("Couldn't delete \(name.isEmpty ? "the client" : client.name)", { try $0.deleteClient(id) })
                 else { return }
+                track(.deleted, ["kind": "client"])
                 if selectedClientID == id { selectedClientID = nil }
             }
         }
@@ -553,7 +565,11 @@ public final class AppModel {
         brand.hourlyRate = brand.hourlyRate.map { Money(cents: min(max($0.cents, 0), Library.amountLimit.cents)) }
         let percents = AppFee.percentLimit
         brand.appFee.percent = min(max(brand.appFee.percent, percents.lowerBound), percents.upperBound)
-        change("Couldn't save the brand", whileLocked: true) { $0.brand = brand }
+        let before = library.brand.appFee
+        guard change("Couldn't save the brand", whileLocked: true, { $0.brand = brand }) else { return }
+        if brand.appFee.calculates != before.calculates || brand.appFee.percent != before.percent {
+            track(.feeSettingChanged, feeSettingProps)
+        }
     }
 
     public var brandBinding: Binding<Brand> {
@@ -860,6 +876,7 @@ public final class AppModel {
                 confirm: "Reset") {
             let time = self.now()
             guard self.change("Couldn't reset the numbers", { try $0.resetNumbers(at: time) }) else { return }
+            self.track(.numbersReset)
             self.note("Numbers start again at 0001")
         }
     }
@@ -876,6 +893,7 @@ public final class AppModel {
         }
         let time = now()
         guard change("Couldn't start fresh", { $0.startFresh(removingClients: removingClients, at: time) }) else { return }
+        track(.startedFresh)
         dialog = nil
         openQuoteID = nil
         openInvoiceID = nil
@@ -916,6 +934,7 @@ public final class AppModel {
         library.keepUsed(issued)
         loadState = .ready
         lastSaved = now()
+        track(.backupRestored)
         openQuoteID = nil
         openInvoiceID = nil
         dialog = nil
