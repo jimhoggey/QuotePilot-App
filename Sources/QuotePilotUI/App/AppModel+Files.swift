@@ -102,8 +102,14 @@ extension AppModel {
         "Money record FY \(year.startYear)-\(String(format: "%02d", (year.startYear + 1) % 100)).csv"
     }
 
-    /// Rewrites, each file in one go, the money record of this financial year and of every year with
-    /// money events now or in `before`, so a year whose last payment was just removed is rewritten too.
+    /// "Summary FY 2026-27.csv"
+    public static func summaryFileName(for year: FinancialYear) -> String {
+        "Summary FY \(year.startYear)-\(String(format: "%02d", (year.startYear + 1) % 100)).csv"
+    }
+
+    /// Rewrites, each file in one go, the money record and the summary of this financial year and of
+    /// every year with money events now or in `before`, so a year whose last payment was just removed
+    /// is rewritten too.
     func writeMoneyRecords(before: Library) throws {
         var years = Set(library.moneyRecordYears() + before.moneyRecordYears())
         years.insert(FinancialYear(containing: today))
@@ -111,6 +117,8 @@ extension AppModel {
         for year in years {
             let url = recordsFolder.appendingPathComponent(Self.moneyRecordFileName(for: year))
             try Data(library.moneyRecordCSV(for: year).utf8).write(to: url, options: .atomic)
+            let summary = recordsFolder.appendingPathComponent(Self.summaryFileName(for: year))
+            try Data(library.summaryCSV(for: year, today: today).utf8).write(to: summary, options: .atomic)
         }
     }
 

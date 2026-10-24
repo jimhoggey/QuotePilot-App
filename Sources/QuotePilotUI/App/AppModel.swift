@@ -98,6 +98,8 @@ public final class AppModel {
         didSet { if openInvoiceID == nil { dropHiddenSelections() } }
     }
     public var selectedClientID: UUID?
+    /// The expense whose form shows beside the Expenses list.
+    public var selectedExpenseID: UUID?
     /// Each list's search text, kept while you move between sections. A search that hides the
     /// selected quote, invoice or client clears that selection (`dropHiddenSelections`).
     public var findText: [AppSection: String] = [:] {
@@ -144,7 +146,8 @@ public final class AppModel {
     let now: () -> Date
     /// What `whenFree` does when a message box is up. Tests swap it for a counter.
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
-    /// What File → Show Money Records does with the Records folder. Tests swap it for a recorder.
+    /// Opens a folder or file in Finder or its own app: File → Show Money Records' Records folder, an
+    /// expense's attachment. Tests swap it for a recorder.
     @ObservationIgnored var openInFinder: (URL) -> Void = { _ = NSWorkspace.shared.open($0) }
     @ObservationIgnored private var lastBackupDay: Day?
     /// Set once a money record couldn't be written and Activity has said so, until one can be again.
@@ -214,9 +217,11 @@ public final class AppModel {
 
     /// Applies `edit` to a copy of the library and saves the copy; only then does the app keep it.
     /// When the edit or the save fails, nothing changes and a message box says why.
+    /// While the fee lock is on (`isLocked`) only a change made `whileLocked` goes through: Settings,
+    /// I've paid and a restore. The controls for the rest are greyed out; this is the second guard.
     @discardableResult
-    public func change(_ failureTitle: String, _ edit: (inout Library) throws -> Void) -> Bool {
-        if let error = tryChange(edit) {
+    public func change(_ failureTitle: String, whileLocked: Bool = false, _ edit: (inout Library) throws -> Void) -> Bool {
+        if let error = tryChange(whileLocked: whileLocked, edit) {
             show(error, title: failureTitle)
             return false
         }
@@ -226,8 +231,9 @@ public final class AppModel {
     /// `change` without its message box: nil when the change was made and saved, otherwise why not,
     /// with nothing changed. For a step that already has its own place on screen to say so (the
     /// import report's notes), so one action never shows two.
-    func tryChange(_ edit: (inout Library) throws -> Void) -> Error? {
+    func tryChange(whileLocked: Bool = false, _ edit: (inout Library) throws -> Void) -> Error? {
         guard loadState == .ready else { return LibraryStore.StoreError.wouldOverwriteUnreadableLibrary }
+        if !whileLocked, let error = lockedError { return error }
         var copy = library
         do {
             try edit(&copy)
@@ -339,7 +345,7 @@ public final class AppModel {
         case .quotes: return openQuoteID.flatMap { library.quote($0) } == nil
         case .invoices: return editingInvoiceID == nil
         case .clients, .activity: return true
-        case .dashboard, .brand: return false
+        case .dashboard, .expenses, .brand: return false
         }
     }
 
@@ -493,7 +499,7 @@ public final class AppModel {
     /// Whether Delete Client can run; the button is greyed out when it can't. A client with any quote
     /// or invoice stays (`Library.canDeleteClient`), so no document loses the person it was written to.
     public var canDeleteClient: Bool {
-        guard loadState == .ready, let client = clientToDelete else { return false }
+        guard canEdit, let client = clientToDelete else { return false }
         return library.canDeleteClient(client.id)
     }
 
@@ -531,13 +537,23 @@ public final class AppModel {
     /// longer open with numbers outside those.
     public func updateBrand(_ brand: Brand) {
         var brand = brand
+        // While locked only Settings is open, so only the fee's settings change.
+        if isLocked {
+            var kept = library.brand
+            kept.appFee = brand.appFee
+            brand = kept
+        }
+        // Turning the fee on starts it afresh: only this month and later count.
+        if brand.appFee.calculates, !library.brand.appFee.calculates {
+            brand.appFee.startMonth = CalendarMonth(containing: today)
+        }
         let days = Library.dayCountLimit
         brand.paymentDueDays = min(max(brand.paymentDueDays, days.lowerBound), days.upperBound)
         brand.quoteValidDays = min(max(brand.quoteValidDays, days.lowerBound), days.upperBound)
         brand.hourlyRate = brand.hourlyRate.map { Money(cents: min(max($0.cents, 0), Library.amountLimit.cents)) }
         let percents = AppFee.percentLimit
         brand.appFee.percent = min(max(brand.appFee.percent, percents.lowerBound), percents.upperBound)
-        change("Couldn't save the brand") { $0.brand = brand }
+        change("Couldn't save the brand", whileLocked: true) { $0.brand = brand }
     }
 
     public var brandBinding: Binding<Brand> {
@@ -829,6 +845,7 @@ public final class AppModel {
     /// quotes or invoices, so no number could end up on two documents. The menu item's tooltip.
     public var resetNumbersBlockedReason: String? {
         guard libraryIsOpen else { return "The library isn't open" }
+        guard !isLocked else { return "Quote Pilot is locked until the fee is paid" }
         guard library.canResetNumbers else {
             return "Only when there are no quotes or invoices. File → Start Fresh… removes them."
         }
@@ -905,7 +922,7 @@ public final class AppModel {
         // The backup is back whatever happens next. When the Activity note (or today's backup) then
         // fails, that message box stays up (with a line saying the restore worked) instead of being
         // replaced by the note.
-        guard change("Couldn't note the restore in Activity", {
+        guard change("Couldn't note the restore in Activity", whileLocked: true, {
                   $0.keepUsed(issued)
                   $0.log("Restored the \(Self.backupLabel(backup)) backup")
               }),

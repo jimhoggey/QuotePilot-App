@@ -20,9 +20,10 @@ import QuotePilotCore
         #expect(model.section == .dashboard)
         #expect(model.library.quotes.isEmpty)
         #expect(model.library.invoices.isEmpty)
+        #expect(model.library.expenses.isEmpty)
         #expect(model.library.brand == brand)
         #expect(model.library.clients == clients)
-        #expect(model.library.activity.map(\.message) == ["Started fresh: removed every quote, invoice and payment, and Activity"])
+        #expect(model.library.activity.map(\.message) == ["Started fresh: removed every quote, invoice, payment and expense, and Activity"])
         #expect(model.library.nextNumber(.quote) == "Q-0001")
         #expect(model.library.nextNumber(.invoice) == "INV-0001")
         // The library as it was is a backup, named for the restore list.

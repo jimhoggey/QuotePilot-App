@@ -47,17 +47,25 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Invoices:** deposits and balances from quotes (**Draft Invoice Now**, **Job Complete**), one-off
   invoices, payments, receipts, and voiding. Payments are entered in the invoice screen, with no
   dialog.
+- **Expenses:** what the business paid for: date, supplier, category, the total and the GST in it
+  (Includes GST fills in total ÷ 11), with the supplier's PDF or picture attached (Attach Quote or
+  Invoice…, or drop a PDF on the window while the expense shows). New Expense is in the list's buttons.
 - **Clients**, **Brand** (logo, heading font, colour, wording and terms) and **Activity**, a log of
   what happened: quotes started and sent, Mail drafts, acceptances, invoices, payments and restores.
   ⌘F finds in the Quotes, Invoices, Clients and Activity lists.
   - Brand also remembers your hourly rate, so a new line in hours starts at it.
-  - Brand → Settings shows a Quote Pilot fee: a percentage (3% to start) of the payments recorded
-    this month and last. It's a figure only; nothing is charged.
+  - Brand → Settings has the Quote Pilot fee (beta, honour system): a percentage (3% to start) of
+    the payments recorded each month, from the month it's turned on. A red bar under the toolbar
+    shows it. Each month's fee is due on the 1st of the next; one still unpaid from the 5th locks
+    editing (viewing, PDFs, backups, exports and Settings stay open) until you press I've paid.
+    Unticking the fee removes the bar and the lock.
 - **File menu:** Import from Invoice Generator Backup…, Export Payments for Tax Time…, Back Up To…,
   Restore Backup…, Start Fresh… and Reset Quote and Invoice Numbers…. Restore Backup… restores the
   daily backup you pick, with no extra question. The status bar says which backup came back.
   - **Money records:** every change rewrites a CSV per financial year for your accountant (invoices
-    sent, payments, receipts) in `~/Documents/Quote Pilot/Records/`; File → Show Money Records opens it.
+    sent, payments, receipts, expenses and fees paid, each with its type, category and GST) in
+    `~/Documents/Quote Pilot/Records/`, plus a `Summary FY 2026-27.csv` of the year's income, GST,
+    what's owing, expenses by category and the net figures. File → Show Money Records opens it.
 - Every change saves as you make it, with a daily backup. If the library file is ever damaged,
   Quote Pilot won't save over it and offers the latest backup instead. Every mailed PDF is also kept
   in `~/Documents/Quote Pilot/<year>/`.

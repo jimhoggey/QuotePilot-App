@@ -81,6 +81,7 @@ struct InvoicesView: View {
             model.selectedInvoiceID = id
             model.deleteInvoice(id)
         }
+        .disabled(!model.canEdit)
     }
 
     // MARK: Fitting the window

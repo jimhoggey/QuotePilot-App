@@ -28,8 +28,8 @@ import QuotePilotCore
         let (model, id) = try sentDepositModel()
         #expect(model.recordPayment(entry(id, "900", on: Day(year: 2026, month: 6, day: 30))))
         let lastYear = try record(model, 2025)
-        #expect(lastYear.contains("2026-06-20,Invoice sent,INV-0001,Q-0001"))
-        #expect(lastYear.contains(#"2026-06-30,Payment received,INV-0001,Q-0001,Sample Client Pty Ltd,"Design, Build",900.00,0.00,900.00,Bank transfer,0.00,"#))
+        #expect(lastYear.contains("2026-06-20,Income,Invoice sent,INV-0001,Q-0001"))
+        #expect(lastYear.contains(#"2026-06-30,Income,Payment received,INV-0001,Q-0001,Sample Client Pty Ltd,"Design, Build",,900.00,0.00,900.00,Bank transfer,0.00,"#))
         // This year's file is kept too, with nothing in it yet.
         #expect(try record(model, 2026) == Library.moneyRecordHeader + "\n")
     }
@@ -76,5 +76,26 @@ import QuotePilotCore
         // Made, with the records written, even before any change.
         #expect(try record(model, 2025).contains("Invoice sent,INV-0001"))
         #expect(AppModel.moneyRecordFileName(for: FinancialYear(startYear: 2026)) == "Money record FY 2026-27.csv")
+    }
+
+    /// Each year's summary is written beside its money record, and follows every change: here an
+    /// expense added this year.
+    @Test func theSummaryIsWrittenBesideTheRecord() throws {
+        let (model, _) = try sentDepositModel()
+        #expect(AppModel.summaryFileName(for: FinancialYear(startYear: 2026)) == "Summary FY 2026-27.csv")
+        model.newExpense()
+        let id = try #require(model.selectedExpenseID)
+        model.expenseBinding(id).wrappedValue = Expense(id: id, date: UIFixture.today, supplier: "Sample Supplies",
+                                                        category: "Equipment", total: Money(dollars: 110),
+                                                        gst: Money(dollars: 10))
+        func summary(_ startYear: Int) throws -> String {
+            let name = AppModel.summaryFileName(for: FinancialYear(startYear: startYear))
+            return try String(contentsOf: model.recordsFolder.appendingPathComponent(name), encoding: .utf8)
+        }
+        let thisYear = try summary(2026)
+        #expect(thisYear.contains("Expenses: Equipment (ex GST),100.00"))
+        #expect(thisYear.contains("Owing now (\(UIFixture.today.short)),"))
+        #expect(try summary(2025).contains("Invoiced in the year (GST included),900.00"))
+        #expect(try record(model, 2026).contains("2026-10-15,Expense,Expense paid,,,Sample Supplies,,Equipment,100.00,10.00,110.00,Bank transfer,,"))
     }
 }

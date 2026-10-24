@@ -87,7 +87,7 @@ struct StartFreshView: View {
     @State private var removeClients = false
 
     /// What the dialog says.
-    static let text = "Start Fresh removes every quote, invoice and payment, and the Activity list. Numbering starts again at Q-0001 and INV-0001. Brand settings are kept.\n\nQuote Pilot backs up the library first, so File → Restore Backup… can bring it all back."
+    static let text = "Start Fresh removes every quote, invoice, payment and expense, and the Activity list. Numbering starts again at Q-0001 and INV-0001. Brand settings are kept.\n\nQuote Pilot backs up the library first, so File → Restore Backup… can bring it all back."
 
     var body: some View {
         DialogPanel(title: "Start Fresh", icon: .folder, width: 460) {

@@ -60,10 +60,10 @@ struct QuoteListView: View {
                     .disabled(selected == nil)
                 Button("Duplicate") { if let selected { model.duplicateQuote(selected.id) } }
                     .buttonStyle(.win95)
-                    .disabled(selected == nil)
+                    .disabled(selected == nil || !model.canEdit)
                 Button("Delete Draft") { if let selected { model.deleteDraftQuote(selected.id) } }
                     .buttonStyle(.win95)
-                    .disabled(selected?.stage != .draft)
+                    .disabled(selected?.stage != .draft || !model.canEdit)
                 FindField(text: model.findBinding(.quotes), request: model.findRequest)
                 Spacer()
                 Text(DashboardView.count(rows.count, "quote", "quotes"))
@@ -97,17 +97,20 @@ struct QuoteListView: View {
     @ViewBuilder
     private func menu(_ id: UUID) -> some View {
         Button("Open") { model.openQuote(id) }
-        Button("Duplicate") { model.duplicateQuote(id) }
-        Divider()
-        // A draft keeps its own Delete Draft (and its own question), named as the button above the
-        // list names it; any other quote, whatever its stage, can be deleted here, with its invoices.
-        if model.library.quote(id)?.stage == .draft {
-            Button("Delete Draft") { model.deleteDraftQuote(id) }
-        } else {
-            Button("Delete…") {
-                model.selectedQuoteID = id
-                model.deleteQuote(id)
+        Group {
+            Button("Duplicate") { model.duplicateQuote(id) }
+            Divider()
+            // A draft keeps its own Delete Draft (and its own question), named as the button above the
+            // list names it; any other quote, whatever its stage, can be deleted here, with its invoices.
+            if model.library.quote(id)?.stage == .draft {
+                Button("Delete Draft") { model.deleteDraftQuote(id) }
+            } else {
+                Button("Delete…") {
+                    model.selectedQuoteID = id
+                    model.deleteQuote(id)
+                }
             }
         }
+        .disabled(!model.canEdit)
     }
 }

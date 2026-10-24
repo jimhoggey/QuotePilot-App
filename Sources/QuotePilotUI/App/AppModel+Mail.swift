@@ -7,6 +7,8 @@ extension AppModel {
     /// invoice no longer counts, and a quote or invoice with no client has nobody to write to, so
     /// nothing is sent for either: the menu item and ⌘S are greyed out, and the editor's button too. (`send` still says "No Client" if it is reached some other way.)
     public var sendableDocument: MailDocument? {
+        // Sending is one of the things the fee lock stops.
+        guard !isLocked else { return nil }
         switch section {
         case .quotes:
             guard let id = openQuoteID ?? selectedQuoteID, library.quote(id)?.clientID != nil else { return nil }

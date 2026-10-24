@@ -40,6 +40,8 @@ public enum LibraryError: Error, Equatable, Sendable {
     case notANumber(String, String)
     /// Numbering can't start again while any quote or invoice is in the library.
     case documentsStillThere
+    /// An expense whose GST is more than its total.
+    case gstMoreThanTotal
 }
 
 /// Everything Quote Pilot knows, saved as one file.
@@ -55,6 +57,8 @@ public struct Library: Codable, Sendable {
     public var activity: [ActivityEntry]
     /// Every number ever issued, so deleting a draft never frees its number.
     public var usedNumbers: [String]
+    /// What the business paid for, in the order added.
+    public var expenses: [Expense]
 
     public init(brand: Brand = Brand()) {
         format = Library.currentFormat
@@ -64,6 +68,7 @@ public struct Library: Codable, Sendable {
         invoices = []
         activity = []
         usedNumbers = []
+        expenses = []
     }
 
     // MARK: Numbering
@@ -226,18 +231,19 @@ public struct Library: Codable, Sendable {
 
     // MARK: Starting fresh
 
-    /// File → Start Fresh: every quote, invoice and payment goes, and Activity, and numbering starts
-    /// again at Q-0001 and INV-0001. Brand settings stay, and so do clients unless `removingClients`.
-    /// Activity then has the one entry saying so.
+    /// File → Start Fresh: every quote, invoice, payment and expense goes, and Activity, and numbering
+    /// starts again at Q-0001 and INV-0001. Brand settings stay, and so do clients unless
+    /// `removingClients`. Activity then has the one entry saying so.
     public mutating func startFresh(removingClients: Bool, at time: Date = Date()) {
         quotes = []
         invoices = []
+        expenses = []
         activity = []
         usedNumbers = []
         if removingClients { clients = [] }
         log(removingClients
-            ? "Started fresh: removed every quote, invoice, payment and client, and Activity"
-            : "Started fresh: removed every quote, invoice and payment, and Activity", at: time)
+            ? "Started fresh: removed every quote, invoice, payment, expense and client, and Activity"
+            : "Started fresh: removed every quote, invoice, payment and expense, and Activity", at: time)
     }
 
     /// Whether numbering can start again at 0001: only with no quotes or invoices at all, so no number
@@ -329,7 +335,6 @@ extension Library {
         if !Library.dayCountLimit.contains(brand.quoteValidDays) {
             found.append("Brand: quotes are valid for \(brand.quoteValidDays) days, outside 0 to 365.")
         }
-        let over = "over the \(Library.amountLimit.formatted(currencyCode: currency)) limit"
         // The same limit as a line's rate, but never below 0: a discount is a line, not an hourly rate.
         if let rate = brand.hourlyRate, rate < .zero || !Library.allows(rate) {
             found.append("Brand: the hourly rate is \(rate.formatted(currencyCode: currency)), outside "
@@ -338,6 +343,10 @@ extension Library {
         // A NaN is outside the range too: every comparison with it is false.
         if !AppFee.percentLimit.contains(brand.appFee.percent) {
             found.append("Brand: the Quote Pilot fee is \(brand.appFee.percent)%, outside 0 to 100%.")
+        }
+        let over = "over the \(Library.amountLimit.formatted(currencyCode: currency)) limit"
+        for (month, paid) in brand.appFee.paidMonths.sorted(by: { $0.key < $1.key }) where !Library.allows(paid.amount) {
+            found.append("Brand: the Quote Pilot fee paid for \(month) is \(paid.amount.formatted(currencyCode: currency)), \(over).")
         }
         func check(_ lines: [LineItem], of number: String) {
             for (index, line) in lines.enumerated() {
@@ -365,6 +374,14 @@ extension Library {
                 found.append("\(invoice.number) takes off \(deduction.amount.formatted(currencyCode: currency)) for \(deduction.invoiceNumber), \(over).")
             }
         }
+        for expense in expenses {
+            let name = "The expense from \(expense.supplier.isEmpty ? "(no supplier)" : expense.supplier) on \(expense.date.short)"
+            if !Library.allows(expense.total) || !Library.allows(expense.gst) {
+                found.append("\(name) is \(expense.total.formatted(currencyCode: currency)) with \(expense.gst.formatted(currencyCode: currency)) GST, \(over).")
+            } else if expense.gst > expense.total {
+                found.append("\(name) has more GST (\(expense.gst.formatted(currencyCode: currency))) than its total (\(expense.total.formatted(currencyCode: currency))).")
+            }
+        }
         return found
     }
 
@@ -385,7 +402,7 @@ extension KeyedDecodingContainer {
 
 extension Library {
     enum CodingKeys: String, CodingKey {
-        case format, brand, clients, quotes, invoices, activity, usedNumbers
+        case format, brand, clients, quotes, invoices, activity, usedNumbers, expenses
     }
 
     public init(from decoder: Decoder) throws {
@@ -397,5 +414,6 @@ extension Library {
         invoices = try c.value(.invoices, or: [])
         activity = try c.value(.activity, or: [])
         usedNumbers = try c.value(.usedNumbers, or: [])
+        expenses = try c.value(.expenses, or: [])
     }
 }

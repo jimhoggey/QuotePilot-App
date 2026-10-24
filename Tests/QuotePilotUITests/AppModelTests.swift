@@ -453,8 +453,8 @@ import QuotePilotPDF
         #expect(model.pendingExport == nil)
     }
 
-    @Test func sectionsAreInSidebarOrderWithShortcutsOneToSix() {
-        #expect(AppSection.allCases.map(\.title) == ["Dashboard", "Quotes", "Invoices", "Clients", "Activity", "Brand"])
-        #expect(AppSection.allCases.map(\.shortcut) == ["1", "2", "3", "4", "5", "6"])
+    @Test func sectionsAreInSidebarOrderWithShortcutsOneToSeven() {
+        #expect(AppSection.allCases.map(\.title) == ["Dashboard", "Quotes", "Invoices", "Expenses", "Clients", "Activity", "Brand"])
+        #expect(AppSection.allCases.map(\.shortcut) == ["1", "2", "3", "4", "5", "6", "7"])
     }
 }

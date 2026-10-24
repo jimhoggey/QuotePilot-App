@@ -23,6 +23,7 @@ struct ClientsView: View {
                     Button("New Client") { model.newClient() }
                         .buttonStyle(.win95)
                         .fixedSize()
+                        .disabled(!model.canEdit)
                     Button("Delete Client") { model.deleteSelectedClient() }
                         .buttonStyle(.win95)
                         .fixedSize()
@@ -119,6 +120,8 @@ struct ClientForm: View {
                     .foregroundStyle(Win95.text)
                 }
             }
+            // Greyed out while the fee lock is on; it still scrolls.
+            .disabled(!model.canEdit)
             .padding(.trailing, 6)
         }
         .groupBoxStyle(.win95)

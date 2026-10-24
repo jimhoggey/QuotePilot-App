@@ -17,7 +17,9 @@ struct QuoteEditorView: View {
             header(current)
             HStack(alignment: .top, spacing: 8) {
                 ScrollView {
+                    // Greyed out while the fee lock is on; it still scrolls, and the preview stays.
                     form(quote)
+                        .disabled(!model.canEdit)
                         .padding(.trailing, 6)
                 }
                 // The window is at least 980 wide, which leaves 754 beside the section tree. The form
@@ -73,6 +75,7 @@ struct QuoteEditorView: View {
                 Spacer()
             }
             .buttonStyle(.win95)
+            .disabled(!model.canEdit)
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
             // Under the padding, not over it, so the 8 pt below the buttons is as clear as the 8 pt
