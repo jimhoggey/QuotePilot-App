@@ -231,18 +231,19 @@ public struct Library: Codable, Sendable {
 
     // MARK: Starting fresh
 
-    /// File → Start Fresh: every quote, invoice and payment goes, and Activity, and numbering starts
-    /// again at Q-0001 and INV-0001. Brand settings stay, and so do clients unless `removingClients`.
-    /// Activity then has the one entry saying so.
+    /// File → Start Fresh: every quote, invoice, payment and expense goes, and Activity, and numbering
+    /// starts again at Q-0001 and INV-0001. Brand settings stay, and so do clients unless
+    /// `removingClients`. Activity then has the one entry saying so.
     public mutating func startFresh(removingClients: Bool, at time: Date = Date()) {
         quotes = []
         invoices = []
+        expenses = []
         activity = []
         usedNumbers = []
         if removingClients { clients = [] }
         log(removingClients
-            ? "Started fresh: removed every quote, invoice, payment and client, and Activity"
-            : "Started fresh: removed every quote, invoice and payment, and Activity", at: time)
+            ? "Started fresh: removed every quote, invoice, payment, expense and client, and Activity"
+            : "Started fresh: removed every quote, invoice, payment and expense, and Activity", at: time)
     }
 
     /// Whether numbering can start again at 0001: only with no quotes or invoices at all, so no number
