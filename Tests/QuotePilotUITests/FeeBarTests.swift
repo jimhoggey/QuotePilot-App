@@ -36,7 +36,7 @@ import Testing
 
     @Test func nothingOwingShowsThisMonthsFee() throws {
         let model = try model(paidOn: Day(year: 2026, month: 10, day: 2))
-        #expect(model.feeBarText == "Quote Pilot fee this month: $22.50 (3% of $750.00 received). Due 1 Nov.")
+        #expect(model.feeBarText == "Quote Pilot fee this month so far: $22.50 (3% of $750.00 received). Due 1 Nov.")
         #expect(model.appFeeState?.monthToPay == nil, "no I've paid")
         #expect(!model.isLocked)
     }
@@ -63,7 +63,8 @@ import Testing
         #expect(!model.isLocked)
         #expect(model.library.brand.appFee.paidMonths["2026-09"] == AppFeePaid(on: UIFixture.today, amount: Money(dollars: 22, cents: 50)))
         #expect(model.library.activity.first?.message == "Marked the September 2026 Quote Pilot fee as paid ($22.50)")
-        #expect(model.feeBarText == "Quote Pilot fee this month: $0.00 (3% of $0.00 received). Due 1 Nov.")
+        // Nothing received this month yet: it's free, so no bar.
+        #expect(model.feeBarText == nil)
     }
 
     @Test func lockedCommandsRefuse() throws {
@@ -159,7 +160,8 @@ import Testing
         model.updateBrand(brand)
         #expect(model.library.brand.appFee.startMonth == CalendarMonth(year: 2026, month: 10))
         #expect(!model.isLocked, "September no longer counts")
-        #expect(model.feeBarText?.hasPrefix("Quote Pilot fee this month:") == true)
+        // October has nothing received yet, so it's free and there's no bar.
+        #expect(model.feeBarText == nil)
     }
 
     /// One slim line across the smallest window, on top of the update banner when both show, with

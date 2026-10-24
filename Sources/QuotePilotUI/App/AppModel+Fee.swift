@@ -26,14 +26,16 @@ extension AppModel {
     /// and the editors grey out what changes it when this is false.
     public var canEdit: Bool { libraryIsOpen && !isLocked }
 
-    /// The bar's one line, or nil when there's no bar.
+    /// The bar's one line, or nil when there's no bar. A month with nothing received is free, so it
+    /// shows no bar at all until money comes in (the user, 24 Oct 2026).
     public var feeBarText: String? {
         guard let state = appFeeState else { return nil }
         switch state {
         case .running(let month, let fee, let received):
+            guard fee > .zero else { return nil }
             let percent = FieldParser.percentText(library.brand.appFee.percent)
             let due = "\(month.feeDue.day) \(month.next.name.prefix(3))"
-            return "Quote Pilot fee this month: \(money(fee)) (\(percent)% of \(money(received)) received). Due \(due)."
+            return "Quote Pilot fee this month so far: \(money(fee)) (\(percent)% of \(money(received)) received). Due \(due)."
         case .due(let month, let fee):
             return "\(month.name) fee \(money(fee)) is due."
         case .locked(let month, let fee):
