@@ -430,10 +430,10 @@ import QuotePilotCore
         let rep = try #require(Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 800), name: "step-bar-expired"))
         #expect(Snapshot.hasContent(rep))
         // The bar's line 1 starts to the right of the title block (the status label under the title is
-        // red as well, which is why only line 1's rows and columns are looked at). The red fee bar
-        // under the toolbar moves it down by the bar's height and the gap under it, less 4.
-        let shift = Int(FeeBar.height + UpdateBanner.gapBelow - 4)
-        let rows = (110 + shift)..<(126 + shift)
+        // red as well, which is why only line 1's rows and columns are looked at). No fee is due on
+        // 15 Oct, so there's no fee bar above it.
+        #expect(model.feeBarText == nil)
+        let rows = 110..<126
         #expect(redPixels(rep, xs: 470..<900, ys: rows) > 10, "Expired should be drawn in the overdue red")
         model.openQuote(try quote(model, "Q-0004").id)
         let draft = try #require(Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 800), name: "step-bar-draft"))
