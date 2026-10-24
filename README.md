@@ -119,6 +119,23 @@ at once. So does Check for Updates on Brand → Settings, which shows the versio
 tab instead of in a box. Each update is written to `~/Library/Logs/Quote Pilot/update.log`, and the old app goes
 to the Trash.
 
+## Usage counts
+
+The installed app sends anonymous usage counts to [Aptabase](https://aptabase.com), so the developer
+can see which features are used. `UsageEvent` in `Sources/QuotePilotUI/App/Usage.swift` is the whole
+list. Each event carries:
+
+- its name, such as `quote_created` or `payment_recorded`;
+- a word or two where it helps, such as how a payment was made;
+- the app and macOS versions.
+
+The fee events (`fee_due`, `fee_locked`, `fee_paid`) also carry the month, the fee's rate and the fee
+itself. Nothing is sent about client names, documents, numbers, amounts received or anything typed.
+There's no identifier: a session is a random number held in memory. Untick Send anonymous usage
+counts on Brand → Settings to stop it. Builds run with `swift run`, the tests and copies with another
+bundle id send nothing. `QP_STATS=0` turns it off, and `QP_STATS=1` turns it on in a development run,
+marked as debug.
+
 ## Licence
 
 MIT. See `LICENSE`.
