@@ -109,6 +109,8 @@ public enum FileChoice: Equatable {
     case headingFont
     /// The Brand screen's body font.
     case bodyFont
+    /// The supplier's quote or invoice for this expense.
+    case expenseAttachment(UUID)
 
     var contentTypes: [UTType] {
         switch self {
@@ -116,6 +118,7 @@ public enum FileChoice: Equatable {
         case .legacyBackup: return [.json]
         case .logo: return [.png, .jpeg, .svg, .pdf]
         case .headingFont, .bodyFont: return [.font]
+        case .expenseAttachment: return [.pdf, .image]
         }
     }
 
@@ -124,6 +127,8 @@ public enum FileChoice: Equatable {
         switch self {
         case .legacyBackup:
             return "Choose the backup file (.json) made in Invoice Generator with Saved documents → Back up to file."
+        case .expenseAttachment:
+            return "Choose the supplier's quote or invoice: a PDF or a picture."
         case .returnedQuote, .logo, .headingFont, .bodyFont:
             return nil
         }
@@ -267,13 +272,18 @@ extension AppModel {
     /// nothing a drop could do; both return false. A message box, dialog or panel that's already up is
     /// modal, so a drop behind it beeps and does nothing.
     public func dropped(_ urls: [URL]) -> Bool {
-        // The fee lock stops Read Reply, so a drop does nothing then either.
+        // The fee lock stops Read Reply and attaching, so a drop does nothing then either.
         guard canEdit,
               let pdf = urls.first(where: { $0.isFileURL && $0.pathExtension.lowercased() == "pdf" })
         else { return false }
         var handled = false
         whenFree {
-            readReturnedQuote(at: pdf)
+            // On Expenses with an expense's form showing, the PDF is that expense's attachment.
+            if section == .expenses, let id = selectedExpenseID, library.expense(id) != nil {
+                attach(pdf, toExpense: id)
+            } else {
+                readReturnedQuote(at: pdf)
+            }
             handled = true
         }
         return handled
@@ -299,6 +309,7 @@ extension AppModel {
             case .logo?: importLogo(from: url)
             case .headingFont?: importHeadingFont(from: url)
             case .bodyFont?: importBodyFont(from: url)
+            case .expenseAttachment(let id)?: attach(url, toExpense: id)
             case nil: break
             }
         }

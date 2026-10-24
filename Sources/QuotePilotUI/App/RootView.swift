@@ -105,6 +105,7 @@ public struct RootView: View {
         case .dashboard: DashboardView(model: model)
         case .quotes: QuotesView(model: model)
         case .invoices: InvoicesView(model: model)
+        case .expenses: ExpensesView(model: model)
         case .clients: ClientsView(model: model)
         case .activity: ActivityView(model: model)
         case .brand: BrandView(model: model)
@@ -263,7 +264,7 @@ struct ToolbarSeparator: View {
     }
 }
 
-/// The Explorer-style tree on the left: the business at the top, the six sections under it.
+/// The Explorer-style tree on the left: the business at the top, the seven sections under it.
 struct SectionTree: View {
     @Bindable var model: AppModel
     @FocusState private var focused: Bool

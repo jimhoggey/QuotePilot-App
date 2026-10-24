@@ -98,6 +98,8 @@ public final class AppModel {
         didSet { if openInvoiceID == nil { dropHiddenSelections() } }
     }
     public var selectedClientID: UUID?
+    /// The expense whose form shows beside the Expenses list.
+    public var selectedExpenseID: UUID?
     /// Each list's search text, kept while you move between sections. A search that hides the
     /// selected quote, invoice or client clears that selection (`dropHiddenSelections`).
     public var findText: [AppSection: String] = [:] {
@@ -144,7 +146,8 @@ public final class AppModel {
     let now: () -> Date
     /// What `whenFree` does when a message box is up. Tests swap it for a counter.
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
-    /// What File → Show Money Records does with the Records folder. Tests swap it for a recorder.
+    /// Opens a folder or file in Finder or its own app: File → Show Money Records' Records folder, an
+    /// expense's attachment. Tests swap it for a recorder.
     @ObservationIgnored var openInFinder: (URL) -> Void = { _ = NSWorkspace.shared.open($0) }
     @ObservationIgnored private var lastBackupDay: Day?
     /// Set once a money record couldn't be written and Activity has said so, until one can be again.
@@ -342,7 +345,7 @@ public final class AppModel {
         case .quotes: return openQuoteID.flatMap { library.quote($0) } == nil
         case .invoices: return editingInvoiceID == nil
         case .clients, .activity: return true
-        case .dashboard, .brand: return false
+        case .dashboard, .expenses, .brand: return false
         }
     }
 
