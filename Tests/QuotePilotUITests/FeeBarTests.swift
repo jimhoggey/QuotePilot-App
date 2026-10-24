@@ -34,9 +34,11 @@ import Testing
     /// 15 Oct 2026, with September's $22.50 unpaid since 1 Oct: locked.
     func lockedModel() throws -> AppModel { try model() }
 
-    @Test func nothingOwingShowsThisMonthsFee() throws {
+    @Test func nothingDueShowsNoBarEvenWithMoneyReceived() throws {
         let model = try model(paidOn: Day(year: 2026, month: 10, day: 2))
-        #expect(model.feeBarText == "Quote Pilot fee this month so far: $22.50 (3% of $750.00 received). Due 1 Nov.")
+        #expect(model.appFeeState == .running(month: CalendarMonth(year: 2026, month: 10),
+                                              fee: Money(dollars: 22, cents: 50), received: Money(dollars: 750)))
+        #expect(model.feeBarText == nil, "nothing is owed until 1 Nov")
         #expect(model.appFeeState?.monthToPay == nil, "no I've paid")
         #expect(!model.isLocked)
     }
