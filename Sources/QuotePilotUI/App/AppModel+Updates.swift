@@ -43,6 +43,7 @@ extension AppModel {
     public func start() async {
         finishPendingUpdate()
         if libraryIsOpen { track(.appStarted, feeSettingProps) }
+        claude.startIfOn()
         await checkForUpdatesAtLaunch()
     }
 

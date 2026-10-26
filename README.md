@@ -119,6 +119,19 @@ at once. So does Check for Updates on Brand → Settings, which shows the versio
 tab instead of in a box. Each update is written to `~/Library/Logs/Quote Pilot/update.log`, and the old app goes
 to the Trash.
 
+## Claude
+
+Brand → Settings → **Let Claude use Quote Pilot** starts an MCP server that Claude Code can connect
+to. It listens on `127.0.0.1:47210` only, and every request must carry a random key kept in the
+app's preferences. **Copy Setup Command** gives the `claude mcp add …` line, which has the key in it.
+
+- **What Claude can do:** see what's open, list quotes and clients, start a draft quote, and fill
+  in a draft's lines, title, Work summary and Included / Not included lists.
+- **What it can't do:** send, record payments, delete documents, or change anything that has been
+  sent. It's refused while the fee lock is on.
+- Each change goes in Activity as "Claude …". The tools are in
+  `Sources/QuotePilotUI/App/AppModel+Claude.swift`.
+
 ## Usage counts
 
 The installed app sends anonymous usage counts to [Aptabase](https://aptabase.com), so the developer

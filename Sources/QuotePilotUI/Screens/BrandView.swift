@@ -499,6 +499,19 @@ struct SettingsTab: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            GroupBox("Claude") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Let Claude use Quote Pilot", isOn: Bindable(model.claude).isOn)
+                        .toggleStyle(.win95)
+                    Text(model.claudeLine)
+                    Button("Copy Setup Command") { model.copyClaudeSetupCommand() }
+                        .buttonStyle(.win95)
+                    Text("Claude Code can see what's open and fill in draft quotes. It can't send, record payments or delete. Paste the setup command into Terminal once, or give it to Claude to set up. What Claude reads goes to Anthropic as part of your Claude conversation.")
+                        .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             GroupBox("Usage") {
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle("Send anonymous usage counts", isOn: Bindable(model.usage).isOn)
