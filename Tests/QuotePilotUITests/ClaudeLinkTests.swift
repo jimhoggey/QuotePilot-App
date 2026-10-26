@@ -84,6 +84,9 @@ import Testing
             "get_current_view", "list_quotes", "list_clients", "open_quote", "new_quote",
             "add_quote_lines", "update_quote_line", "remove_quote_lines", "set_quote_text",
         ])
+        let readOnly = tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true }
+        #expect(readOnly.compactMap { $0["name"] as? String } == ["get_current_view", "list_quotes", "list_clients"])
+        #expect(tools.allSatisfy { ($0["annotations"] as? [String: Any])?["readOnlyHint"] is Bool }, "every tool says")
     }
 
     @Test func aMalformedOrEmptyBodyIsAParseError() throws {

@@ -7,6 +7,8 @@ struct MCPTool {
     /// Its arguments' JSON Schema properties, and the ones it can't do without.
     var properties: [String: Any] = [:]
     var required: [String] = []
+    /// A tool that only reads, so Claude Code can treat it as safe (`readOnlyHint`).
+    var readOnly = false
     /// What it does with Claude's arguments. What it returns goes back as JSON; what it throws goes
     /// back as text with isError, so Claude can read why.
     let run: ([String: Any]) throws -> Any
@@ -15,7 +17,7 @@ struct MCPTool {
     var listing: [String: Any] {
         var schema: [String: Any] = ["type": "object", "properties": properties]
         if !required.isEmpty { schema["required"] = required }
-        return ["name": name, "description": description, "inputSchema": schema]
+        return ["name": name, "description": description, "inputSchema": schema, "annotations": ["readOnlyHint": readOnly]]
     }
 }
 

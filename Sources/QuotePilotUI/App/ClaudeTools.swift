@@ -28,16 +28,15 @@ extension AppModel {
             "rate": ["type": "number", "description": "Dollars per unit, before GST. Leave it out for hours to use the hourly rate."],
         ]
         return MCPServer(name: "quote-pilot", version: AppVersion.current, instructions: Self.claudeInstructions, tools: [
-            tool("get_current_view", "What the user is looking at in Quote Pilot: the section, the open quote with its lines and totals, the hourly rate.") { [self] _ in
-                claudeView
-            },
-            tool("list_quotes", "Every quote, newest first: number, client, title, stage and total.") { [self] _ in
+            tool("get_current_view", "What the user is looking at in Quote Pilot: the section, the open quote with its lines and totals, the hourly rate.",
+                 readOnly: true) { [self] _ in claudeView },
+            tool("list_quotes", "Every quote, newest first: number, client, title, stage and total.", readOnly: true) { [self] _ in
                 library.quotes.sorted { ($0.issued, $0.number) > ($1.issued, $1.number) }.map { quote -> [String: Any] in
                     ["number": quote.number, "client": clientName(quote.clientID), "title": quote.title,
                      "stage": quote.stage.rawValue, "issued": quote.issued.iso, "total": Self.dollars(quote.totals.total)]
                 }
             },
-            tool("list_clients", "Every client's name.") { [self] _ in library.clients.map { ["name": $0.name] } },
+            tool("list_clients", "Every client's name.", readOnly: true) { [self] _ in library.clients.map { ["name": $0.name] } },
             tool("open_quote", "Opens a quote in Quote Pilot so the user sees it.",
                  ["quote": Self.text("A quote number, like Q-0012.")], required: ["quote"]) { [self] arguments in
                 guard arguments.values["quote"] is String else { throw MCPError("Pass quote: a quote number like Q-0012.") }
@@ -134,8 +133,8 @@ extension AppModel {
 
     /// One of Claude's tools. Each call that works is counted (`claude_tool`).
     private func tool(_ name: String, _ description: String, _ properties: [String: Any] = [:], required: [String] = [],
-                      run: @escaping (ClaudeArguments) throws -> Any) -> MCPTool {
-        MCPTool(name: name, description: description, properties: properties, required: required) { [self] arguments in
+                      readOnly: Bool = false, run: @escaping (ClaudeArguments) throws -> Any) -> MCPTool {
+        MCPTool(name: name, description: description, properties: properties, required: required, readOnly: readOnly) { [self] arguments in
             let result = try run(ClaudeArguments(values: arguments))
             track(.claudeTool, ["tool": name])
             return result
