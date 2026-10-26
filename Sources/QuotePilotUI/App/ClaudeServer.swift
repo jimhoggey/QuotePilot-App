@@ -3,8 +3,8 @@ import Network
 
 /// A tiny HTTP server for Claude's MCP connection, on this Mac only: it listens on the loopback
 /// interface, so nothing on the network can reach it. One request per connection, then it closes;
-/// a connection still open after `timeout` (10 seconds) is closed anyway, so a client that sends
-/// nothing, or never finishes, can't hold one. What a request gets is up to `handle`, on the main
+/// a request not fully in after `timeout` (10 seconds) is dropped, so a client that sends nothing,
+/// or never finishes, can't hold a connection. What a request gets is up to `handle`, on the main
 /// actor; the server only reads and writes HTTP.
 final class ClaudeServer: @unchecked Sendable {
     struct Request {
@@ -55,8 +55,9 @@ final class ClaudeServer: @unchecked Sendable {
         listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return connection.cancel() }
             connection.start(queue: queue)
-            queue.asyncAfter(deadline: .now() + timeout) { [weak connection] in connection?.cancel() }
-            receive(connection, buffer: Data())
+            let deadline = DispatchWorkItem { [weak connection] in connection?.cancel() }
+            queue.asyncAfter(deadline: .now() + timeout, execute: deadline)
+            receive(connection, buffer: Data(), deadline: deadline)
         }
         listener.start(queue: queue)
     }
@@ -64,18 +65,22 @@ final class ClaudeServer: @unchecked Sendable {
     /// Stops listening. The listener goes to `.cancelled`, which `ready` never hears about.
     func stop() { listener.cancel() }
 
-    private func receive(_ connection: NWConnection, buffer: Data) {
+    /// Reads until a whole request is in. `deadline` limits the reading only: once the request is in,
+    /// answering it may wait for the main actor as long as it takes.
+    private func receive(_ connection: NWConnection, buffer: Data, deadline: DispatchWorkItem) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, isComplete, error in
             guard let self else { return connection.cancel() }
             let buffer = buffer + (data ?? Data())
             if buffer.count > Self.maxRequest {
+                deadline.cancel()
                 send(Response(status: 413), on: connection)
             } else if let request = Self.parse(buffer) {
+                deadline.cancel()
                 Task { @MainActor in self.send(self.handle(request), on: connection) }
             } else if isComplete || error != nil {
                 connection.cancel()
             } else {
-                receive(connection, buffer: buffer)
+                receive(connection, buffer: buffer, deadline: deadline)
             }
         }
     }
