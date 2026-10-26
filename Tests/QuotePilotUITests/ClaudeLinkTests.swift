@@ -99,7 +99,10 @@ import Testing
     }
 
     @Test func offByDefaultAndTheKeyIsKept() throws {
-        let settings = UserDefaults(suiteName: "ClaudeLinkTests-\(UUID().uuidString)")!
+        // A suite named by a path keeps its file there, in the temporary folder, not ~/Library/Preferences.
+        let suite = FileManager.default.temporaryDirectory.appendingPathComponent("ClaudeLinkTests-\(UUID().uuidString)").path
+        let settings = try #require(UserDefaults(suiteName: suite))
+        defer { settings.removePersistentDomain(forName: suite) }
         let model = try UIFixture.sampleModel()
         let first = model.makeClaudeLink(settings: settings)
         #expect(!first.isOn)
