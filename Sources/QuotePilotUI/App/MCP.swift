@@ -65,14 +65,15 @@ struct MCPServer {
         default:
             return Self.error(id, -32601, "Method not found: \(method)")
         }
-        return Self.json(["jsonrpc": "2.0", "id": id, "result": result])
+        // nil means "no reply" (a notification), so a reply that can't be written is an error instead.
+        return Self.json(["jsonrpc": "2.0", "id": id, "result": result]) ?? Self.error(id, -32603, "Internal error: the reply couldn't be written.")
     }
 
     /// What a tool gives back: its result as JSON text, or why it refused, marked isError.
     private static func call(_ tool: MCPTool, _ arguments: [String: Any]) -> [String: Any] {
         do {
-            let text = json(try tool.run(arguments)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
-            return ["content": [["type": "text", "text": text]], "isError": false]
+            guard let result = json(try tool.run(arguments)) else { throw MCPError("The result couldn't be read.") }
+            return ["content": [["type": "text", "text": String(decoding: result, as: UTF8.self)]], "isError": false]
         } catch {
             return ["content": [["type": "text", "text": error.localizedDescription]], "isError": true]
         }

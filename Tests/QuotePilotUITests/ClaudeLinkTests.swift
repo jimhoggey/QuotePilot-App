@@ -8,10 +8,11 @@ import Testing
 /// tools may and may not change. Made-up data; the servers here are on free loopback ports.
 @MainActor
 @Suite struct ClaudeLinkTests {
-    /// One JSON-RPC message to the model's MCP server, and its reply.
-    func rpc(_ model: AppModel, _ method: String, _ params: [String: Any] = [:]) -> [String: Any] {
+    /// One JSON-RPC message to an MCP server (the model's, unless given), and its reply.
+    func rpc(_ model: AppModel, _ method: String, _ params: [String: Any] = [:]) -> [String: Any] { rpc(model.claudeMCP, method, params) }
+    func rpc(_ server: MCPServer, _ method: String, _ params: [String: Any] = [:]) -> [String: Any] {
         let body = try! JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "id": 1, "method": method, "params": params])
-        return model.claudeMCP.reply(to: body).map(json) ?? [:]
+        return server.reply(to: body).map(json) ?? [:]
     }
 
     func call(_ model: AppModel, _ tool: String, _ arguments: [String: Any] = [:]) -> (text: String, isError: Bool) {
@@ -106,6 +107,13 @@ import Testing
         ])
         let readOnly = tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true }
         #expect(readOnly.compactMap { $0["name"] as? String } == ["get_current_view", "list_quotes", "list_clients"])
+    }
+
+    @Test func aResultJSONCantHoldIsARefusal() {
+        let server = MCPServer(name: "test", version: "1", instructions: "", tools: [MCPTool(name: "now", description: "The time.") { _ in Date() }])
+        let result = rpc(server, "tools/call", ["name": "now"])["result"] as? [String: Any]
+        #expect(result?["isError"] as? Bool == true)
+        #expect((result?["content"] as? [[String: Any]])?.first?["text"] as? String == "The result couldn't be read.")
     }
 
     @Test func claudeFillsTheOpenDraft() throws {
