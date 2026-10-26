@@ -3,7 +3,7 @@ import Network
 import Observation
 
 /// Brand → Settings' "Let Claude use Quote Pilot": an MCP server on this Mac that Claude Code
-/// connects to with a secret key (`AppModel+Claude` says what it can do). Off until the user ticks
+/// connects to with a secret key (`ClaudeTools` says what it can do). Off until the user ticks
 /// the box; the box, the key and the port are kept in the app's preferences.
 @MainActor @Observable
 public final class ClaudeLink {

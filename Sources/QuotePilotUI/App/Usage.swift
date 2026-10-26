@@ -37,7 +37,7 @@ public enum UsageEvent: String, CaseIterable, Sendable {
     case feeLocked = "fee_locked"
     /// month, fee_percent, fee: I've paid.
     case feePaid = "fee_paid"
-    /// tool: which of Claude's tools ran (`AppModel+Claude`).
+    /// tool: which of Claude's tools ran (`ClaudeTools`).
     case claudeTool = "claude_tool"
 }
 

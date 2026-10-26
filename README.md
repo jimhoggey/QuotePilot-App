@@ -130,7 +130,7 @@ app's preferences. **Copy Setup Command** gives the `claude mcp add …` line, w
 - **What it can't do:** send, record payments, delete documents, or change anything that has been
   sent. It's refused while the fee lock is on.
 - Each change goes in Activity as "Claude …". The tools are in
-  `Sources/QuotePilotUI/App/AppModel+Claude.swift`.
+  `Sources/QuotePilotUI/App/ClaudeTools.swift`.
 
 ## Usage counts
 

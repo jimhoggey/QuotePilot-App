@@ -7,8 +7,14 @@ import Testing
 /// tools may and may not change. Made-up data; the one server here is on a free loopback port.
 @MainActor
 @Suite struct ClaudeLinkTests {
+    /// One JSON-RPC message to the model's MCP server, and its reply.
+    func rpc(_ model: AppModel, _ method: String, _ params: [String: Any] = [:]) -> [String: Any] {
+        let body = try! JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "id": 1, "method": method, "params": params])
+        return model.claudeMCP.reply(to: body).map { json(String(decoding: $0, as: UTF8.self)) } ?? [:]
+    }
+
     func call(_ model: AppModel, _ tool: String, _ arguments: [String: Any] = [:]) -> (text: String, isError: Bool) {
-        let result = model.callClaudeTool(tool, arguments)
+        let result = rpc(model, "tools/call", ["name": tool, "arguments": arguments])["result"] as? [String: Any] ?? [:]
         let text = (result["content"] as? [[String: Any]])?.first?["text"] as? String ?? ""
         return (text, result["isError"] as? Bool ?? true)
     }
@@ -53,6 +59,8 @@ import Testing
         #expect(try await post(initialize, key: "wrong").0 == 401)
         #expect(try await post(initialize, key: model.claude.key, origin: "https://example.com").0 == 403)
         #expect(try await post("", key: model.claude.key, method: "GET").0 == 405)
+        let (badStatus, bad) = try await post("{", key: model.claude.key)
+        #expect(badStatus == 200 && (bad["error"] as? [String: Any])?["code"] as? Int == -32700)
         let (status, reply) = try await post(initialize, key: model.claude.key)
         #expect(status == 200)
         let result = try #require(reply["result"] as? [String: Any])
@@ -71,12 +79,21 @@ import Testing
 
     @Test func theToolsAreListed() throws {
         let model = try UIFixture.sampleModel()
-        let reply = try #require(model.answerMCP(Data(#"{"jsonrpc":"2.0","id":7,"method":"tools/list"}"#.utf8)))
-        let tools = try #require((json(String(decoding: reply, as: UTF8.self))["result"] as? [String: Any])?["tools"] as? [[String: Any]])
+        let tools = try #require((rpc(model, "tools/list")["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         #expect(tools.compactMap { $0["name"] as? String } == [
             "get_current_view", "list_quotes", "list_clients", "open_quote", "new_quote",
             "add_quote_lines", "update_quote_line", "remove_quote_lines", "set_quote_text",
         ])
+    }
+
+    @Test func aMalformedOrEmptyBodyIsAParseError() throws {
+        let model = try UIFixture.sampleModel()
+        for body in ["", "{not json", #"[{"jsonrpc":"2.0","id":1,"method":"ping"}]"#] {
+            let reply = json(String(decoding: try #require(model.claudeMCP.reply(to: Data(body.utf8))), as: UTF8.self))
+            #expect((reply["error"] as? [String: Any])?["code"] as? Int == -32700, "\(body)")
+            #expect(reply["id"] is NSNull, "\(body)")
+        }
+        #expect(rpc(model, "ping")["result"] != nil, "it keeps answering")
     }
 
     @Test func claudeFillsTheOpenDraft() throws {
