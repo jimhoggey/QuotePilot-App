@@ -104,7 +104,7 @@ import Testing
         let tools = try #require((rpc(model, "tools/list")["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         #expect(tools.compactMap { $0["name"] as? String } == [
             "get_current_view", "list_quotes", "list_clients", "open_quote", "new_quote",
-            "add_quote_lines", "update_quote_line", "remove_quote_lines", "set_quote_text",
+            "add_quote_lines", "update_quote_line", "remove_quote_lines", "set_quote_details",
         ])
         let readOnly = tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true }
         #expect(readOnly.compactMap { $0["name"] as? String } == ["get_current_view", "list_quotes", "list_clients"])
@@ -140,13 +140,26 @@ import Testing
 
         #expect(!call(model, "update_quote_line", ["line": 2, "title": "Hosting and domain"]).isError)
         #expect(!call(model, "remove_quote_lines", ["lines": ["01"]]).isError)
-        let text = call(model, "set_quote_text", ["title": "Website improvements", "included": ["Testing", " "], "not_included": ["Copywriting"]])
+        let text = call(model, "set_quote_details", ["title": "Website improvements", "included": ["Testing", " "], "not_included": ["Copywriting"]])
         #expect(!text.isError)
         let changed = try #require(model.library.quote(quote.id))
         #expect(changed.lines.map(\.title) == ["Hosting and domain", "Speed tune-up"])
         #expect(changed.lines.map(\.code) == ["01", "02"], "drafts renumber")
         #expect(changed.title == "Website improvements")
         #expect(changed.included == ["Testing"] && changed.notIncluded == ["Copywriting"])
+    }
+
+    @Test func claudeSetsThePaymentPlan() throws {
+        let model = try modelWithDraft()
+        let quote = try #require(model.openQuoteID.flatMap { model.library.quote($0) })
+        #expect((json(call(model, "get_current_view").text)["open_quote"] as? [String: Any])?["plan"] as? String == "fifty_fifty")
+        let set = call(model, "set_quote_details", ["plan": "full_amount"])
+        #expect(!set.isError && json(set.text)["plan"] as? String == "full_amount", "\(set.text)")
+        #expect(model.library.quote(quote.id)?.plan == .fullAmount)
+        #expect(model.library.activity.first?.message == "Claude set the payment plan on \(quote.number)")
+        let refused = call(model, "set_quote_details", ["plan": "weekly"])
+        #expect(refused.isError && refused.text == "plan must be fifty_fifty or full_amount.")
+        #expect(model.library.quote(quote.id)?.plan == .fullAmount)
     }
 
     @Test func onlyNewLinesNeedATitle() throws {

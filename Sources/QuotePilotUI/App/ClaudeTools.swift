@@ -2,8 +2,9 @@ import Foundation
 import QuotePilotCore
 
 /// Claude's tools (the user, 26 Oct 2026). Claude can see what's open and fill in draft quotes:
-/// lines, title, Work summary and the Included / Not included lists. It can't send, record
-/// payments, delete documents or change anything sent; each change goes in Activity as "Claude …".
+/// lines, title, Work summary, the Included / Not included lists and the payment plan. It can't
+/// send, record payments, delete documents or change anything sent; each change goes in Activity as
+/// "Claude …".
 extension AppModel {
     static let claudeInstructions = """
         Quote Pilot is the user's Mac app for quotes and invoices, in Australian dollars. Call \
@@ -113,21 +114,25 @@ extension AppModel {
                     quote.lines.removeAll { codes.contains($0.code) }
                 })
             },
-            tool("set_quote_text", "Sets a draft quote's title, Work summary, or Included / Not included lists. Only the fields given change.",
+            tool("set_quote_details", "Sets a draft quote's title, Work summary, Included / Not included lists, or payment plan. Only the fields given change.",
                  ["quote": quote, "title": ["type": "string"],
                   "summary": Self.text("The Work summary. Lines starting with \"-\" print as dot points."),
-                  "included": items, "not_included": items]) { [self] arguments in
+                  "included": items, "not_included": items,
+                  "plan": ["type": "string", "enum": Self.plans.keys.sorted(),
+                           "description": "fifty_fifty: a 50% deposit invoice, then the rest when the job is complete. full_amount: one invoice for the whole amount."]]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
                 let title = arguments.string("title"), summary = arguments.string("summary")
                 let included = arguments.strings("included"), notIncluded = arguments.strings("not_included")
-                let names = [(title != nil, "title"), (summary != nil, "Work summary"),
-                             (included != nil, "Included list"), (notIncluded != nil, "Not included list")].filter(\.0).map(\.1)
-                guard !names.isEmpty else { throw MCPError("Pass at least one of title, summary, included or not_included.") }
+                let plan = try arguments.value("plan", { Self.plans[$0.lowercased()] }, else: "plan must be fifty_fifty or full_amount.")
+                let names = [(title != nil, "title"), (summary != nil, "Work summary"), (included != nil, "Included list"),
+                             (notIncluded != nil, "Not included list"), (plan != nil, "payment plan")].filter(\.0).map(\.1)
+                guard !names.isEmpty else { throw MCPError("Pass at least one of title, summary, included, not_included or plan.") }
                 return claudeJSON(try claudeEdit(quote, "set the \(names.joined(separator: ", "))") { quote in
                     quote.title = title ?? quote.title
                     quote.summary = summary ?? quote.summary
                     quote.included = included ?? quote.included
                     quote.notIncluded = notIncluded ?? quote.notIncluded
+                    quote.plan = plan ?? quote.plan
                 })
             },
         ])
@@ -142,6 +147,9 @@ extension AppModel {
             return result
         }
     }
+
+    /// The payment plans, as Claude names them.
+    private static let plans: [String: PaymentPlan] = ["fifty_fifty": .fiftyFifty, "full_amount": .fullAmount]
 
     private static func text(_ description: String) -> [String: Any] { ["type": "string", "description": description] }
 
@@ -170,7 +178,7 @@ extension AppModel {
     private func claudeJSON(_ quote: Quote) -> [String: Any] {
         ["number": quote.number, "client": clientName(quote.clientID), "title": quote.title, "stage": quote.stage.rawValue,
          "editable": claudeEditProblem(quote) == nil,
-         "plan": quote.plan == .fiftyFifty ? "50% deposit, 50% on completion" : "full amount",
+         "plan": Self.plans.first { $0.value == quote.plan }?.key ?? "",
          "summary": quote.summary, "included": quote.included, "not_included": quote.notIncluded,
          "lines": quote.lines.map { line -> [String: Any] in
              ["line": line.code, "title": line.title, "detail": line.detail,
