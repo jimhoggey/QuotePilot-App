@@ -81,7 +81,7 @@ extension AppModel {
                 let hourly = library.brand.hourlyRate
                 let lines = try items.map { item in
                     // With neither unit nor rate, a line starts as Add Line's does: hours at the hourly rate.
-                    let start = item.values["unit"] == nil && item.values["rate"] == nil
+                    let start = !item.has("unit") && !item.has("rate")
                         ? LineItem.blank(hourlyRate: hourly) : LineItem(title: "", rate: .zero)
                     let line = try claudeLine(item, to: start).withHourlyRate(hourly, after: nil)
                     guard !line.title.isEmpty else { throw MCPError("Every line needs a title.") }
@@ -218,9 +218,13 @@ extension AppModel {
     }
 }
 
-/// Claude's arguments to one tool, read by type. A value of the wrong type reads as left out.
+/// Claude's arguments to one tool, read by type. Text and lists of the wrong type, and null, read as
+/// left out; a value read with `value` that can't be parsed is refused.
 struct ClaudeArguments {
     let values: [String: Any]
+
+    /// Whether Claude gave `key`: there, and not null.
+    func has(_ key: String) -> Bool { values[key].map { !($0 is NSNull) } ?? false }
 
     /// Text, trimmed.
     func string(_ key: String) -> String? {
@@ -234,7 +238,7 @@ struct ClaudeArguments {
 
     /// A value given as text or a number, read by `parse`; refused with `problem` when it can't be.
     func value<T>(_ key: String, _ parse: (String) -> T?, else problem: String) throws -> T? {
-        guard let value = values[key] else { return nil }
+        guard has(key), let value = values[key] else { return nil }
         guard let parsed = ((value as? NSNumber)?.stringValue ?? value as? String).flatMap(parse) else { throw MCPError(problem) }
         return parsed
     }

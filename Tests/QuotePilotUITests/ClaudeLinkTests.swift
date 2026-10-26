@@ -158,12 +158,13 @@ import Testing
     @Test func onlyNewLinesNeedATitle() throws {
         let (model, quote) = try modelWithDraft()
         #expect(call(model, "add_quote_lines", ["lines": [["title": " "]]]).text == "Every line needs a title.")
-        #expect(!call(model, "add_quote_lines", ["lines": [["title": "Setup"]]]).isError)
+        #expect(!call(model, "add_quote_lines", ["lines": [["title": "Setup", "unit": NSNull(), "rate": NSNull()]]]).isError)
         let blanked = call(model, "update_quote_line", ["line": "01", "title": ""])
         #expect(!blanked.isError, "\(blanked.text)")
-        #expect(!call(model, "update_quote_line", ["line": 1, "rate": 100]).isError, "a blank line can still change")
+        let changed = call(model, "update_quote_line", ["line": 1, "rate": 100, "unit": NSNull()])
+        #expect(!changed.isError, "a blank line can still change, and null is left out: \(changed.text)")
         let line = try #require(model.library.quote(quote.id)?.lines.first)
-        #expect(line.title == "" && line.rate == Money(dollars: 100))
+        #expect(line.title == "" && line.rate == Money(dollars: 100) && line.unit == .hours)
     }
 
     @Test func sentQuotesAndTheLockAreLeftAlone() throws {
