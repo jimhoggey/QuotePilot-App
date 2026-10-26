@@ -17,6 +17,7 @@ import QuotePilotCore
         library.addClient(sample)
         var quote = library.newQuote(on: issued, clientID: client ? sample.id : nil)
         quote.plan = plan
+        quote.planIsAutomatic = false
         for (index, title) in ["Design", "Build"].prefix(lines).enumerated() {
             quote.addLine(LineItem(title: title, rate: Money(dollars: 600 * (index + 1))))
         }

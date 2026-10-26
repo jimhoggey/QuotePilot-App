@@ -161,14 +161,16 @@ import Testing
 
     @Test func claudeSetsThePaymentPlan() throws {
         let (model, quote) = try modelWithDraft()
-        #expect((json(call(model, "get_current_view").text)["open_quote"] as? [String: Any])?["plan"] as? String == "fifty_fifty")
-        let set = call(model, "set_quote_details", ["plan": "full_amount"])
-        #expect(!set.isError && json(set.text)["plan"] as? String == "full_amount", "\(set.text)")
-        #expect(model.library.quote(quote.id)?.plan == .fullAmount)
+        // A new, empty quote is under $1,000, so the rule makes it the full amount.
+        #expect((json(call(model, "get_current_view").text)["open_quote"] as? [String: Any])?["plan"] as? String == "full_amount")
+        let set = call(model, "set_quote_details", ["plan": "fifty_fifty"])
+        #expect(!set.isError && json(set.text)["plan"] as? String == "fifty_fifty", "\(set.text)")
+        #expect(model.library.quote(quote.id)?.plan == .fiftyFifty)
+        #expect(model.library.quote(quote.id)?.planIsAutomatic == false, "chosen by Claude, so it stays")
         #expect(model.library.activity.first?.message == "Claude set the payment plan on \(quote.number)")
         let refused = call(model, "set_quote_details", ["plan": "weekly"])
         #expect(refused.isError && refused.text == "plan must be fifty_fifty or full_amount.")
-        #expect(model.library.quote(quote.id)?.plan == .fullAmount)
+        #expect(model.library.quote(quote.id)?.plan == .fiftyFifty)
     }
 
     @Test func claudeSetsTheTerms() throws {

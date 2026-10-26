@@ -91,6 +91,9 @@ public struct Brand: Codable, Hashable, Sendable {
     public var quoteValidDays = 30
     /// The one rate that new lines in hours start at (`LineItem.withHourlyRate`); nil when none is set.
     public var hourlyRate: Money?
+    /// Draft quotes with a total above this are 50/50, and the rest are the full amount on completion,
+    /// until a quote's plan is chosen by hand (`Quote.planIsAutomatic`). $0 turns the rule off.
+    public var splitAbove = Money(dollars: 1000)
     /// Quote Pilot's own fee setting (Brand → Settings), kept with the library. Prints nowhere.
     public var appFee = AppFee()
 
@@ -138,6 +141,26 @@ public enum PaymentPlan: String, Codable, CaseIterable, Sendable {
         case .fiftyFifty: return "50% when the quote is accepted, 50% on completion"
         case .fullAmount: return "Full amount on completion"
         }
+    }
+
+    /// The plan with its amounts for `total`, as the quote prints it: "50% ($750.00) when the quote
+    /// is accepted, 50% ($750.00) on completion". The halves add up to the total to the cent.
+    public func summary(for total: Money, currencyCode: String) -> String {
+        let money = { (amount: Money) in amount.formatted(currencyCode: currencyCode) }
+        switch self {
+        case .fiftyFifty:
+            let now = total.percent(50)
+            return "50% (\(money(now))) when the quote is accepted, 50% (\(money(total - now))) on completion"
+        case .fullAmount:
+            return "Full amount (\(money(total))) on completion"
+        }
+    }
+
+    /// Brand's rule (`Brand.splitAbove`): 50/50 for a total above `splitAbove`, otherwise the full
+    /// amount on completion. Nil while the rule is off ($0).
+    public static func automatic(for total: Money, splitAbove: Money) -> PaymentPlan? {
+        guard splitAbove > .zero else { return nil }
+        return total > splitAbove ? .fiftyFifty : .fullAmount
     }
 }
 
@@ -195,6 +218,9 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
     public var sentAt: Date?
     public var acceptance: Acceptance?
     public var completedOn: Day?
+    /// True while the plan follows Brand's rule (`Brand.splitAbove`): set on a new quote, and
+    /// cleared for good once the plan is chosen by hand.
+    public var planIsAutomatic = false
 
     public init(id: UUID = UUID(), number: String, clientID: UUID? = nil, title: String = "",
                 issued: Day, validUntil: Day, plan: PaymentPlan = .fiftyFifty, taxed: Bool = false,
@@ -365,7 +391,7 @@ extension Brand {
     enum CodingKeys: String, CodingKey {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
-        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee
+        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee, splitAbove
     }
 
     public init(from decoder: Decoder) throws {
@@ -391,6 +417,7 @@ extension Brand {
         bodyFontFile = try c.decodeIfPresent(String.self, forKey: .bodyFontFile)
         bodyFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .bodyFontStyle)
         appFee = try c.value(.appFee, or: d.appFee)
+        splitAbove = try c.value(.splitAbove, or: d.splitAbove)
     }
 }
 
@@ -414,7 +441,7 @@ extension Client {
 extension Quote {
     enum CodingKeys: String, CodingKey {
         case id, number, clientID, title, issued, validUntil, plan, taxed, lines, lastLineNumber
-        case summary, included, notIncluded, terms, stage, sentAt, acceptance, completedOn
+        case summary, included, notIncluded, terms, stage, sentAt, acceptance, completedOn, planIsAutomatic
     }
 
     public init(from decoder: Decoder) throws {
@@ -437,6 +464,8 @@ extension Quote {
         sentAt = try c.decodeIfPresent(Date.self, forKey: .sentAt)
         acceptance = try c.decodeIfPresent(Acceptance.self, forKey: .acceptance)
         completedOn = try c.decodeIfPresent(Day.self, forKey: .completedOn)
+        // Quotes from before the rule keep the plan they have.
+        planIsAutomatic = try c.value(.planIsAutomatic, or: false)
     }
 }
 

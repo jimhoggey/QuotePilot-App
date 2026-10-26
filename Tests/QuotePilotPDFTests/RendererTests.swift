@@ -16,7 +16,7 @@ import QuotePilotCore
         let text = Sample.text(document)
         for expected in ["Quote", "Q-0001", "Sample Studio", "Sample Client Pty Ltd", "Discovery", "2 hrs",
                          "$1,500.00", "Accept all", "Accepted by", "Work summary", "Payment plan",
-                         "50% when the quote is accepted"] {
+                         "50% ($750.00) when the quote is accepted, 50% ($750.00) on completion"] {
             #expect(text.contains(expected), "missing \(expected)")
         }
         // The brand has an ABN, so the quote carries it, though it has no GST.
