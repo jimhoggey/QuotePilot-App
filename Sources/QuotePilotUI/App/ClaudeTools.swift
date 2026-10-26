@@ -9,12 +9,13 @@ extension AppModel {
     static let claudeInstructions = """
         Quote Pilot is the user's Mac app for quotes and invoices, in Australian dollars. Call \
         get_current_view first to see what the user is looking at. You can start draft quotes and fill \
-        them in: lines, title, Work summary and the Included / Not included lists. You can't send \
-        anything, record payments or delete documents; the user does those in Quote Pilot. Only draft \
-        quotes can be changed. Keep line titles short (a few words) and put longer wording in detail. \
-        Rates are dollars per unit before GST; for work in hours, leave rate out to use the user's \
-        hourly rate. Line IDs (01, 02, …) renumber when a line is removed, so read them from the latest \
-        result. When you're done, ask the user to check the quote in Quote Pilot.
+        them in: lines, title, Work summary, the Included / Not included lists, terms and the payment \
+        plan (50/50 or full amount). You can't send anything, record payments or delete documents; the \
+        user does those in Quote Pilot. Only draft quotes can be changed. Keep line titles short (a few \
+        words) and put longer wording in detail. Rates are dollars per unit before GST; for work in \
+        hours, leave rate out to use the user's hourly rate. Line IDs (01, 02, …) renumber when a line \
+        is removed, so read them from the latest result. When you're done, ask the user to check the \
+        quote in Quote Pilot.
         """
 
     /// Quote Pilot as Claude's MCP server. Each tool's arguments sit next to what it does.

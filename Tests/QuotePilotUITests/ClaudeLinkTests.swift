@@ -66,6 +66,7 @@ import Testing
         let result = try #require(reply["result"] as? [String: Any])
         #expect(result["protocolVersion"] as? String == "2025-06-18")
         #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "quote-pilot")
+        #expect((result["instructions"] as? String)?.contains("terms and the payment plan") == true)
         #expect(try await post(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#, key: model.claude.key).0 == 202)
     }
 
