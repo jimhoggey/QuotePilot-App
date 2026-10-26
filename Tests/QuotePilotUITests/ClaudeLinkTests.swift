@@ -36,7 +36,7 @@ import Testing
 
     @Test func theServerAnswersOnlyWithTheKey() async throws {
         let model = try UIFixture.sampleModel()
-        model.claude = ClaudeLink(settings: nil, port: 0)
+        model.claude = model.makeClaudeLink(settings: nil, port: 0)
         model.claude.isOn = true
         defer { model.claude.isOn = false }
         for _ in 0..<200 where model.claude.port == nil { try await Task.sleep(for: .milliseconds(10)) }
@@ -88,12 +88,13 @@ import Testing
         #expect(hungUpAfter < .seconds(2))
     }
 
-    @Test func offByDefaultAndTheKeyIsKept() {
+    @Test func offByDefaultAndTheKeyIsKept() throws {
         let settings = UserDefaults(suiteName: "ClaudeLinkTests-\(UUID().uuidString)")!
-        let first = ClaudeLink(settings: settings)
+        let model = try UIFixture.sampleModel()
+        let first = model.makeClaudeLink(settings: settings)
         #expect(!first.isOn)
         #expect(first.key.count == 64)
-        #expect(ClaudeLink(settings: settings).key == first.key)
+        #expect(model.makeClaudeLink(settings: settings).key == first.key)
         let wrong = String(first.key.dropLast()) + (first.key.hasSuffix("0") ? "1" : "0")
         #expect(first.accepts("Bearer \(first.key)") && !first.accepts("Bearer \(wrong)") && !first.accepts(nil))
     }

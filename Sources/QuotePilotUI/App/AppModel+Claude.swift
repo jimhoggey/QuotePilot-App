@@ -5,10 +5,9 @@ import QuotePilotCore
 /// Brand → Settings' Let Claude use Quote Pilot, on the model's side: the HTTP answer, Settings'
 /// line and button, and how Claude's tools change a quote. The tools are in `ClaudeTools`.
 extension AppModel {
-    func wireClaude() {
-        claude.answer = { [weak self] request in
-            self?.answerClaude(request) ?? ClaudeServer.Response(status: 503)
-        }
+    /// The Claude link, answering with this model.
+    func makeClaudeLink(settings: UserDefaults? = .standard, port: UInt16 = ClaudeLink.defaultPort) -> ClaudeLink {
+        ClaudeLink(settings: settings, port: port) { [weak self] in self?.answerClaude($0) ?? .init(status: 503) }
     }
 
     /// One HTTP request from Claude: POST /mcp with the key, one JSON-RPC message in and one out.

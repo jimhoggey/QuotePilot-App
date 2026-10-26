@@ -28,13 +28,15 @@ public final class ClaudeLink {
     @ObservationIgnored let key: String
     @ObservationIgnored private let askedPort: UInt16
     @ObservationIgnored private let settings: UserDefaults?
+    /// What a request gets (`AppModel.answerClaude`).
+    @ObservationIgnored private let answer: @MainActor (ClaudeServer.Request) -> ClaudeServer.Response
     @ObservationIgnored private var server: ClaudeServer?
-    /// What a request gets; `AppModel` sets it to `answerClaude`.
-    @ObservationIgnored var answer: (ClaudeServer.Request) -> ClaudeServer.Response = { _ in ClaudeServer.Response(status: 503) }
 
-    init(settings: UserDefaults?, port: UInt16 = defaultPort) {
+    init(settings: UserDefaults?, port: UInt16 = defaultPort,
+         answer: @escaping @MainActor (ClaudeServer.Request) -> ClaudeServer.Response) {
         self.settings = settings
         askedPort = port
+        self.answer = answer
         if let saved = settings?.string(forKey: Self.keyKey), saved.count >= 32 {
             key = saved
         } else {
@@ -43,8 +45,6 @@ public final class ClaudeLink {
         }
         isOn = settings?.bool(forKey: Self.onKey) ?? false
     }
-
-    static func live() -> ClaudeLink { ClaudeLink(settings: .standard) }
 
     /// At launch: starts the server when the box was left ticked.
     func startIfOn() {
@@ -69,10 +69,7 @@ public final class ClaudeLink {
     private func start() {
         problem = nil
         do {
-            let server = try ClaudeServer(port: askedPort) { [weak self] request in
-                guard let link = self else { return ClaudeServer.Response(status: 503) }
-                return await link.respond(request)
-            }
+            let server = try ClaudeServer(port: askedPort, handle: answer)
             self.server = server
             server.start { [weak self] result in
                 Task { @MainActor in self?.started(result) }
@@ -82,16 +79,12 @@ public final class ClaudeLink {
         }
     }
 
-    private func respond(_ request: ClaudeServer.Request) -> ClaudeServer.Response { answer(request) }
-
     private func started(_ result: Result<UInt16, Error>) {
         switch result {
         case .success(let port):
             self.port = port
         case .failure(let error):
-            server?.stop()
-            server = nil
-            port = nil
+            stop()
             if case .posix(.EADDRINUSE)? = error as? NWError {
                 problem = "Port \(askedPort) is in use by another app."
             } else {

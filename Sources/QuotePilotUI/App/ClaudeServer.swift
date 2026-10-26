@@ -4,8 +4,8 @@ import Network
 /// A tiny HTTP server for Claude's MCP connection, on this Mac only: it listens on the loopback
 /// interface, so nothing on the network can reach it. One request per connection, then it closes;
 /// a connection still open after `timeout` (10 seconds) is closed anyway, so a client that sends
-/// nothing, or never finishes, can't hold one. What a request gets is up to `handle`; the server only
-/// reads and writes HTTP.
+/// nothing, or never finishes, can't hold one. What a request gets is up to `handle`, on the main
+/// actor; the server only reads and writes HTTP.
 final class ClaudeServer: @unchecked Sendable {
     struct Request {
         var method = "", path = ""
@@ -28,11 +28,11 @@ final class ClaudeServer: @unchecked Sendable {
     private let listener: NWListener
     private let queue = DispatchQueue(label: "com.fynnprojects.quotepilot.claude")
     private let timeout: TimeInterval
-    private let handle: @Sendable (Request) async -> Response
+    private let handle: @MainActor (Request) -> Response
 
     /// Port 0 picks a free one (the tests). Bound to 127.0.0.1, so macOS's firewall never asks and
     /// nothing else on the network can connect.
-    init(port: UInt16, timeout: TimeInterval = 10, handle: @escaping @Sendable (Request) async -> Response) throws {
+    init(port: UInt16, timeout: TimeInterval = 10, handle: @escaping @MainActor (Request) -> Response) throws {
         let parameters = NWParameters.tcp
         parameters.requiredInterfaceType = .loopback
         parameters.allowLocalEndpointReuse = true
@@ -77,7 +77,7 @@ final class ClaudeServer: @unchecked Sendable {
             if buffer.count > Self.maxRequest {
                 send(Response(status: 413), on: connection)
             } else if let request = Self.parse(buffer) {
-                Task { self.send(await self.handle(request), on: connection) }
+                Task { @MainActor in self.send(self.handle(request), on: connection) }
             } else if isComplete || error != nil {
                 connection.cancel()
             } else {
