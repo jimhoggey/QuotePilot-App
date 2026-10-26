@@ -37,7 +37,7 @@ extension AppModel {
 
     /// Why Claude can't change `quote`, or nil when it can.
     func claudeEditProblem(_ quote: Quote) -> String? {
-        if isLocked { return "Quote Pilot is locked until the Quote Pilot fee is paid, so nothing can be changed." }
+        if let lockedError { return lockedError.text }
         guard quote.stage == .draft else { return "\(quote.number) has been sent, so it can't be changed. Only draft quotes can." }
         return nil
     }

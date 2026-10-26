@@ -49,7 +49,6 @@ extension AppModel {
             tool("new_quote", "Starts a draft quote and opens it.",
                  ["client": Self.text("The client's name, as list_clients gives it. Optional."),
                   "title": Self.text("What the quote is for. Optional.")]) { [self] arguments in
-                if let lockedError { throw lockedError }
                 var clientID: UUID?
                 if let name = arguments.string("client"), !name.isEmpty {
                     let partial = library.clients.filter { $0.name.localizedCaseInsensitiveContains(name) }

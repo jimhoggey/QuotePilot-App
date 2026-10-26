@@ -180,7 +180,8 @@ import Testing
         let draft = try #require(locked.library.quotes.first { $0.stage == .draft })
         let lockedReply = call(locked, "add_quote_lines", ["quote": draft.number, "lines": [["title": "Extra"]]])
         #expect(lockedReply.isError && lockedReply.text.contains("locked"))
-        #expect(call(locked, "new_quote").isError)
+        let lockedNew = call(locked, "new_quote")
+        #expect(lockedNew.isError && lockedNew.text == lockedReply.text, "one lock message")
     }
 
     @Test func newQuoteFindsTheClientAndOpensIt() throws {
