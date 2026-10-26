@@ -100,7 +100,7 @@ struct ExpenseForm: View {
 
     /// The GST field takes $0 up to the total.
     static func gst(_ text: String, total: Money) -> Money? {
-        FieldParser.hourlyRate(text).flatMap { $0 <= total ? $0 : nil }
+        FieldParser.amountOrBlank(text).flatMap { $0 <= total ? $0 : nil }
     }
 
     var body: some View {
@@ -139,7 +139,7 @@ struct ExpenseForm: View {
                         }
                         Win95FieldRow("Total:") {
                             CommitField(label: "Total, GST included", value: current.total, format: { model.money($0) },
-                                        parse: FieldParser.hourlyRate, alignment: .leading, prompt: "$0.00") {
+                                        parse: FieldParser.amountOrBlank, alignment: .leading, prompt: "$0.00") {
                                 expense.wrappedValue = expense.wrappedValue.withTotal($0)
                             }
                             .frame(width: 120)

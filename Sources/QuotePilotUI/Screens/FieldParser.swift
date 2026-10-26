@@ -19,9 +19,10 @@ enum FieldParser {
         return amount
     }
 
-    /// The Brand's hourly rate: "90", "$90.50", from $0 to $10,000,000. Blank is $0, which means no rate;
-    /// a minus sign (a discount, fine on a line) is refused.
-    static func hourlyRate(_ text: String) -> Money? {
+    /// An amount that can't be negative, for the hourly rate, the 50/50 threshold and an expense's
+    /// GST: "90", "$90.50", from $0 to $10,000,000. Blank is $0 (no rate, or the rule off); a minus
+    /// sign (a discount, fine on a line) is refused.
+    static func amountOrBlank(_ text: String) -> Money? {
         if text.trimmingCharacters(in: .whitespaces).isEmpty { return .zero }
         guard let rate = money(text), rate >= .zero else { return nil }
         return rate
