@@ -44,25 +44,26 @@ import Testing
         #expect(model.claudeLine == "On, at http://127.0.0.1:\(port)/mcp")
         #expect(model.claude.setupCommand.contains("--header \"Authorization: Bearer \(model.claude.key)\""))
 
-        func post(_ body: String, key: String?, method: String = "POST", origin: String? = nil) async throws -> (Int, [String: Any]) {
+        func post(_ body: String, key: String?, method: String = "POST", origin: String? = nil) async throws -> (Int, [String: Any], HTTPURLResponse?) {
             var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/mcp")!)
             request.httpMethod = method
             request.httpBody = method == "POST" ? Data(body.utf8) : nil
             request.allHTTPHeaderFields = ["Content-Type": "application/json", "Authorization": key.map { "Bearer \($0)" }, "Origin": origin]
                 .compactMapValues { $0 }
             let (data, response) = try await URLSession.shared.data(for: request)
-            return ((response as? HTTPURLResponse)?.statusCode ?? 0, json(data))
+            return ((response as? HTTPURLResponse)?.statusCode ?? 0, json(data), response as? HTTPURLResponse)
         }
         let initialize = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}"#
         #expect(try await post(initialize, key: nil).0 == 401)
         #expect(try await post(initialize, key: "wrong").0 == 401)
         #expect(try await post(initialize, key: model.claude.key, origin: "https://example.com").0 == 403)
-        #expect(try await post("", key: model.claude.key, method: "GET").0 == 405)
+        let get = try await post("", key: model.claude.key, method: "GET")
+        #expect(get.0 == 405 && get.2?.value(forHTTPHeaderField: "Allow") == "POST")
         for body in ["", "{not json", #"[{"jsonrpc":"2.0","id":1,"method":"ping"}]"#] {
-            let (status, reply) = try await post(body, key: model.claude.key)
+            let (status, reply, _) = try await post(body, key: model.claude.key)
             #expect(status == 200 && (reply["error"] as? [String: Any])?["code"] as? Int == -32700 && reply["id"] is NSNull, "\(body)")
         }
-        let (status, reply) = try await post(initialize, key: model.claude.key)
+        let (status, reply, _) = try await post(initialize, key: model.claude.key)
         #expect(status == 200, "it keeps answering after a bad body")
         let result = try #require(reply["result"] as? [String: Any])
         #expect(result["protocolVersion"] as? String == "2025-06-18")
@@ -85,8 +86,9 @@ import Testing
     @Test func theServerHangsUpOnASilentConnection() async throws {
         let server = try ClaudeServer(port: 0, timeout: 0.1) { _ in .init(status: 200) }
         defer { server.stop() }
-        let port = await withCheckedContinuation { done in server.start { done.resume(returning: (try? $0.get()) ?? 0) } }
-        let connection = NWConnection(host: "127.0.0.1", port: try #require(NWEndpoint.Port(rawValue: port)), using: .tcp)
+        let ready = await withCheckedContinuation { done in server.start { done.resume(returning: $0) } }
+        let port = try #require(NWEndpoint.Port(rawValue: try ready.get()), "the server started")
+        let connection = NWConnection(host: "127.0.0.1", port: port, using: .tcp)
         connection.start(queue: .global())
         // It sends nothing. The server should hang up long before this side gives up, 5 seconds on;
         // timed in the callback, off the main actor, so other tests can't slow the clock.
