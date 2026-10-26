@@ -46,15 +46,10 @@ final class ClaudeServer: @unchecked Sendable {
     /// error when it can't (another app has the port).
     func start(ready: @escaping @Sendable (Result<UInt16, Error>) -> Void) {
         listener.stateUpdateHandler = { [weak self] state in
-            switch state {
-            case .ready:
-                ready(.success(self?.listener.port?.rawValue ?? 0))
-            case .failed(let error):
-                ready(.failure(error))
-                self?.listener.cancel()
-            default:
-                break
-            }
+            if case .ready = state { ready(.success(self?.listener.port?.rawValue ?? 0)) }
+            guard case .failed(let error) = state else { return }
+            ready(.failure(error))
+            self?.listener.cancel()
         }
         listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return connection.cancel() }
@@ -65,10 +60,8 @@ final class ClaudeServer: @unchecked Sendable {
         listener.start(queue: queue)
     }
 
-    func stop() {
-        listener.stateUpdateHandler = nil
-        listener.cancel()
-    }
+    /// Stops listening. The listener goes to `.cancelled`, which `ready` never hears about.
+    func stop() { listener.cancel() }
 
     private func receive(_ connection: NWConnection, buffer: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, isComplete, error in

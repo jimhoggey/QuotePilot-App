@@ -125,11 +125,8 @@ extension AppModel {
                 let included = arguments.strings("included"), notIncluded = arguments.strings("not_included")
                 let plan = try arguments.value("plan", { Self.plans[$0.lowercased()] }, else: "plan must be fifty_fifty or full_amount.")
                 let names = [(title != nil, "title"), (summary != nil, "Work summary"), (included != nil, "Included list"),
-                             (notIncluded != nil, "Not included list"), (terms != nil, "terms"), (plan != nil, "payment plan")]
-                    .filter(\.0).map(\.1)
-                guard !names.isEmpty else {
-                    throw MCPError("Pass at least one of title, summary, included, not_included, terms or plan.")
-                }
+                             (notIncluded != nil, "Not included list"), (terms != nil, "terms"), (plan != nil, "payment plan")].filter(\.0).map(\.1)
+                guard !names.isEmpty else { throw MCPError("Pass at least one of title, summary, included, not_included, terms or plan.") }
                 return claudeJSON(try claudeEdit(quote, "set the \(names.joined(separator: ", "))") { quote in
                     quote.title = title ?? quote.title
                     quote.summary = summary ?? quote.summary

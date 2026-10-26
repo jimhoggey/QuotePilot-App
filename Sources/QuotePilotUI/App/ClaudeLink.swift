@@ -37,12 +37,9 @@ public final class ClaudeLink {
         self.settings = settings
         askedPort = port
         self.answer = answer
-        if let saved = settings?.string(forKey: Self.keyKey), saved.count >= 32 {
-            key = saved
-        } else {
-            key = (0..<32).map { _ in String(format: "%02x", UInt8.random(in: .min ... .max)) }.joined()
-            settings?.set(key, forKey: Self.keyKey)
-        }
+        key = settings?.string(forKey: Self.keyKey).flatMap { $0.count >= 32 ? $0 : nil }
+            ?? (0..<32).map { _ in String(format: "%02x", UInt8.random(in: .min ... .max)) }.joined()
+        settings?.set(key, forKey: Self.keyKey)
         isOn = settings?.bool(forKey: Self.onKey) ?? false
     }
 
@@ -71,25 +68,19 @@ public final class ClaudeLink {
         do {
             let server = try ClaudeServer(port: askedPort, handle: answer)
             self.server = server
-            server.start { [weak self] result in
-                Task { @MainActor in self?.started(result) }
-            }
+            server.start { [weak self] result in Task { @MainActor in self?.started(result) } }
         } catch {
             started(.failure(error))
         }
     }
 
     private func started(_ result: Result<UInt16, Error>) {
-        switch result {
-        case .success(let port):
-            self.port = port
-        case .failure(let error):
+        do {
+            port = try result.get()
+        } catch {
             stop()
-            if case .posix(.EADDRINUSE)? = error as? NWError {
-                problem = "Port \(askedPort) is in use by another app."
-            } else {
-                problem = "Couldn't start: \(error.localizedDescription)"
-            }
+            problem = (error as? NWError) == .posix(.EADDRINUSE)
+                ? "Port \(askedPort) is in use by another app." : "Couldn't start: \(error.localizedDescription)"
         }
     }
 

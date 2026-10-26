@@ -1,5 +1,4 @@
 import AppKit
-import Foundation
 import QuotePilotCore
 
 /// Brand → Settings' Let Claude use Quote Pilot, on the model's side: the HTTP answer, Settings'
