@@ -118,12 +118,13 @@ extension AppModel {
                  ["quote": quoteArgument, "title": ["type": "string"],
                   "summary": Self.text("The Work summary. Lines starting with \"-\" print as dot points."),
                   "included": itemList, "not_included": itemList, "terms": Self.text("The quote's Terms, printed at the end of the quote."),
-                  "plan": ["type": "string", "enum": Self.plans.keys.sorted(),
+                  "plan": ["type": "string", "enum": PaymentPlan.allCases.map(\.claudeName),
                            "description": "fifty_fifty: a 50% deposit invoice, then the rest when the job is complete. full_amount: one invoice for the whole amount."]]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
                 let title = arguments.string("title"), summary = arguments.string("summary"), terms = arguments.string("terms")
                 let included = arguments.strings("included"), notIncluded = arguments.strings("not_included")
-                let plan = try arguments.value("plan", { Self.plans[$0.lowercased()] }, else: "plan must be fifty_fifty or full_amount.")
+                let plan = try arguments.value("plan", { name in PaymentPlan.allCases.first { $0.claudeName == name.lowercased() } },
+                                               else: "plan must be \(PaymentPlan.allCases.map(\.claudeName).joined(separator: " or ")).")
                 let names = [(title != nil, "title"), (summary != nil, "Work summary"), (included != nil, "Included list"),
                              (notIncluded != nil, "Not included list"), (terms != nil, "terms"), (plan != nil, "payment plan")].filter(\.0).map(\.1)
                 guard !names.isEmpty else { throw MCPError("Pass at least one of title, summary, included, not_included, terms or plan.") }
@@ -148,9 +149,6 @@ extension AppModel {
             return result
         }
     }
-
-    /// The payment plans, as Claude names them.
-    private static let plans: [String: PaymentPlan] = ["fifty_fifty": .fiftyFifty, "full_amount": .fullAmount]
 
     private static func text(_ description: String) -> [String: Any] { ["type": "string", "description": description] }
 
@@ -179,7 +177,7 @@ extension AppModel {
     private func claudeJSON(_ quote: Quote) -> [String: Any] {
         ["number": quote.number, "client": clientName(quote.clientID), "title": quote.title, "stage": quote.stage.rawValue,
          "editable": claudeEditProblem(quote) == nil,
-         "plan": Self.plans.first { $0.value == quote.plan }?.key ?? "",
+         "plan": quote.plan.claudeName,
          "summary": quote.summary, "included": quote.included, "not_included": quote.notIncluded, "terms": quote.terms,
          "lines": quote.lines.map { line -> [String: Any] in
              ["line": line.code, "title": line.title, "detail": line.detail,
@@ -254,5 +252,15 @@ struct ClaudeArguments {
         if let number = value as? NSNumber { return String(format: "%02d", number.intValue) }
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
         return Int(text).map { String(format: "%02d", $0) } ?? text
+    }
+}
+
+private extension PaymentPlan {
+    /// The plan as Claude names it, in arguments and in the quote it reads.
+    var claudeName: String {
+        switch self {
+        case .fiftyFifty: return "fifty_fifty"
+        case .fullAmount: return "full_amount"
+        }
     }
 }
