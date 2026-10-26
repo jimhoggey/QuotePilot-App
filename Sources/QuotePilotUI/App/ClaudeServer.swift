@@ -2,15 +2,16 @@ import Foundation
 import Network
 
 /// A tiny HTTP server for Claude's MCP connection, on this Mac only: it listens on the loopback
-/// interface, so nothing on the network can reach it. One request per connection, then it closes.
-/// What a request gets is up to `handle`; the server only reads and writes HTTP.
+/// interface, so nothing on the network can reach it. One request per connection, then it closes;
+/// a connection still open after `timeout` (10 seconds) is closed anyway, so a client that sends
+/// nothing, or never finishes, can't hold one. What a request gets is up to `handle`, on the main
+/// actor; the server only reads and writes HTTP.
 final class ClaudeServer: @unchecked Sendable {
     struct Request {
-        var method: String
-        var path: String
+        var method = "", path = ""
         /// Header names in lower case.
-        var headers: [String: String]
-        var body: Data
+        var headers: [String: String] = [:]
+        var body = Data()
     }
 
     struct Response {
@@ -21,19 +22,23 @@ final class ClaudeServer: @unchecked Sendable {
 
     /// Requests bigger than this are refused (413): an MCP message is a few kilobytes.
     static let maxRequest = 1_000_000
+    private static let reasons = [200: "OK", 202: "Accepted", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
+                                  405: "Method Not Allowed", 413: "Payload Too Large", 503: "Service Unavailable"]
 
     private let listener: NWListener
     private let queue = DispatchQueue(label: "com.fynnprojects.quotepilot.claude")
-    private let handle: @Sendable (Request) async -> Response
+    private let timeout: TimeInterval
+    private let handle: @MainActor (Request) -> Response
 
     /// Port 0 picks a free one (the tests). Bound to 127.0.0.1, so macOS's firewall never asks and
     /// nothing else on the network can connect.
-    init(port: UInt16, handle: @escaping @Sendable (Request) async -> Response) throws {
+    init(port: UInt16, timeout: TimeInterval = 10, handle: @escaping @MainActor (Request) -> Response) throws {
         let parameters = NWParameters.tcp
         parameters.requiredInterfaceType = .loopback
         parameters.allowLocalEndpointReuse = true
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port) ?? .any)
         listener = try NWListener(using: parameters)
+        self.timeout = timeout
         self.handle = handle
     }
 
@@ -42,37 +47,31 @@ final class ClaudeServer: @unchecked Sendable {
     func start(ready: @escaping @Sendable (Result<UInt16, Error>) -> Void) {
         listener.stateUpdateHandler = { [weak self] state in
             switch state {
-            case .ready:
-                ready(.success(self?.listener.port?.rawValue ?? 0))
-            case .failed(let error):
-                ready(.failure(error))
-                self?.listener.cancel()
-            default:
-                break
+            case .ready: ready(.success(self?.listener.port?.rawValue ?? 0))
+            case .failed(let error): ready(.failure(error)); self?.listener.cancel()
+            default: break
             }
         }
         listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return connection.cancel() }
             connection.start(queue: queue)
+            queue.asyncAfter(deadline: .now() + timeout) { [weak connection] in connection?.cancel() }
             receive(connection, buffer: Data())
         }
         listener.start(queue: queue)
     }
 
-    func stop() {
-        listener.stateUpdateHandler = nil
-        listener.cancel()
-    }
+    /// Stops listening. The listener goes to `.cancelled`, which `ready` never hears about.
+    func stop() { listener.cancel() }
 
     private func receive(_ connection: NWConnection, buffer: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, isComplete, error in
             guard let self else { return connection.cancel() }
-            var buffer = buffer
-            if let data { buffer.append(data) }
+            let buffer = buffer + (data ?? Data())
             if buffer.count > Self.maxRequest {
                 send(Response(status: 413), on: connection)
             } else if let request = Self.parse(buffer) {
-                Task { self.send(await self.handle(request), on: connection) }
+                Task { @MainActor in self.send(self.handle(request), on: connection) }
             } else if isComplete || error != nil {
                 connection.cancel()
             } else {
@@ -82,46 +81,27 @@ final class ClaudeServer: @unchecked Sendable {
     }
 
     /// The request in `data` once its headers and all of its body are in; nil until then. A first
-    /// line that isn't "METHOD /path …" comes back with an empty method, for a 400.
+    /// line that isn't "METHOD /path …" leaves the method and path empty, for a 404.
     static func parse(_ data: Data) -> Request? {
         guard let end = data.range(of: Data("\r\n\r\n".utf8)) else { return nil }
-        let head = String(decoding: data[data.startIndex..<end.lowerBound], as: UTF8.self)
-        var lines = head.components(separatedBy: "\r\n")
-        let first = lines.removeFirst().split(separator: " ")
-        guard first.count >= 2 else { return Request(method: "", path: "", headers: [:], body: Data()) }
-        var headers: [String: String] = [:]
+        var lines = String(decoding: data[..<end.lowerBound], as: UTF8.self).components(separatedBy: "\r\n")
+        let first = lines.removeFirst().split(separator: " ").map(String.init)
+        var request = first.count < 2 ? Request() : Request(method: first[0], path: first[1])
         for line in lines {
             guard let colon = line.firstIndex(of: ":") else { continue }
-            headers[line[..<colon].lowercased()] = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            request.headers[line[..<colon].lowercased()] = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
         }
-        let length = max(Int(headers["content-length"] ?? "") ?? 0, 0)
-        guard data.distance(from: end.upperBound, to: data.endIndex) >= length else { return nil }
-        let body = Data(data[end.upperBound..<data.index(end.upperBound, offsetBy: length)])
-        return Request(method: String(first[0]), path: String(first[1]), headers: headers, body: body)
+        let body = data[end.upperBound...], length = max(Int(request.headers["content-length"] ?? "") ?? 0, 0)
+        guard body.count >= length else { return nil }
+        request.body = Data(body.prefix(length))
+        return request
     }
 
     private func send(_ response: Response, on connection: NWConnection) {
-        var head = "HTTP/1.1 \(response.status) \(Self.reason(response.status))\r\n"
-        var headers = response.headers
-        headers["Content-Length"] = String(response.body.count)
-        headers["Connection"] = "close"
+        var headers = response.headers.merging(["Content-Length": "\(response.body.count)", "Connection": "close"]) { $1 }
         if !response.body.isEmpty, headers["Content-Type"] == nil { headers["Content-Type"] = "application/json" }
-        for (name, value) in headers.sorted(by: { $0.key < $1.key }) { head += "\(name): \(value)\r\n" }
-        head += "\r\n"
+        let head = "HTTP/1.1 \(response.status) \(Self.reasons[response.status] ?? "")\r\n"
+            + headers.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)\r\n" }.joined() + "\r\n"
         connection.send(content: Data(head.utf8) + response.body, completion: .contentProcessed { _ in connection.cancel() })
-    }
-
-    private static func reason(_ status: Int) -> String {
-        switch status {
-        case 200: return "OK"
-        case 202: return "Accepted"
-        case 400: return "Bad Request"
-        case 401: return "Unauthorized"
-        case 403: return "Forbidden"
-        case 404: return "Not Found"
-        case 405: return "Method Not Allowed"
-        case 413: return "Payload Too Large"
-        default: return "Service Unavailable"
-        }
     }
 }

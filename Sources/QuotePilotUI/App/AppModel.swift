@@ -142,10 +142,8 @@ public final class AppModel {
     /// swap it for a recorder.
     @ObservationIgnored public internal(set) var usage: Usage = .live()
     /// Brand → Settings' Let Claude use Quote Pilot (see `AppModel+Claude`). Tests swap it for one
-    /// with no preferences.
-    @ObservationIgnored public internal(set) var claude: ClaudeLink = .live() {
-        didSet { wireClaude() }
-    }
+    /// on a free port with no preferences.
+    @ObservationIgnored public internal(set) lazy var claude = makeClaudeLink()
     /// Opens Mail drafts; tests use a fake.
     @ObservationIgnored public let mail: any MailComposer
     /// Where copies of mailed PDFs go: `~/Documents/Quote Pilot`, or a temporary folder in tests.
@@ -184,7 +182,6 @@ public final class AppModel {
         }
         if loadedExisting { backUpIfDue() }
         if startedFresh { askToRestoreMissingLibrary() }
-        wireClaude()
     }
 
     /// No library file, but backups: the file was moved or deleted. Starting empty without a word

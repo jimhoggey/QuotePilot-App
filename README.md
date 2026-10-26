@@ -126,11 +126,12 @@ to. It listens on `127.0.0.1:47210` only, and every request must carry a random 
 app's preferences. **Copy Setup Command** gives the `claude mcp add …` line, which has the key in it.
 
 - **What Claude can do:** see what's open, list quotes and clients, start a draft quote, and fill
-  in a draft's lines, title, Work summary and Included / Not included lists.
+  in a draft's lines, title, Work summary, Included / Not included lists, terms and payment plan
+  (50/50 or full amount).
 - **What it can't do:** send, record payments, delete documents, or change anything that has been
   sent. It's refused while the fee lock is on.
 - Each change goes in Activity as "Claude …". The tools are in
-  `Sources/QuotePilotUI/App/AppModel+Claude.swift`.
+  `Sources/QuotePilotUI/App/ClaudeTools.swift`.
 
 ## Usage counts
 

@@ -1,35 +1,42 @@
 import Foundation
+import Network
 import QuotePilotCore
 import Testing
 @testable import QuotePilotUI
 
 /// Let Claude use Quote Pilot: the server on this Mac with its key, the MCP messages, and what the
-/// tools may and may not change. Made-up data; the one server here is on a free loopback port.
+/// tools may and may not change. Made-up data; the servers here are on free loopback ports.
 @MainActor
 @Suite struct ClaudeLinkTests {
+    /// One JSON-RPC message to an MCP server (the model's, unless given), and its reply.
+    func rpc(_ model: AppModel, _ method: String, _ params: [String: Any] = [:]) -> [String: Any] { rpc(model.claudeMCP, method, params) }
+    func rpc(_ server: MCPServer, _ method: String, _ params: [String: Any] = [:]) -> [String: Any] {
+        let body = try! JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "id": 1, "method": method, "params": params])
+        return server.reply(to: body).map(json) ?? [:]
+    }
+
     func call(_ model: AppModel, _ tool: String, _ arguments: [String: Any] = [:]) -> (text: String, isError: Bool) {
-        let result = model.callClaudeTool(tool, arguments)
+        let result = rpc(model, "tools/call", ["name": tool, "arguments": arguments])["result"] as? [String: Any] ?? [:]
         let text = (result["content"] as? [[String: Any]])?.first?["text"] as? String ?? ""
         return (text, result["isError"] as? Bool ?? true)
     }
 
-    func json(_ text: String) -> [String: Any] {
-        (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] ?? [:]
-    }
+    func json(_ data: Data) -> [String: Any] { (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:] }
+    func json(_ text: String) -> [String: Any] { json(Data(text.utf8)) }
 
     /// The sample business with a $120 hourly rate and a new draft quote open.
-    func modelWithDraft() throws -> AppModel {
+    func modelWithDraft() throws -> (AppModel, Quote) {
         let model = try UIFixture.sampleModel()
         var brand = model.library.brand
         brand.hourlyRate = Money(dollars: 120)
         model.updateBrand(brand)
         model.newQuote()
-        return model
+        return (model, try #require(model.openQuoteID.flatMap { model.library.quote($0) }))
     }
 
     @Test func theServerAnswersOnlyWithTheKey() async throws {
         let model = try UIFixture.sampleModel()
-        model.claude = ClaudeLink(settings: nil, port: 0)
+        model.claude = model.makeClaudeLink(settings: nil, port: 0)
         model.claude.isOn = true
         defer { model.claude.isOn = false }
         for _ in 0..<200 where model.claude.port == nil { try await Task.sleep(for: .milliseconds(10)) }
@@ -37,51 +44,96 @@ import Testing
         #expect(model.claudeLine == "On, at http://127.0.0.1:\(port)/mcp")
         #expect(model.claude.setupCommand.contains("--header \"Authorization: Bearer \(model.claude.key)\""))
 
-        func post(_ body: String, key: String?, method: String = "POST", origin: String? = nil) async throws -> (Int, [String: Any]) {
+        func post(_ body: String, key: String?, method: String = "POST", origin: String? = nil) async throws -> (Int, [String: Any], HTTPURLResponse?) {
             var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/mcp")!)
             request.httpMethod = method
-            if method == "POST" { request.httpBody = Data(body.utf8) }
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            if let key { request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") }
-            if let origin { request.setValue(origin, forHTTPHeaderField: "Origin") }
+            request.httpBody = method == "POST" ? Data(body.utf8) : nil
+            request.allHTTPHeaderFields = ["Content-Type": "application/json", "Authorization": key.map { "Bearer \($0)" }, "Origin": origin]
+                .compactMapValues { $0 }
             let (data, response) = try await URLSession.shared.data(for: request)
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            return (status, (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:])
+            return ((response as? HTTPURLResponse)?.statusCode ?? 0, json(data), response as? HTTPURLResponse)
         }
         let initialize = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}"#
         #expect(try await post(initialize, key: nil).0 == 401)
         #expect(try await post(initialize, key: "wrong").0 == 401)
         #expect(try await post(initialize, key: model.claude.key, origin: "https://example.com").0 == 403)
-        #expect(try await post("", key: model.claude.key, method: "GET").0 == 405)
-        let (status, reply) = try await post(initialize, key: model.claude.key)
-        #expect(status == 200)
+        let get = try await post("", key: model.claude.key, method: "GET")
+        #expect(get.0 == 405 && get.2?.value(forHTTPHeaderField: "Allow") == "POST")
+        for body in ["", "{not json", #"[{"jsonrpc":"2.0","id":1,"method":"ping"}]"#] {
+            let (status, reply, _) = try await post(body, key: model.claude.key)
+            #expect(status == 200 && (reply["error"] as? [String: Any])?["code"] as? Int == -32700 && reply["id"] is NSNull, "\(body)")
+        }
+        let (status, reply, _) = try await post(initialize, key: model.claude.key)
+        #expect(status == 200, "it keeps answering after a bad body")
         let result = try #require(reply["result"] as? [String: Any])
         #expect(result["protocolVersion"] as? String == "2025-06-18")
         #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "quote-pilot")
+        #expect((result["instructions"] as? String)?.contains("terms and the payment plan") == true)
         #expect(try await post(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#, key: model.claude.key).0 == 202)
     }
 
-    @Test func offByDefaultAndTheKeyIsKept() {
-        let settings = UserDefaults(suiteName: "ClaudeLinkTests-\(UUID().uuidString)")!
-        let first = ClaudeLink(settings: settings)
+    @Test func aServerStoppedBeforeItsReadyIsIgnored() async throws {
+        let model = try UIFixture.sampleModel()
+        model.claude = model.makeClaudeLink(settings: nil, port: 0)
+        for _ in 0..<20 {
+            model.claude.isOn = true
+            model.claude.isOn = false
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(model.claude.port == nil, "a stopped server's late ready doesn't set the port")
+    }
+
+    @Test func theServerHangsUpOnASilentConnection() async throws {
+        let server = try ClaudeServer(port: 0, timeout: 0.1) { _ in .init(status: 200) }
+        defer { server.stop() }
+        let ready = await withCheckedContinuation { done in server.start { done.resume(returning: $0) } }
+        let port = try #require(NWEndpoint.Port(rawValue: try ready.get()), "the server started")
+        let connection = NWConnection(host: "127.0.0.1", port: port, using: .tcp)
+        connection.start(queue: .global())
+        // It sends nothing. The server should hang up long before this side gives up, 5 seconds on;
+        // timed in the callback, off the main actor, so other tests can't slow the clock.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { connection.cancel() }
+        let started = ContinuousClock.now
+        let hungUpAfter = await withCheckedContinuation { done in
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 1) { _, _, _, _ in done.resume(returning: ContinuousClock.now - started) }
+        }
+        #expect(hungUpAfter < .seconds(2))
+    }
+
+    @Test func offByDefaultAndTheKeyIsKept() throws {
+        // A suite named by a path keeps its file there, in the temporary folder, not ~/Library/Preferences.
+        let suite = FileManager.default.temporaryDirectory.appendingPathComponent("ClaudeLinkTests-\(UUID().uuidString)").path
+        let settings = try #require(UserDefaults(suiteName: suite))
+        defer { settings.removePersistentDomain(forName: suite) }
+        let model = try UIFixture.sampleModel()
+        let first = model.makeClaudeLink(settings: settings)
         #expect(!first.isOn)
         #expect(first.key.count == 64)
-        #expect(ClaudeLink(settings: settings).key == first.key)
+        #expect(model.makeClaudeLink(settings: settings).key == first.key)
+        let wrong = String(first.key.dropLast()) + (first.key.hasSuffix("0") ? "1" : "0")
+        #expect(first.accepts("Bearer \(first.key)") && !first.accepts("Bearer \(wrong)") && !first.accepts(nil))
     }
 
     @Test func theToolsAreListed() throws {
         let model = try UIFixture.sampleModel()
-        let reply = try #require(model.answerMCP(Data(#"{"jsonrpc":"2.0","id":7,"method":"tools/list"}"#.utf8)))
-        let tools = try #require((json(String(decoding: reply, as: UTF8.self))["result"] as? [String: Any])?["tools"] as? [[String: Any]])
+        let tools = try #require((rpc(model, "tools/list")["result"] as? [String: Any])?["tools"] as? [[String: Any]])
         #expect(tools.compactMap { $0["name"] as? String } == [
             "get_current_view", "list_quotes", "list_clients", "open_quote", "new_quote",
-            "add_quote_lines", "update_quote_line", "remove_quote_lines", "set_quote_text",
+            "add_quote_lines", "update_quote_line", "remove_quote_lines", "set_quote_details",
         ])
+        let readOnly = tools.filter { ($0["annotations"] as? [String: Any])?["readOnlyHint"] as? Bool == true }
+        #expect(readOnly.compactMap { $0["name"] as? String } == ["get_current_view", "list_quotes", "list_clients"])
+    }
+
+    @Test func aResultJSONCantHoldIsARefusal() {
+        let server = MCPServer(name: "test", version: "1", instructions: "", tools: [MCPTool(name: "now", description: "The time.") { _ in Date() }])
+        let result = rpc(server, "tools/call", ["name": "now"])["result"] as? [String: Any]
+        #expect(result?["isError"] as? Bool == true)
+        #expect((result?["content"] as? [[String: Any]])?.first?["text"] as? String == "The result couldn't be read.")
     }
 
     @Test func claudeFillsTheOpenDraft() throws {
-        let model = try modelWithDraft()
-        let quote = try #require(model.openQuoteID.flatMap { model.library.quote($0) })
+        let (model, quote) = try modelWithDraft()
         let added = call(model, "add_quote_lines", ["lines": [
             ["title": "Contact form", "detail": "Name, email and message, sent to your inbox.", "quantity": 3],
             ["title": "Hosting setup", "rate": 450],
@@ -98,13 +150,45 @@ import Testing
 
         #expect(!call(model, "update_quote_line", ["line": 2, "title": "Hosting and domain"]).isError)
         #expect(!call(model, "remove_quote_lines", ["lines": ["01"]]).isError)
-        let text = call(model, "set_quote_text", ["title": "Website improvements", "included": ["Testing", " "], "not_included": ["Copywriting"]])
+        let text = call(model, "set_quote_details", ["title": "Website improvements", "included": ["Testing", " "], "not_included": ["Copywriting"]])
         #expect(!text.isError)
         let changed = try #require(model.library.quote(quote.id))
         #expect(changed.lines.map(\.title) == ["Hosting and domain", "Speed tune-up"])
         #expect(changed.lines.map(\.code) == ["01", "02"], "drafts renumber")
         #expect(changed.title == "Website improvements")
         #expect(changed.included == ["Testing"] && changed.notIncluded == ["Copywriting"])
+    }
+
+    @Test func claudeSetsThePaymentPlan() throws {
+        let (model, quote) = try modelWithDraft()
+        #expect((json(call(model, "get_current_view").text)["open_quote"] as? [String: Any])?["plan"] as? String == "fifty_fifty")
+        let set = call(model, "set_quote_details", ["plan": "full_amount"])
+        #expect(!set.isError && json(set.text)["plan"] as? String == "full_amount", "\(set.text)")
+        #expect(model.library.quote(quote.id)?.plan == .fullAmount)
+        #expect(model.library.activity.first?.message == "Claude set the payment plan on \(quote.number)")
+        let refused = call(model, "set_quote_details", ["plan": "weekly"])
+        #expect(refused.isError && refused.text == "plan must be fifty_fifty or full_amount.")
+        #expect(model.library.quote(quote.id)?.plan == .fullAmount)
+    }
+
+    @Test func claudeSetsTheTerms() throws {
+        let (model, quote) = try modelWithDraft()
+        let set = call(model, "set_quote_details", ["terms": " Payment within 14 days.\n"])
+        #expect(!set.isError && json(set.text)["terms"] as? String == "Payment within 14 days.", "\(set.text)")
+        #expect(model.library.quote(quote.id)?.terms == "Payment within 14 days.")
+        #expect(model.library.activity.first?.message == "Claude set the terms on \(quote.number)")
+    }
+
+    @Test func onlyNewLinesNeedATitle() throws {
+        let (model, quote) = try modelWithDraft()
+        #expect(call(model, "add_quote_lines", ["lines": [["title": " "]]]).text == "Every line needs a title.")
+        #expect(!call(model, "add_quote_lines", ["lines": [["title": "Setup", "unit": NSNull(), "rate": NSNull()]]]).isError)
+        let blanked = call(model, "update_quote_line", ["line": "01", "title": ""])
+        #expect(!blanked.isError, "\(blanked.text)")
+        let changed = call(model, "update_quote_line", ["line": 1, "rate": 100, "unit": NSNull()])
+        #expect(!changed.isError, "a blank line can still change, and null is left out: \(changed.text)")
+        let line = try #require(model.library.quote(quote.id)?.lines.first)
+        #expect(line.title == "" && line.rate == Money(dollars: 100) && line.unit == .hours)
     }
 
     @Test func sentQuotesAndTheLockAreLeftAlone() throws {
@@ -114,13 +198,15 @@ import Testing
         #expect(refused.isError && refused.text.contains("has been sent"))
         #expect(model.library.quote(sent.id)?.lines == sent.lines)
         #expect(call(model, "add_quote_lines", ["quote": "Q-9999", "lines": [["title": "Extra"]]]).isError)
-        #expect(call(model, "send_quote").isError, "there's no such tool")
+        let unknown = rpc(model, "tools/call", ["name": "send_quote"])["error"] as? [String: Any]
+        #expect(unknown?["code"] as? Int == -32602, "there's no such tool: Invalid params")
 
         let locked = try FeeBarTests().lockedModel()
         let draft = try #require(locked.library.quotes.first { $0.stage == .draft })
         let lockedReply = call(locked, "add_quote_lines", ["quote": draft.number, "lines": [["title": "Extra"]]])
         #expect(lockedReply.isError && lockedReply.text.contains("locked"))
-        #expect(call(locked, "new_quote").isError)
+        let lockedNew = call(locked, "new_quote")
+        #expect(lockedNew.isError && lockedNew.text == lockedReply.text, "one lock message")
     }
 
     @Test func newQuoteFindsTheClientAndOpensIt() throws {
@@ -133,5 +219,6 @@ import Testing
         let view = json(call(model, "get_current_view").text)
         #expect((view["open_quote"] as? [String: Any])?["number"] as? String == quote.number)
         #expect(call(model, "new_quote", ["client": "Nobody At All"]).isError)
+        #expect(call(model, "open_quote", ["quote": " "]).text == "Pass quote: a quote number like Q-0012.", "not the open one")
     }
 }
