@@ -68,7 +68,13 @@ public final class ClaudeLink {
         do {
             let server = try ClaudeServer(port: askedPort, handle: answer)
             self.server = server
-            server.start { [weak self] result in Task { @MainActor in self?.started(result) } }
+            server.start { [weak self, weak server] result in
+                Task { @MainActor in
+                    // A server stopped before it reported isn't this link's any more, so its news is old.
+                    guard let self, let server, self.server === server else { return }
+                    self.started(result)
+                }
+            }
         } catch {
             started(.failure(error))
         }

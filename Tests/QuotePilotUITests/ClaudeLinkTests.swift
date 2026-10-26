@@ -71,6 +71,17 @@ import Testing
         #expect(try await post(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#, key: model.claude.key).0 == 202)
     }
 
+    @Test func aServerStoppedBeforeItsReadyIsIgnored() async throws {
+        let model = try UIFixture.sampleModel()
+        model.claude = model.makeClaudeLink(settings: nil, port: 0)
+        for _ in 0..<20 {
+            model.claude.isOn = true
+            model.claude.isOn = false
+        }
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(model.claude.port == nil, "a stopped server's late ready doesn't set the port")
+    }
+
     @Test func theServerHangsUpOnASilentConnection() async throws {
         let server = try ClaudeServer(port: 0, timeout: 0.1) { _ in .init(status: 200) }
         defer { server.stop() }
