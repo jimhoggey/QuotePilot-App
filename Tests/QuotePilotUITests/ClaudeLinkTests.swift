@@ -162,6 +162,15 @@ import Testing
         #expect(model.library.quote(quote.id)?.plan == .fullAmount)
     }
 
+    @Test func claudeSetsTheTerms() throws {
+        let model = try modelWithDraft()
+        let quote = try #require(model.openQuoteID.flatMap { model.library.quote($0) })
+        let set = call(model, "set_quote_details", ["terms": " Payment within 14 days.\n"])
+        #expect(!set.isError && json(set.text)["terms"] as? String == "Payment within 14 days.", "\(set.text)")
+        #expect(model.library.quote(quote.id)?.terms == "Payment within 14 days.")
+        #expect(model.library.activity.first?.message == "Claude set the terms on \(quote.number)")
+    }
+
     @Test func onlyNewLinesNeedATitle() throws {
         let model = try modelWithDraft()
         #expect(call(model, "add_quote_lines", ["lines": [["title": " "]]]).text == "Every line needs a title.")

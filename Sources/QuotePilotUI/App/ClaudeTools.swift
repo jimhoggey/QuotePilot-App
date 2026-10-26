@@ -2,7 +2,7 @@ import Foundation
 import QuotePilotCore
 
 /// Claude's tools (the user, 26 Oct 2026). Claude can see what's open and fill in draft quotes:
-/// lines, title, Work summary, the Included / Not included lists and the payment plan. It can't
+/// lines, title, Work summary, the Included / Not included lists, terms and payment plan. It can't
 /// send, record payments, delete documents or change anything sent; each change goes in Activity as
 /// "Claude …".
 extension AppModel {
@@ -114,24 +114,28 @@ extension AppModel {
                     quote.lines.removeAll { codes.contains($0.code) }
                 })
             },
-            tool("set_quote_details", "Sets a draft quote's title, Work summary, Included / Not included lists, or payment plan. Only the fields given change.",
+            tool("set_quote_details", "Sets a draft quote's title, Work summary, Included / Not included lists, terms or payment plan. Only the fields given change.",
                  ["quote": quote, "title": ["type": "string"],
                   "summary": Self.text("The Work summary. Lines starting with \"-\" print as dot points."),
-                  "included": items, "not_included": items,
+                  "included": items, "not_included": items, "terms": Self.text("The quote's Terms, printed at the end of the quote."),
                   "plan": ["type": "string", "enum": Self.plans.keys.sorted(),
                            "description": "fifty_fifty: a 50% deposit invoice, then the rest when the job is complete. full_amount: one invoice for the whole amount."]]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
-                let title = arguments.string("title"), summary = arguments.string("summary")
+                let title = arguments.string("title"), summary = arguments.string("summary"), terms = arguments.string("terms")
                 let included = arguments.strings("included"), notIncluded = arguments.strings("not_included")
                 let plan = try arguments.value("plan", { Self.plans[$0.lowercased()] }, else: "plan must be fifty_fifty or full_amount.")
                 let names = [(title != nil, "title"), (summary != nil, "Work summary"), (included != nil, "Included list"),
-                             (notIncluded != nil, "Not included list"), (plan != nil, "payment plan")].filter(\.0).map(\.1)
-                guard !names.isEmpty else { throw MCPError("Pass at least one of title, summary, included, not_included or plan.") }
+                             (notIncluded != nil, "Not included list"), (terms != nil, "terms"), (plan != nil, "payment plan")]
+                    .filter(\.0).map(\.1)
+                guard !names.isEmpty else {
+                    throw MCPError("Pass at least one of title, summary, included, not_included, terms or plan.")
+                }
                 return claudeJSON(try claudeEdit(quote, "set the \(names.joined(separator: ", "))") { quote in
                     quote.title = title ?? quote.title
                     quote.summary = summary ?? quote.summary
                     quote.included = included ?? quote.included
                     quote.notIncluded = notIncluded ?? quote.notIncluded
+                    quote.terms = terms ?? quote.terms
                     quote.plan = plan ?? quote.plan
                 })
             },
@@ -179,7 +183,7 @@ extension AppModel {
         ["number": quote.number, "client": clientName(quote.clientID), "title": quote.title, "stage": quote.stage.rawValue,
          "editable": claudeEditProblem(quote) == nil,
          "plan": Self.plans.first { $0.value == quote.plan }?.key ?? "",
-         "summary": quote.summary, "included": quote.included, "not_included": quote.notIncluded,
+         "summary": quote.summary, "included": quote.included, "not_included": quote.notIncluded, "terms": quote.terms,
          "lines": quote.lines.map { line -> [String: Any] in
              ["line": line.code, "title": line.title, "detail": line.detail,
               "quantity": NSDecimalNumber(decimal: line.quantity).doubleValue, "unit": line.unit.rawValue,
