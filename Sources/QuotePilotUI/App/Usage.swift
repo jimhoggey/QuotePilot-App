@@ -37,6 +37,8 @@ public enum UsageEvent: String, CaseIterable, Sendable {
     case feeLocked = "fee_locked"
     /// month, fee_percent, fee: I've paid.
     case feePaid = "fee_paid"
+    /// tool: which of Claude's tools ran (`AppModel+Claude`).
+    case claudeTool = "claude_tool"
 }
 
 /// Sends `UsageEvent`s to Aptabase, one small HTTPS post each, without waiting and without a word
