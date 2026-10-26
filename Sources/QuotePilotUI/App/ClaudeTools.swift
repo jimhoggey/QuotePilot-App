@@ -20,8 +20,8 @@ extension AppModel {
 
     /// Quote Pilot as Claude's MCP server. Each tool's arguments sit next to what it does.
     var claudeMCP: MCPServer {
-        let quote = Self.text("A quote number, like Q-0012. Leave it out for the quote open in Quote Pilot.")
-        let items: [String: Any] = ["type": "array", "items": ["type": "string"], "description": "One item each. An empty list removes them."]
+        let quoteArgument = Self.text("A quote number, like Q-0012. Leave it out for the quote open in Quote Pilot.")
+        let itemList: [String: Any] = ["type": "array", "items": ["type": "string"], "description": "One item each. An empty list removes them."]
         let lineFields: [String: Any] = [
             "title": Self.text("A few words, like \"Contact form\"."),
             "detail": Self.text("Longer wording, shown under the title."),
@@ -72,7 +72,7 @@ extension AppModel {
                 return claudeJSON(quote)
             },
             tool("add_quote_lines", "Adds lines to the end of a draft quote.",
-                 ["quote": quote, "lines": ["type": "array", "items": ["type": "object", "properties": lineFields, "required": ["title"]]]],
+                 ["quote": quoteArgument, "lines": ["type": "array", "items": ["type": "object", "properties": lineFields, "required": ["title"]]]],
                  required: ["lines"]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
                 guard let items = arguments.list("lines"), !items.isEmpty else {
@@ -93,7 +93,7 @@ extension AppModel {
                 })
             },
             tool("update_quote_line", "Changes one line of a draft quote; only the fields given change.",
-                 lineFields.merging(["quote": quote, "line": Self.text("The line's ID, like 03.")]) { $1 },
+                 lineFields.merging(["quote": quoteArgument, "line": Self.text("The line's ID, like 03.")]) { $1 },
                  required: ["line"]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
                 guard let code = arguments.lineCode("line"), let index = quote.lines.firstIndex(where: { $0.code == code }) else {
@@ -104,7 +104,7 @@ extension AppModel {
                 return claudeJSON(try claudeEdit(quote, "changed line \(code)") { $0.lines[index] = line })
             },
             tool("remove_quote_lines", "Removes lines from a draft quote. The lines after them renumber.",
-                 ["quote": quote, "lines": ["type": "array", "items": ["type": "string"], "description": "Line IDs, like [\"03\", \"04\"]."]],
+                 ["quote": quoteArgument, "lines": ["type": "array", "items": ["type": "string"], "description": "Line IDs, like [\"03\", \"04\"]."]],
                  required: ["lines"]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
                 let codes = arguments.lineCodes("lines")
@@ -116,9 +116,9 @@ extension AppModel {
                 })
             },
             tool("set_quote_details", "Sets a draft quote's title, Work summary, Included / Not included lists, terms or payment plan. Only the fields given change.",
-                 ["quote": quote, "title": ["type": "string"],
+                 ["quote": quoteArgument, "title": ["type": "string"],
                   "summary": Self.text("The Work summary. Lines starting with \"-\" print as dot points."),
-                  "included": items, "not_included": items, "terms": Self.text("The quote's Terms, printed at the end of the quote."),
+                  "included": itemList, "not_included": itemList, "terms": Self.text("The quote's Terms, printed at the end of the quote."),
                   "plan": ["type": "string", "enum": Self.plans.keys.sorted(),
                            "description": "fifty_fifty: a 50% deposit invoice, then the rest when the job is complete. full_amount: one invoice for the whole amount."]]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
