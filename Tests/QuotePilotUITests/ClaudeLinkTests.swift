@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import QuotePilotCore
 import Testing
 @testable import QuotePilotUI
@@ -67,6 +68,24 @@ import Testing
         #expect(result["protocolVersion"] as? String == "2025-06-18")
         #expect((result["serverInfo"] as? [String: Any])?["name"] as? String == "quote-pilot")
         #expect(try await post(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#, key: model.claude.key).0 == 202)
+    }
+
+    @Test func theServerHangsUpOnASilentConnection() async throws {
+        let server = try ClaudeServer(port: 0, timeout: 0.1) { _ in .init(status: 200) }
+        defer { server.stop() }
+        let port = await withCheckedContinuation { done in server.start { done.resume(returning: (try? $0.get()) ?? 0) } }
+        let connection = NWConnection(host: "127.0.0.1", port: try #require(NWEndpoint.Port(rawValue: port)), using: .tcp)
+        connection.start(queue: .global())
+        // It sends nothing. The server should hang up long before this side gives up, 5 seconds on.
+        // Timed in the callback, off the main actor, so other tests can't slow the clock.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { connection.cancel() }
+        let started = ContinuousClock.now
+        let hungUpAfter = await withCheckedContinuation { done in
+            connection.receive(minimumIncompleteLength: 1, maximumLength: 1) { _, _, _, _ in
+                done.resume(returning: ContinuousClock.now - started)
+            }
+        }
+        #expect(hungUpAfter < .seconds(2))
     }
 
     @Test func offByDefaultAndTheKeyIsKept() {

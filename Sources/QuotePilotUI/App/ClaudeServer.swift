@@ -2,8 +2,10 @@ import Foundation
 import Network
 
 /// A tiny HTTP server for Claude's MCP connection, on this Mac only: it listens on the loopback
-/// interface, so nothing on the network can reach it. One request per connection, then it closes.
-/// What a request gets is up to `handle`; the server only reads and writes HTTP.
+/// interface, so nothing on the network can reach it. One request per connection, then it closes;
+/// a connection still open after `timeout` (10 seconds) is closed anyway, so a client that sends
+/// nothing, or never finishes, can't hold one. What a request gets is up to `handle`; the server only
+/// reads and writes HTTP.
 final class ClaudeServer: @unchecked Sendable {
     struct Request {
         var method = "", path = ""
@@ -25,16 +27,18 @@ final class ClaudeServer: @unchecked Sendable {
 
     private let listener: NWListener
     private let queue = DispatchQueue(label: "com.fynnprojects.quotepilot.claude")
+    private let timeout: TimeInterval
     private let handle: @Sendable (Request) async -> Response
 
     /// Port 0 picks a free one (the tests). Bound to 127.0.0.1, so macOS's firewall never asks and
     /// nothing else on the network can connect.
-    init(port: UInt16, handle: @escaping @Sendable (Request) async -> Response) throws {
+    init(port: UInt16, timeout: TimeInterval = 10, handle: @escaping @Sendable (Request) async -> Response) throws {
         let parameters = NWParameters.tcp
         parameters.requiredInterfaceType = .loopback
         parameters.allowLocalEndpointReuse = true
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: NWEndpoint.Port(rawValue: port) ?? .any)
         listener = try NWListener(using: parameters)
+        self.timeout = timeout
         self.handle = handle
     }
 
@@ -55,6 +59,7 @@ final class ClaudeServer: @unchecked Sendable {
         listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return connection.cancel() }
             connection.start(queue: queue)
+            queue.asyncAfter(deadline: .now() + timeout) { [weak connection] in connection?.cancel() }
             receive(connection, buffer: Data())
         }
         listener.start(queue: queue)
