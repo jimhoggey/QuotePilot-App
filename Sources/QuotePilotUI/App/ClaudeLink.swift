@@ -51,6 +51,13 @@ public final class ClaudeLink {
         if isOn, server == nil { start() }
     }
 
+    /// Whether a request's Authorization header is "Bearer <key>". Every byte is compared, so how
+    /// long the answer takes says nothing about how much of a guess was right.
+    func accepts(_ authorization: String?) -> Bool {
+        let given = Array((authorization ?? "").utf8), expected = Array("Bearer \(key)".utf8)
+        return given.count == expected.count && zip(given, expected).reduce(0) { $0 | ($1.0 ^ $1.1) } == 0
+    }
+
     /// The address Claude Code connects to.
     var address: String { "http://127.0.0.1:\(port ?? askedPort)/mcp" }
 

@@ -16,7 +16,7 @@ extension AppModel {
         guard request.path == "/mcp" || request.path.hasPrefix("/mcp?") else { return .init(status: 404) }
         // A web page sends an Origin and Claude Code doesn't, so a page in a browser can't get in.
         if let origin = request.headers["origin"], origin != "null" { return .init(status: 403) }
-        guard request.headers["authorization"] == "Bearer \(claude.key)" else { return .init(status: 401) }
+        guard claude.accepts(request.headers["authorization"]) else { return .init(status: 401) }
         guard request.method == "POST" else { return .init(status: 405, headers: ["Allow": "POST"]) }
         guard let reply = claudeMCP.reply(to: request.body) else { return .init(status: 202) }
         return .init(status: 200, body: reply)

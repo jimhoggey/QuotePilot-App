@@ -94,6 +94,8 @@ import Testing
         #expect(!first.isOn)
         #expect(first.key.count == 64)
         #expect(ClaudeLink(settings: settings).key == first.key)
+        let wrong = String(first.key.dropLast()) + (first.key.hasSuffix("0") ? "1" : "0")
+        #expect(first.accepts("Bearer \(first.key)") && !first.accepts("Bearer \(wrong)") && !first.accepts(nil))
     }
 
     @Test func theToolsAreListed() throws {
