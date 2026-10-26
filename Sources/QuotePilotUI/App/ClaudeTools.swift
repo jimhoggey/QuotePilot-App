@@ -82,7 +82,9 @@ extension AppModel {
                     // With neither unit nor rate, a line starts as Add Line's does: hours at the hourly rate.
                     let start = item.values["unit"] == nil && item.values["rate"] == nil
                         ? LineItem.blank(hourlyRate: hourly) : LineItem(title: "", rate: .zero)
-                    return try claudeLine(item, to: start).withHourlyRate(hourly, after: nil)
+                    let line = try claudeLine(item, to: start).withHourlyRate(hourly, after: nil)
+                    guard !line.title.isEmpty else { throw MCPError("Every line needs a title.") }
+                    return line
                 }
                 return claudeJSON(try claudeEdit(quote, "added \(lines.count) line\(lines.count == 1 ? "" : "s")") { quote in
                     lines.forEach { quote.addLine($0) }
@@ -203,7 +205,6 @@ extension AppModel {
         line.quantity = try fields.value("quantity", FieldParser.quantity,
                                          else: "quantity must be a number from 0, with at most two decimal places.") ?? line.quantity
         line.rate = try fields.value("rate", FieldParser.money, else: "rate must be a dollar amount, like 450 or 89.50.") ?? line.rate
-        guard !line.title.isEmpty else { throw MCPError("Every line needs a title.") }
         return line
     }
 }

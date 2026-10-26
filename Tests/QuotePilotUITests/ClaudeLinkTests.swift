@@ -149,6 +149,17 @@ import Testing
         #expect(changed.included == ["Testing"] && changed.notIncluded == ["Copywriting"])
     }
 
+    @Test func onlyNewLinesNeedATitle() throws {
+        let model = try modelWithDraft()
+        #expect(call(model, "add_quote_lines", ["lines": [["title": " "]]]).text == "Every line needs a title.")
+        #expect(!call(model, "add_quote_lines", ["lines": [["title": "Setup"]]]).isError)
+        let blanked = call(model, "update_quote_line", ["line": "01", "title": ""])
+        #expect(!blanked.isError, "\(blanked.text)")
+        #expect(!call(model, "update_quote_line", ["line": 1, "rate": 100]).isError, "a blank line can still change")
+        let line = try #require(model.openQuoteID.flatMap { model.library.quote($0) }?.lines.first)
+        #expect(line.title == "" && line.rate == Money(dollars: 100))
+    }
+
     @Test func sentQuotesAndTheLockAreLeftAlone() throws {
         let model = try UIFixture.sampleModel()
         let sent = try #require(model.library.quotes.first { $0.stage != .draft })
