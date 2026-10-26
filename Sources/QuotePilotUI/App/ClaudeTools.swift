@@ -41,7 +41,7 @@ extension AppModel {
             tool("list_clients", "Every client's name.", readOnly: true) { [self] _ in library.clients.map { ["name": $0.name] } },
             tool("open_quote", "Opens a quote in Quote Pilot so the user sees it.",
                  ["quote": Self.text("A quote number, like Q-0012.")], required: ["quote"]) { [self] arguments in
-                guard arguments.values["quote"] is String else { throw MCPError("Pass quote: a quote number like Q-0012.") }
+                guard arguments.string("quote")?.isEmpty == false else { throw MCPError("Pass quote: a quote number like Q-0012.") }
                 let quote = try claudeTarget(arguments)
                 openQuote(quote.id)
                 return claudeJSON(quote)

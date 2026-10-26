@@ -194,5 +194,6 @@ import Testing
         let view = json(call(model, "get_current_view").text)
         #expect((view["open_quote"] as? [String: Any])?["number"] as? String == quote.number)
         #expect(call(model, "new_quote", ["client": "Nobody At All"]).isError)
+        #expect(call(model, "open_quote", ["quote": " "]).text == "Pass quote: a quote number like Q-0012.", "not the open one")
     }
 }
