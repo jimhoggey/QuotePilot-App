@@ -61,6 +61,7 @@ extension AppModel {
         if mail.compose(to: draft.to, subject: draft.subject, body: draft.body, attachment: url) {
             change("Couldn't note the Mail draft") { $0.log("Opened a Mail draft of \(what) \(number) to \(draft.to)", number: number) }
             question = "Quote Pilot opened a Mail draft of \(what) \(number) to \(draft.to). Did you send it?"
+                + (Self.isOutsideWorkingHours(now()) ? " " + Self.sendLaterHint : "")
         } else {
             mail.setAside(message: "To: \(draft.to)\nSubject: \(draft.subject)\n\n\(draft.body)", attachment: url)
             change("Couldn't note the Mail problem") {
@@ -72,6 +73,16 @@ extension AppModel {
             MessageBox.Choice("Yes, Sent", isDefault: true) { self.markSent(document) },
             MessageBox.Choice("Not Yet", isCancel: true),
         ])
+    }
+
+    /// What "Did You Send It?" adds out of hours. Quote Pilot can't schedule the email itself: Mail
+    /// has no way for another app to set Send Later (the user, 26 Oct 2026).
+    static let sendLaterHint = "It's outside working hours: in Mail, click the arrow beside Send and choose Send Later."
+
+    /// Before 8 am, from 5 pm, or at the weekend, on this Mac's clock.
+    static func isOutsideWorkingHours(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let hour = calendar.component(.hour, from: date)
+        return calendar.isDateInWeekend(date) || hour < 8 || hour >= 17
     }
 
     /// Saves the client's email, then carries on sending.
