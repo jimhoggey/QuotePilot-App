@@ -56,8 +56,9 @@ struct MCPServer {
             result = ["tools": tools.map(\.listing)]
         case "tools/call":
             let name = params["name"] as? String ?? ""
-            let tool = tools.first { $0.name == name }
-                ?? MCPTool(name: name, description: "") { _ in throw MCPError("There's no tool called \(name).") }
+            guard let tool = tools.first(where: { $0.name == name }) else {
+                return Self.error(id, -32602, "Unknown tool: \(name). tools/list shows them all.")
+            }
             result = Self.call(tool, params["arguments"] as? [String: Any] ?? [:])
         default:
             return Self.error(id, -32601, "Method not found: \(method)")

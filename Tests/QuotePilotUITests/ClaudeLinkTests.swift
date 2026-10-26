@@ -131,7 +131,8 @@ import Testing
         #expect(refused.isError && refused.text.contains("has been sent"))
         #expect(model.library.quote(sent.id)?.lines == sent.lines)
         #expect(call(model, "add_quote_lines", ["quote": "Q-9999", "lines": [["title": "Extra"]]]).isError)
-        #expect(call(model, "send_quote").isError, "there's no such tool")
+        let unknown = rpc(model, "tools/call", ["name": "send_quote"])["error"] as? [String: Any]
+        #expect(unknown?["code"] as? Int == -32602, "there's no such tool: Invalid params")
 
         let locked = try FeeBarTests().lockedModel()
         let draft = try #require(locked.library.quotes.first { $0.stage == .draft })
