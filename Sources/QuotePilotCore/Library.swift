@@ -155,9 +155,13 @@ public struct Library: Codable, Sendable {
 
     @discardableResult
     public mutating func newQuote(on day: Day, clientID: UUID? = nil) -> Quote {
-        let quote = Quote(number: takeNumber(.quote), clientID: clientID, issued: day,
+        var quote = Quote(number: takeNumber(.quote), clientID: clientID, issued: day,
                           validUntil: day.adding(days: brand.quoteValidDays),
                           taxed: brand.gstRegistered, terms: brand.quoteTerms)
+        if let plan = PaymentPlan.automatic(for: .zero, splitAbove: brand.splitAbove) {
+            quote.plan = plan
+            quote.planIsAutomatic = true
+        }
         quotes.append(quote)
         log("Started quote \(quote.number)", number: quote.number)
         return quote
@@ -182,6 +186,14 @@ public struct Library: Codable, Sendable {
         let index = try quoteIndex(quote.id)
         var quote = quote
         quote.renumberLinesIfDraft()
+        // A plan chosen by hand stays chosen; until then a draft's plan follows its total.
+        if quotes[index].stage == .draft, quote.planIsAutomatic {
+            if quote.plan != quotes[index].plan {
+                quote.planIsAutomatic = false
+            } else if let plan = PaymentPlan.automatic(for: quote.totals.total, splitAbove: brand.splitAbove) {
+                quote.plan = plan
+            }
+        }
         if !invoices(forQuote: quote.id).isEmpty, quote.billsDifferently(from: quotes[index]) {
             throw LibraryError.alreadyInvoiced
         }

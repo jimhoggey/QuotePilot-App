@@ -14,6 +14,7 @@ enum Fixture {
         var quote = library.newQuote(on: today, clientID: client.id)
         quote.title = "Booking app, phase 1"
         quote.plan = plan
+        quote.planIsAutomatic = false
         quote.addLine(LineItem(title: "Discovery", quantity: 2, unit: .hours, rate: Money(dollars: 40)))
         quote.addLine(LineItem(title: "Build", rate: Money(dollars: 1000)))
         quote.addLine(LineItem(title: "Extra screens", rate: Money(dollars: 420)))

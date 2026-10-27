@@ -85,7 +85,7 @@ import QuotePilotPDF
         func leave(_ text: String, stored: Money) -> (beep: Bool, text: String) {
             CommitField<Money>.onLeave(text: text, stored: stored,
                                        format: { HourlyRateField.text($0, currencyCode: "AUD") },
-                                       parse: FieldParser.hourlyRate)
+                                       parse: FieldParser.amountOrBlank)
         }
         // "abc" is refused with a beep, and the stored rate is put back.
         let refused = leave("abc", stored: Money(dollars: 95))
@@ -98,11 +98,11 @@ import QuotePilotPDF
         #expect(leave("95", stored: Money(dollars: 95)) == (beep: false, text: "$95.00"))
         #expect(leave("", stored: .zero) == (beep: false, text: ""))
         // Typed text is committed as it goes: an amount, or blank for none.
-        #expect(CommitField<Money>.liveCommit(text: "110", stored: Money(dollars: 95), parse: FieldParser.hourlyRate)
+        #expect(CommitField<Money>.liveCommit(text: "110", stored: Money(dollars: 95), parse: FieldParser.amountOrBlank)
                 == Money(dollars: 110))
-        #expect(CommitField<Money>.liveCommit(text: "", stored: Money(dollars: 95), parse: FieldParser.hourlyRate) == .zero)
-        #expect(CommitField<Money>.liveCommit(text: "abc", stored: Money(dollars: 95), parse: FieldParser.hourlyRate) == nil)
-        #expect(CommitField<Money>.liveCommit(text: "$", stored: Money(dollars: 95), parse: FieldParser.hourlyRate) == nil)
+        #expect(CommitField<Money>.liveCommit(text: "", stored: Money(dollars: 95), parse: FieldParser.amountOrBlank) == .zero)
+        #expect(CommitField<Money>.liveCommit(text: "abc", stored: Money(dollars: 95), parse: FieldParser.amountOrBlank) == nil)
+        #expect(CommitField<Money>.liveCommit(text: "$", stored: Money(dollars: 95), parse: FieldParser.amountOrBlank) == nil)
         // No rate shows as an empty field, and a $0 typed there means none.
         #expect(HourlyRateField.text(.zero, currencyCode: "AUD") == "")
         #expect(HourlyRateField.stored(.zero) == nil)

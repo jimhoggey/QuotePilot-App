@@ -37,6 +37,7 @@ public enum SampleLibrary {
         // Q-0002: sent last week, waiting on a reply.
         var menu = library.newQuote(on: today.adding(days: -6), clientID: bakery.id)
         menu.title = "Menu boards"
+        menu.plan = .fiftyFifty // chosen by hand: at $620 the rule would make it the full amount
         menu.addLine(LineItem(title: "Menu board design", rate: Money(dollars: 450)))
         menu.addLine(LineItem(title: "Printing", quantity: 2, rate: Money(dollars: 85)))
         try library.update(menu)

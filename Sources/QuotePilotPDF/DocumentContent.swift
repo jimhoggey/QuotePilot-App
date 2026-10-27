@@ -94,7 +94,7 @@ extension DocumentContent {
             sections.append(Section(heading: "", text: "", lists: Lists(included: included, notIncluded: notIncluded)))
         }
         sections.append(Section(heading: "Payment plan",
-                                text: "\(quote.plan.summary). You're only invoiced for the lines you accept."))
+                                text: "\(quote.plan.summary(for: totals.total, currencyCode: currency)), for the whole quote. You're only invoiced for the lines you accept."))
         if !quote.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: quote.terms, source: .quoteTerms)) }
 
         return DocumentContent(

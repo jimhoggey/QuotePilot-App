@@ -134,7 +134,10 @@ extension AppModel {
                     quote.included = included ?? quote.included
                     quote.notIncluded = notIncluded ?? quote.notIncluded
                     quote.terms = terms ?? quote.terms
-                    quote.plan = plan ?? quote.plan
+                    if let plan {
+                        quote.plan = plan
+                        quote.planIsAutomatic = false
+                    }
                 })
             },
         ])

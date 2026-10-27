@@ -281,7 +281,7 @@ struct HourlyRateField: View {
         VStack(alignment: .leading, spacing: 4) {
             Win95FieldRow("Rate:") {
                 CommitField(label: "Hourly rate", value: rate ?? .zero,
-                            format: { Self.text($0, currencyCode: currencyCode) }, parse: FieldParser.hourlyRate,
+                            format: { Self.text($0, currencyCode: currencyCode) }, parse: FieldParser.amountOrBlank,
                             alignment: .leading, prompt: "e.g. $90.00") { rate = Self.stored($0) }
                     .frame(width: 100)
             }
@@ -378,6 +378,15 @@ struct DocumentsTab: View {
                             Text("days")
                         }
                     }
+                    Win95FieldRow("50/50 above:") {
+                        CommitField(label: "Quotes above this total are 50/50", value: brand.splitAbove,
+                                    format: { $0 == .zero ? "" : $0.formatted(currencyCode: brand.currencyCode) },
+                                    parse: FieldParser.amountOrBlank, alignment: .leading, prompt: "Off") { brand.splitAbove = $0 }
+                            .frame(width: 100)
+                    }
+                    Text("New quotes above this total are 50% on acceptance and 50% on completion; the rest are paid in full on completion. Choosing a plan on a quote keeps it. Blank turns this off.")
+                        .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Terms printed on quotes:")
                     Win95TextEditor(text: $brand.quoteTerms)
                         .frame(height: 60)
