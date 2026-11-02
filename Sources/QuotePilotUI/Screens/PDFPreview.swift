@@ -86,3 +86,30 @@ struct LivePDFPreview: View {
             }
     }
 }
+
+/// An editor's Preview box, with Full View in its corner: the preview takes the form's place too,
+/// until Back to Form or Escape.
+struct PreviewBox: View {
+    let model: AppModel
+    let content: DocumentContent?
+    @Binding var fullView: Bool
+
+    var body: some View {
+        GroupBox("Preview") {
+            LivePDFPreview(model: model, content: content)
+                .overlay(alignment: .topTrailing) {
+                    Group {
+                        if fullView {
+                            Button("Back to Form") { fullView = false }
+                                .keyboardShortcut(.cancelAction)
+                        } else {
+                            Button("Full View") { fullView = true }
+                        }
+                    }
+                    .buttonStyle(.win95)
+                    .padding(6)
+                }
+        }
+        .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
