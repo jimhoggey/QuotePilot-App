@@ -17,6 +17,7 @@ struct QuoteEditorView: View {
         let current = quote.wrappedValue
         VStack(spacing: 0) {
             header(current)
+                .zIndex(1) // over the form, for the buttons' explanations
             HStack(alignment: .top, spacing: 8) {
                 if !fullView {
                     ScrollView {
@@ -67,28 +68,35 @@ struct QuoteEditorView: View {
         VStack(spacing: 0) {
             titleRow(quote)
             let canCompleteJob = model.canCompleteJob(quoteID)
+            let next = model.library.nextInvoiceKind(forQuote: quoteID)
             HStack(spacing: 6) {
                 if Self.showsSend(quote) {
                     Button("Send by Mail…") { model.send(.quote(quoteID)) }
                         .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(quote)))
                         .disabled(quote.clientID == nil)
-                        .help(quote.clientID == nil ? "Choose a client first" : "Open a Mail draft with this quote attached (⌘S)")
+                        .explained(quote.clientID == nil ? "Choose a client first."
+                                   : "Opens a Mail draft to the client with this quote attached. You press Send in Mail. (⌘S)")
                 }
                 if let title = Self.acceptanceButton(quote, invoiced: !model.library.invoices(forQuote: quoteID).isEmpty) {
                     Button(title) { model.startHandTicking(quoteID) }
-                        .help("Tick the lines the client accepted, when they couldn't fill in the PDF")
+                        .explained(quote.stage == .sent
+                                   ? "The client said yes without filling in the PDF? Tick the lines they accepted."
+                                   : "Change which lines the client accepted. Possible until the first invoice is drafted.")
                 }
-                if Self.showsDraftInvoiceNow(next: model.library.nextInvoiceKind(forQuote: quoteID), canCompleteJob: canCompleteJob) {
+                if Self.showsDraftInvoiceNow(next: next, canCompleteJob: canCompleteJob) {
                     Button("Draft Invoice Now") { model.draftInvoiceNow(forQuote: quoteID) }
-                        .help("Draft the next invoice the payment plan calls for")
+                        .explained(next == .deposit ? "Drafts the 50% deposit invoice, ready to check and send."
+                                   : "Drafts this job's invoice again, ready to check and send.")
                 }
                 if canCompleteJob {
                     Button("Job Complete") { model.completeJob(quoteID) }
-                        .help("When the work is done: record it, and draft and open the invoice for it")
+                        .explained("Press when the work is done. It records that, then drafts and opens the invoice: the full amount, or the balance after the deposit.")
                 }
                 Button("Duplicate") { model.duplicateQuote(quoteID) }
+                    .explained("Starts a new draft quote with the same client and lines.")
                 if quote.stage == .draft {
                     Button("Delete Draft") { model.deleteDraftQuote(quoteID) }
+                        .explained("Deletes this draft. Its number won't be used again.")
                 }
                 // No Save PDF… here: the toolbar's Save PDF, right above, is the one control for it.
                 Spacer()
