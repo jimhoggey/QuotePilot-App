@@ -35,6 +35,13 @@ import Testing
         #expect(!QuoteEditorView.showsDraftInvoiceNow(next: nil, canCompleteJob: false))
     }
 
+    /// The explanation under a button: yellow, a question mark, and the words wrapped to its width.
+    @Test func anExplanationDraws() {
+        let tip = Win95Tooltip(text: "Press when the work is done. It records that, then drafts and opens the invoice: the full amount, or the balance after the deposit.")
+        let rep = Snapshot.render(tip.padding(8).background(Win95.face), size: CGSize(width: 280, height: 90), name: "tooltip")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
     @Test func theDoneColumnDraws() throws {
         let model = try UIFixture.sampleModel()
         var brand = model.library.brand
