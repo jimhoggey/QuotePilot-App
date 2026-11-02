@@ -15,6 +15,7 @@ struct InvoiceEditorView: View {
         let invoice = model.invoiceBinding(invoiceID)
         VStack(spacing: 0) {
             header(invoice.wrappedValue)
+                .zIndex(1) // over the form, for the buttons' explanations
             // Same widths as plan 2a's QuoteEditorView after its 980-pt fix (form 500…640 with
             // layoutPriority(1), preview at least 220), so the editor fits the minimum window.
             HStack(alignment: .top, spacing: 8) {
@@ -56,22 +57,23 @@ struct InvoiceEditorView: View {
                     Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
                         .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(invoice)))
                         .disabled(invoice.clientID == nil)
-                        .help(invoice.clientID == nil ? "Choose a client first" : "Open a Mail draft with this invoice attached (⌘S)")
+                        .explained(invoice.clientID == nil ? "Choose a client first."
+                                   : "Opens a Mail draft to the client with this invoice attached. You press Send in Mail. (⌘S)")
                 }
                 // Greyed, not hidden, for a deposit the final invoice deducts: the note on the form says why.
                 if invoice.stage == .sent, invoice.payments.isEmpty {
                     Button("Void…") { model.voidInvoice(invoiceID) }
                         .disabled(!rules.canVoid)
-                        .help(rules.deductedHelp ?? "Cancel this invoice; its number stays used")
+                        .explained(rules.deductedHelp ?? "Cancels this invoice, if it went out by mistake. Its number stays used.")
                 }
                 if invoice.stage == .draft {
                     Button("Delete Draft") { model.deleteDraftInvoice(invoiceID) }
                         .disabled(!rules.canDelete)
-                        .help(rules.deductedHelp ?? "Delete this draft; its number won't be used again")
+                        .explained(rules.deductedHelp ?? "Deletes this draft. Its number won't be used again.")
                 }
                 if invoice.kind == .standalone {
                     Button("Duplicate") { model.duplicateInvoice(invoiceID) }
-                        .help("A new draft with the same lines, for repeat work")
+                        .explained("Starts a new draft invoice with the same client and lines, for repeat work.")
                 }
                 // No Save PDF… here: the toolbar's Save PDF, right above, is the one control for it.
                 Spacer()
