@@ -94,6 +94,8 @@ public struct Brand: Codable, Hashable, Sendable {
     /// Draft quotes with a total above this are 50/50, and the rest are the full amount on completion,
     /// until a quote's plan is chosen by hand (`Quote.planIsAutomatic`). $0 turns the rule off.
     public var splitAbove = Money(dollars: 1000)
+    /// Brand → Settings: a Done tick box on each quote line, for the user's own tracking.
+    public var showsDoneColumn = false
     /// Quote Pilot's own fee setting (Brand → Settings), kept with the library. Prints nowhere.
     public var appFee = AppFee()
 
@@ -221,6 +223,9 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
     /// True while the plan follows Brand's rule (`Brand.splitAbove`): set on a new quote, and
     /// cleared for good once the plan is chosen by hand.
     public var planIsAutomatic = false
+    /// The lines the user has ticked Done while doing the work: their own tracker, never printed and
+    /// never part of what's billed, so it can change at any stage.
+    public var doneLines: Set<UUID> = []
 
     public init(id: UUID = UUID(), number: String, clientID: UUID? = nil, title: String = "",
                 issued: Day, validUntil: Day, plan: PaymentPlan = .fiftyFifty, taxed: Bool = false,
@@ -391,7 +396,7 @@ extension Brand {
     enum CodingKeys: String, CodingKey {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
-        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee, splitAbove
+        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee, splitAbove, showsDoneColumn
     }
 
     public init(from decoder: Decoder) throws {
@@ -418,6 +423,7 @@ extension Brand {
         bodyFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .bodyFontStyle)
         appFee = try c.value(.appFee, or: d.appFee)
         splitAbove = try c.value(.splitAbove, or: d.splitAbove)
+        showsDoneColumn = try c.value(.showsDoneColumn, or: d.showsDoneColumn)
     }
 }
 
@@ -441,7 +447,7 @@ extension Client {
 extension Quote {
     enum CodingKeys: String, CodingKey {
         case id, number, clientID, title, issued, validUntil, plan, taxed, lines, lastLineNumber
-        case summary, included, notIncluded, terms, stage, sentAt, acceptance, completedOn, planIsAutomatic
+        case summary, included, notIncluded, terms, stage, sentAt, acceptance, completedOn, planIsAutomatic, doneLines
     }
 
     public init(from decoder: Decoder) throws {
@@ -466,6 +472,7 @@ extension Quote {
         completedOn = try c.decodeIfPresent(Day.self, forKey: .completedOn)
         // Quotes from before the rule keep the plan they have.
         planIsAutomatic = try c.value(.planIsAutomatic, or: false)
+        doneLines = try c.value(.doneLines, or: [])
     }
 }
 
