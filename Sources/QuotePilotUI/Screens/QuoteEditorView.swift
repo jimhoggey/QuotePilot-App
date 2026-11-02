@@ -9,6 +9,8 @@ struct QuoteEditorView: View {
     let quoteID: UUID
     /// Where View → Show Steps is kept. Tests give it their own, so none touches the real one.
     var stepDefaults: UserDefaults = .standard
+    /// Full View: the preview takes the form's place too.
+    @State private var fullView = false
 
     var body: some View {
         let quote = model.quoteBinding(quoteID)
@@ -16,25 +18,41 @@ struct QuoteEditorView: View {
         VStack(spacing: 0) {
             header(current)
             HStack(alignment: .top, spacing: 8) {
-                ScrollView {
-                    // Greyed out while the fee lock is on; it still scrolls, and the preview stays.
-                    form(quote)
-                        .disabled(!model.canEdit)
-                        .padding(.trailing, 6)
+                if !fullView {
+                    ScrollView {
+                        // Greyed out while the fee lock is on; it still scrolls, and the preview stays.
+                        form(quote)
+                            .disabled(!model.canEdit)
+                            .padding(.trailing, 6)
+                    }
+                    // The window is at least 980 wide, which leaves 754 beside the section tree. The form
+                    // takes what it can up to 640 and the preview keeps the rest, never under 220, so at
+                    // the smallest window the two still fit side by side.
+                    .frame(minWidth: 500, idealWidth: 600, maxWidth: 640)
+                    .layoutPriority(1)
                 }
-                // The window is at least 980 wide, which leaves 754 beside the section tree. The form
-                // takes what it can up to 640 and the preview keeps the rest, never under 220, so at
-                // the smallest window the two still fit side by side.
-                .frame(minWidth: 500, idealWidth: 600, maxWidth: 640)
-                .layoutPriority(1)
-                GroupBox("Preview") {
-                    LivePDFPreview(model: model, content: model.quoteContent(quoteID))
-                }
-                .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
+                PreviewBox(model: model, content: model.quoteContent(quoteID), fullView: $fullView)
             }
             .padding(8)
         }
         .groupBoxStyle(.win95)
+    }
+
+    /// Send by Mail… shows while there's sending to do: a draft, or a quote out and waiting on a
+    /// reply. Once the client has answered there's nothing to send.
+    static func showsSend(_ quote: Quote) -> Bool { quote.stage == .draft || quote.stage == .sent }
+
+    /// The acceptance button: for a sent quote, recording the reply; for an answered one, changing
+    /// it. None for a draft, or once the quote has invoices.
+    static func acceptanceButton(_ quote: Quote, invoiced: Bool) -> String? {
+        guard quote.stage != .draft, !invoiced else { return nil }
+        return quote.stage == .sent ? "Record Acceptance…" : "Change Acceptance…"
+    }
+
+    /// One button per action: Job Complete drafts the closing invoice, so Draft Invoice Now shows only
+    /// for a deposit, or once the job is marked complete (its closing invoice was voided).
+    static func showsDraftInvoiceNow(next: InvoiceKind?, canCompleteJob: Bool) -> Bool {
+        next == .deposit || (next != nil && !canCompleteJob)
     }
 
     /// Whether Send by Mail… has the heavy outline: only while sending is the next step (a draft).
@@ -48,24 +66,25 @@ struct QuoteEditorView: View {
     func header(_ quote: Quote) -> some View {
         VStack(spacing: 0) {
             titleRow(quote)
+            let canCompleteJob = model.canCompleteJob(quoteID)
             HStack(spacing: 6) {
-                Button("Send by Mail…") { model.send(.quote(quoteID)) }
-                    .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(quote)))
-                    .disabled(quote.clientID == nil)
-                    .help(quote.clientID == nil ? "Choose a client first" : "Open a Mail draft with this quote attached (⌘S)")
-                if quote.stage != .draft, model.library.invoices(forQuote: quoteID).isEmpty {
-                    Button("Record Acceptance…") { model.startHandTicking(quoteID) }
+                if Self.showsSend(quote) {
+                    Button("Send by Mail…") { model.send(.quote(quoteID)) }
+                        .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(quote)))
+                        .disabled(quote.clientID == nil)
+                        .help(quote.clientID == nil ? "Choose a client first" : "Open a Mail draft with this quote attached (⌘S)")
+                }
+                if let title = Self.acceptanceButton(quote, invoiced: !model.library.invoices(forQuote: quoteID).isEmpty) {
+                    Button(title) { model.startHandTicking(quoteID) }
                         .help("Tick the lines the client accepted, when they couldn't fill in the PDF")
                 }
-                if model.library.nextInvoiceKind(forQuote: quoteID) != nil {
+                if Self.showsDraftInvoiceNow(next: model.library.nextInvoiceKind(forQuote: quoteID), canCompleteJob: canCompleteJob) {
                     Button("Draft Invoice Now") { model.draftInvoiceNow(forQuote: quoteID) }
                         .help("Draft the next invoice the payment plan calls for")
                 }
-                // Not tied to Draft Invoice Now: once that has drafted the final there's nothing left to
-                // draft, but the job still isn't marked complete.
-                if model.canCompleteJob(quoteID) {
+                if canCompleteJob {
                     Button("Job Complete") { model.completeJob(quoteID) }
-                        .help("Record the job as done, and open its final invoice (drafting it first if it isn't there yet)")
+                        .help("When the work is done: record it, and draft and open the invoice for it")
                 }
                 Button("Duplicate") { model.duplicateQuote(quoteID) }
                 if quote.stage == .draft {
@@ -176,6 +195,7 @@ struct QuoteEditorView: View {
                 LinesEditor(model: model, lines: quote.lines,
                             showDecision: current.stage == .accepted || current.stage == .declined,
                             editable: !locked,
+                            done: model.library.brand.showsDoneColumn ? quote.doneLines : nil,
                             onAdd: {
                                 var edited = quote.wrappedValue
                                 edited.addLine(.blank(hourlyRate: model.library.brand.hourlyRate))
