@@ -11,6 +11,8 @@ enum LineColumns {
     static let unit: CGFloat = 72
     static let rate: CGFloat = 92
     static let amount: CGFloat = 88
+    /// The Done tick box (Brand → Settings), before the ID.
+    static let done: CGFloat = 34
     /// Move up, move down and remove: three 20-point buttons and the gaps between them.
     static let buttons: CGFloat = 3 * 20 + 2 * 4
     /// How far a line's detail field starts from the left: the ID column and the gap after it.
@@ -28,16 +30,21 @@ struct LinesEditor<Footer: View>: View {
     let showDecision: Bool
     /// Sent invoices show their lines without fields or buttons.
     let editable: Bool
+    /// The lines ticked Done, when the Done column shows. Its tick boxes work even when the lines
+    /// can't be edited.
+    let done: Binding<Set<UUID>>?
     let onAdd: () -> Void
     let footer: Footer
 
     init(model: AppModel, lines: Binding<[LineItem]>, showCodes: Bool = true, showDecision: Bool = false,
-         editable: Bool = true, onAdd: @escaping () -> Void, @ViewBuilder footer: () -> Footer) {
+         editable: Bool = true, done: Binding<Set<UUID>>? = nil, onAdd: @escaping () -> Void,
+         @ViewBuilder footer: () -> Footer) {
         self.model = model
         self._lines = lines
         self.showCodes = showCodes
         self.showDecision = showDecision
         self.editable = editable
+        self.done = done
         self.onAdd = onAdd
         self.footer = footer()
     }
@@ -46,6 +53,7 @@ struct LinesEditor<Footer: View>: View {
         let currency = model.currencyCode
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
+                if done != nil { columnHead("Done", width: LineColumns.done) }
                 if showCodes { columnHead("ID", width: LineColumns.id) }
                 columnHead("Item", width: nil)
                 columnHead("Qty", width: LineColumns.quantity)
@@ -58,7 +66,12 @@ struct LinesEditor<Footer: View>: View {
                 LineRow(line: lineBinding(line.id), position: index + 1, currency: currency, showCode: showCodes,
                         showDecision: showDecision, editable: editable,
                         canMoveUp: index > 0, canMoveDown: index < lines.count - 1,
-                        move: { move(line.id, by: $0) }, remove: { remove(line) })
+                        move: { move(line.id, by: $0) }, remove: { remove(line) },
+                        done: done.map { ticked in
+                            Binding(get: { ticked.wrappedValue.contains(line.id) },
+                                    set: { ticked.wrappedValue = $0 ? ticked.wrappedValue.union([line.id])
+                                                                    : ticked.wrappedValue.subtracting([line.id]) })
+                        })
             }
             if lines.isEmpty {
                 // A quote's lines are what the client ticks; an invoice's are just what is billed.
@@ -76,7 +89,6 @@ struct LinesEditor<Footer: View>: View {
             }
             .padding(.top, 4)
         }
-        .disabled(!editable)
     }
 
     private func columnHead(_ title: String, width: CGFloat?, trailing: Bool = false) -> some View {
@@ -197,9 +209,25 @@ struct LineRow: View {
     let canMoveDown: Bool
     let move: (Int) -> Void
     let remove: () -> Void
+    /// Whether the line is ticked Done, when the Done column shows.
+    var done: Binding<Bool>?
 
     var body: some View {
         let name = line.accessibilityName(position: position, showCode: showCode)
+        HStack(alignment: .top, spacing: 4) {
+            if let done {
+                Toggle(isOn: done) { EmptyView() }
+                    .toggleStyle(.win95)
+                    .accessibilityLabel("Line \(name) done")
+                    .frame(width: LineColumns.done, height: 22)
+            }
+            fields(name)
+                .disabled(!editable)
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func fields(_ name: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
                 if showCode {
@@ -244,7 +272,6 @@ struct LineRow: View {
                 }
             }
         }
-        .padding(.vertical, 3)
     }
 }
 
