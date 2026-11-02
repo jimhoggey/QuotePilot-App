@@ -8,6 +8,8 @@ struct InvoiceEditorView: View {
     let invoiceID: UUID
     /// Where View → Show Steps is kept. Tests give it their own, so none touches the real one.
     var stepDefaults: UserDefaults = .standard
+    /// Full View: the preview takes the form's place too.
+    @State private var fullView = false
 
     var body: some View {
         let invoice = model.invoiceBinding(invoiceID)
@@ -16,16 +18,15 @@ struct InvoiceEditorView: View {
             // Same widths as plan 2a's QuoteEditorView after its 980-pt fix (form 500…640 with
             // layoutPriority(1), preview at least 220), so the editor fits the minimum window.
             HStack(alignment: .top, spacing: 8) {
-                ScrollView {
-                    form(invoice)
-                        .padding(.trailing, 6)
+                if !fullView {
+                    ScrollView {
+                        form(invoice)
+                            .padding(.trailing, 6)
+                    }
+                    .frame(minWidth: 500, idealWidth: 620, maxWidth: 640)
+                    .layoutPriority(1)
                 }
-                .frame(minWidth: 500, idealWidth: 620, maxWidth: 640)
-                .layoutPriority(1)
-                GroupBox("Preview") {
-                    LivePDFPreview(model: model, content: model.invoiceContent(invoiceID))
-                }
-                .frame(minWidth: 220, maxWidth: .infinity, maxHeight: .infinity)
+                PreviewBox(model: model, content: model.invoiceContent(invoiceID), fullView: $fullView)
             }
             .padding(8)
         }

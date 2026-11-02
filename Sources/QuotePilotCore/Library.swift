@@ -186,6 +186,7 @@ public struct Library: Codable, Sendable {
         let index = try quoteIndex(quote.id)
         var quote = quote
         quote.renumberLinesIfDraft()
+        quote.doneLines.formIntersection(quote.lines.map(\.id))
         // A plan chosen by hand stays chosen; until then a draft's plan follows its total.
         if quotes[index].stage == .draft, quote.planIsAutomatic {
             if quote.plan != quotes[index].plan {

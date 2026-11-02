@@ -508,6 +508,16 @@ struct SettingsTab: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            GroupBox("Job tracking") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Show a Done column on quote lines", isOn: $brand.showsDoneColumn)
+                        .toggleStyle(.win95)
+                    Text("Tick lines off as you do the work. It's only for you: it never prints.")
+                        .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             GroupBox("Claude") {
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle("Let Claude use Quote Pilot", isOn: Bindable(model.claude).isOn)
