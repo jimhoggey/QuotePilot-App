@@ -119,6 +119,12 @@ at once. So does Check for Updates on Brand → Settings, which shows the versio
 tab instead of in a box. Each update is written to `~/Library/Logs/Quote Pilot/update.log`, and the old app goes
 to the Trash.
 
+The first launch after an update shows **What's New**: the release's lines from
+`Sources/QuotePilotUI/App/WhatsNew.swift`, and when that's fewer than three, the newest earlier
+ones under "In case you missed it". Help → What's New shows it again. Every release adds an entry
+there, with no lines when it brought nothing worth saying (a test checks the newest entry is the
+app's version).
+
 ## Claude
 
 Brand → Settings → **Let Claude use Quote Pilot** starts an MCP server that Claude Code can connect

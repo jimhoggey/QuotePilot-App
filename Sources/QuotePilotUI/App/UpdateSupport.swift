@@ -1,22 +1,25 @@
 import AppKit
 import Foundation
 
-// What the updater needs from outside: the two values it remembers, the log it writes, and the one
+// What the updater needs from outside: the values it remembers, the log it writes, and the one
 // bundle of those (`UpdateServices`) the app model holds. Tests swap the bundle for fakes, so they
 // never use the network, the real settings or the real log.
 
-/// The two things the updater remembers between launches.
+/// The things the updater remembers between launches.
 protocol UpdateSettings: AnyObject {
     /// When the last check that reached GitHub happened.
     var lastUpdateCheck: Date? { get set }
     /// The version an install is expected to leave running, until the next launch has looked.
     var updateExpectedVersion: String? { get set }
+    /// The version the last launch ran, so the next one knows whether to show What's New.
+    var lastSeenVersion: String? { get set }
 }
 
-/// The real settings: two keys in the app's UserDefaults.
+/// The real settings: keys in the app's UserDefaults.
 final class UserDefaultsUpdateSettings: UpdateSettings {
     static let lastCheckKey = "lastUpdateCheck"
     static let expectedVersionKey = "updateExpectedVersion"
+    static let lastSeenKey = "lastSeenVersion"
 
     private let defaults: UserDefaults
 
@@ -32,6 +35,11 @@ final class UserDefaultsUpdateSettings: UpdateSettings {
     var updateExpectedVersion: String? {
         get { defaults.string(forKey: Self.expectedVersionKey) }
         set { defaults.set(newValue, forKey: Self.expectedVersionKey) }
+    }
+
+    var lastSeenVersion: String? {
+        get { defaults.string(forKey: Self.lastSeenKey) }
+        set { defaults.set(newValue, forKey: Self.lastSeenKey) }
     }
 }
 
