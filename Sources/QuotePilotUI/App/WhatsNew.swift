@@ -15,6 +15,9 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.7.0",
+                "The Dashboard lists the quotes and invoices you haven't sent yet, under Drafts not sent yet.",
+                "After an update, this box says what changed. Help → What's New shows it again."),
         Release("1.6.1",
                 "Hover over a button at the top of a quote or invoice to see what it does."),
         Release("1.6.0",
