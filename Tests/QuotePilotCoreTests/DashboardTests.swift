@@ -62,6 +62,21 @@ import Testing
         #expect(dashboard.waiting.filter { $0.daysLate > 0 }.map(\.number) == ["INV-0002"])
     }
 
+    /// Draft quotes and invoices together, the oldest first; sent ones aren't drafts.
+    @Test func draftsListQuotesAndInvoicesNotSentYet() throws {
+        var library = try busyLibrary()
+        var quote = library.newQuote(on: Day(year: 2026, month: 10, day: 1), clientID: library.clients[0].id)
+        quote.addLine(LineItem(title: "Phase 3", rate: Money(dollars: 120)))
+        try library.update(quote)
+
+        let drafts = Dashboard(library: library, today: today).drafts
+        #expect(drafts.map(\.number) == ["Q-0003", "INV-0004"])
+        #expect(drafts.map(\.kind) == [.quote, .invoice])
+        #expect(drafts[0].total == library.quote(quote.id)?.totals.total)
+        #expect(drafts[1].total == Money(dollars: 500))
+        #expect(Dashboard(library: Library(), today: today).drafts.isEmpty)
+    }
+
     @Test func receivedAndInvoicedFollowTheCalendar() throws {
         let dashboard = Dashboard(library: try busyLibrary(), today: today)
         #expect(dashboard.financialYear.label == "FY 2026–27")
