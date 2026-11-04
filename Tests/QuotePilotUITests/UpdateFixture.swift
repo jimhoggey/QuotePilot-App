@@ -5,6 +5,7 @@ import Foundation
 final class MemoryUpdateSettings: UpdateSettings {
     var lastUpdateCheck: Date?
     var updateExpectedVersion: String?
+    var lastSeenVersion: String?
 }
 
 /// Stands in for GitHub: answers every request with `reply` and keeps the requests, so a test can see

@@ -38,10 +38,10 @@ extension AppModel {
 
     // MARK: Launch
 
-    /// Runs when the window first appears: says how the last update went, if one was started, then
-    /// does the automatic check for updates.
+    /// Runs when the window first appears: says how the last update went, if one was started, shows
+    /// What's New after one, then does the automatic check for updates.
     public func start() async {
-        finishPendingUpdate()
+        showWhatsNewOnce(justUpdated: finishPendingUpdate())
         if libraryIsOpen { track(.appStarted, feeSettingProps) }
         claude.startIfOn()
         await checkForUpdatesAtLaunch()
@@ -69,23 +69,53 @@ extension AppModel {
     /// The first launch after an install. The install left a marker with the version it should have
     /// left running; here that is compared with the version that is, and the marker is cleared either
     /// way, so the status bar and Activity say so once. A failed update leaves the old app running,
-    /// which is why the helper's log is named.
-    func finishPendingUpdate() {
+    /// which is why the helper's log is named. Returns whether an update just worked.
+    @discardableResult
+    func finishPendingUpdate() -> Bool {
         let expected = updates.settings.updateExpectedVersion
         updates.settings.updateExpectedVersion = nil
         guard let expected,
               let outcome = UpdateOutcome.afterLaunch(running: updates.version, expected: expected)
-        else { return }
+        else { return false }
         switch outcome {
         case .updated(let version):
             updates.log.append("Next launch: Quote Pilot \(version) is running, as expected. The update worked")
             _ = tryChange { $0.log("Updated Quote Pilot to \(version)") }
             track(.updated)
             note("Updated to \(version)")
+            return true
         case .didNotFinish:
             updates.log.append("Next launch: Quote Pilot \(updates.version) is running, but \(expected) was expected. The update did not finish")
             _ = tryChange { $0.log("The update to Quote Pilot \(expected) didn't finish. Quote Pilot \(self.updates.version) is still installed") }
             note("The update didn't finish. Details are in \(UpdateLog.displayPath)")
+            return false
+        }
+    }
+
+    // MARK: What's New
+
+    /// Help → What's New: what this version brought, with earlier changes when it brought few.
+    public func showWhatsNew() {
+        guard let box = whatsNew(since: nil) else { return beep() }
+        message = box
+    }
+
+    /// At launch, once for each new version: What's New after an update, from Install Update or a copy
+    /// put in by hand. A new install's first launch stays quiet (Getting started is there for that).
+    /// Versions before 1.7.0 remembered no version, so after one of those `justUpdated` decides.
+    func showWhatsNewOnce(justUpdated: Bool) {
+        let seen = updates.settings.lastSeenVersion
+        updates.settings.lastSeenVersion = updates.version
+        guard let current = VersionNumber(updates.version),
+              seen.flatMap(VersionNumber.init).map({ $0 < current }) ?? justUpdated,
+              message == nil, let box = whatsNew(since: seen)
+        else { return }
+        message = box
+    }
+
+    private func whatsNew(since seen: String?) -> MessageBox? {
+        WhatsNew.text(since: seen, current: updates.version).map {
+            MessageBox(kind: .info, title: "What's New in Quote Pilot \(updates.version)", text: $0)
         }
     }
 

@@ -88,8 +88,8 @@ public struct QuotePilotCommands: Commands {
                 .keyboardShortcut("f")
         }
         // Our part of the Help menu: the version, as a greyed-out line (the standard About box shows
-        // it too, from the same Info.plist), the update commands and Show Getting Started. Like the
-        // others they wait while a message box is up.
+        // it too, from the same Info.plist), the update commands, What's New and Show Getting
+        // Started. Like the others they wait while a message box is up.
         CommandGroup(after: .help) {
             Button("Quote Pilot \(model.currentVersion)") {}
                 .disabled(true)
@@ -99,6 +99,7 @@ public struct QuotePilotCommands: Commands {
             // On once a check has found a newer version; it asks before it does anything.
             Button("Install Update…") { model.whenFree { model.installUpdate() } }
                 .disabled(!model.canInstallUpdate)
+            Button("What's New") { model.whenFree { model.showWhatsNew() } }
             // Brings back the Dashboard's Getting started box after Hide, even once there are quotes.
             Button("Show Getting Started") { GettingStarted.showAgain(in: model) }
         }
