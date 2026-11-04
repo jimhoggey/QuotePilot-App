@@ -60,6 +60,17 @@ public struct Dashboard: Equatable, Sendable {
         public var remaining: Money { accepted - invoiced }
     }
 
+    /// A quote or invoice started but not sent yet.
+    public struct Draft: Equatable, Sendable {
+        public enum Kind: Sendable { case quote, invoice }
+        public var id: UUID
+        public var kind: Kind
+        public var number: String
+        public var client: String
+        public var total: Money
+        public var started: Day
+    }
+
     public var today: Day
     public var financialYear: FinancialYear
     public var waiting: [Owing]
@@ -74,6 +85,8 @@ public struct Dashboard: Equatable, Sendable {
     public var toInvoice: [ToInvoice]
     /// Accepted work not invoiced yet: the "Still to invoice" list's sum.
     public var toInvoiceTotal: Money
+    /// Quotes and invoices not sent yet, the oldest first. They're in no total: nothing is asked for yet.
+    public var drafts: [Draft]
 
     public init(library: Library, today: Day) {
         self.today = today
@@ -113,6 +126,14 @@ public struct Dashboard: Equatable, Sendable {
             .filter { $0.remaining > .zero }
             .sorted { $0.number < $1.number }
         toInvoiceTotal = sum(toInvoice.map(\.remaining))
+
+        let draftQuotes = library.quotes.filter { $0.stage == .draft }
+            .map { Draft(id: $0.id, kind: .quote, number: $0.number, client: clientName($0.clientID),
+                         total: $0.totals.total, started: $0.issued) }
+        let draftInvoices = library.invoices.filter { $0.stage == .draft }
+            .map { Draft(id: $0.id, kind: .invoice, number: $0.number, client: clientName($0.clientID),
+                         total: $0.amount, started: $0.issued) }
+        drafts = (draftQuotes + draftInvoices).sorted { ($0.started, $0.number) < ($1.started, $1.number) }
     }
 }
 

@@ -73,12 +73,24 @@ import QuotePilotCore
         #expect(DashboardView.quotesOutNote(dashboard) == "Quoted, waiting on a reply")
     }
 
-    /// The smallest window (980 wide) leaves 778 beside the section tree. The two lists that share a row (quotes, jobs) must fit
+    /// The smallest window (980 wide) leaves 778 beside the section tree. Each row's two lists must fit
     /// there side by side with a classic scroller in each, or the row pushes the tree off the window.
-    @Test func theBottomListsFitTheSmallestWindow() {
+    @Test func theListsFitTheSmallestWindow() {
         #expect(DetailsLayout.classicScrollerWidth == 17)
-        #expect(DashboardView.bottomRowMinimum(scroller: DetailsLayout.classicScrollerWidth) <= 778)
-        #expect(DashboardView.bottomRowMinimum(scroller: 0) <= 778)
+        for scroller in [DetailsLayout.classicScrollerWidth, 0] {
+            let rows = DashboardView.rowMinimums(scroller: scroller)
+            #expect(rows.count == 2 && rows.allSatisfy { $0 <= 778 }, "\(rows)")
+        }
+    }
+
+    /// The sample's draft quote Q-0004 waits in Drafts not sent yet, beside the quotes out.
+    @Test func draftsShowBesideTheQuotesOut() throws {
+        let model = try UIFixture.sampleModel()
+        #expect(model.dashboard.drafts.map(\.number).contains("Q-0004"))
+        #expect(model.dashboard.drafts.allSatisfy { draft in
+            draft.kind == .quote ? model.library.quote(draft.id)?.stage == .draft
+                : model.library.invoice(draft.id)?.stage == .draft
+        })
     }
 
     @Test func theDashboardDraws() throws {

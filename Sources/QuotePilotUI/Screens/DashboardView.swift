@@ -2,14 +2,15 @@ import QuotePilotCore
 import SwiftUI
 
 /// The main screen: the Getting started box while the library is new, four big readouts (the money
-/// pipeline: quoted, accepted but not invoiced, invoiced but not paid, paid), then three lists in the
-/// order the work happens (quotes waiting on a reply, what's still to invoice, what's waiting to be
-/// paid). Double-click a row to open it.
+/// pipeline: quoted, accepted but not invoiced, invoiced but not paid, paid), then four lists: what's
+/// waiting to be paid and what's still to invoice, then the quotes waiting on a reply and the drafts
+/// not sent yet. Double-click a row to open it.
 struct DashboardView: View {
     let model: AppModel
     @State private var selectedInvoice: UUID?
     @State private var selectedQuote: UUID?
     @State private var selectedJob: UUID?
+    @State private var selectedDraft: UUID?
 
     var body: some View {
         let dashboard = model.dashboard
@@ -47,9 +48,22 @@ struct DashboardView: View {
                 .frame(minWidth: Self.boxWidth(jobColumns, scroller: DetailsLayout.legacyScrollerWidth))
             }
             .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
-            GroupBox(Self.listTitles[2]) {
-                DetailsList(dashboard.openQuotes, id: \.quoteID, columns: Self.quoteColumns(currencyCode: model.currencyCode),
-                            selection: $selectedQuote, emptyText: "No quotes out.", onOpen: { model.openQuote($0) })
+            // Below: the quotes out, and beside them the drafts still to finish and send (the user,
+            // 4 Nov 2026), so a draft invoice isn't forgotten.
+            HStack(alignment: .top, spacing: Self.gap) {
+                let quoteColumns = Self.quoteColumns(currencyCode: model.currencyCode)
+                let draftColumns = Self.draftColumns(currencyCode: model.currencyCode)
+                GroupBox(Self.listTitles[2]) {
+                    DetailsList(dashboard.openQuotes, id: \.quoteID, columns: quoteColumns, selection: $selectedQuote,
+                                emptyText: "No quotes out.", onOpen: { model.openQuote($0) })
+                }
+                .frame(minWidth: Self.boxWidth(quoteColumns, scroller: DetailsLayout.legacyScrollerWidth))
+                GroupBox(Self.listTitles[3]) {
+                    DetailsList(dashboard.drafts, id: \.id, columns: draftColumns, selection: $selectedDraft,
+                                emptyText: "No drafts.",
+                                onOpen: { model.library.invoice($0) == nil ? model.openQuote($0) : model.openInvoice($0) })
+                }
+                .frame(minWidth: Self.boxWidth(draftColumns, scroller: DetailsLayout.legacyScrollerWidth))
             }
             .frame(minHeight: Self.listMinHeight, maxHeight: .infinity)
             Text("Invoiced \(dashboard.financialYear.label): \(model.money(dashboard.invoicedThisYear))")
@@ -77,9 +91,9 @@ struct DashboardView: View {
             ? "Nothing waiting. Every sent invoice is paid." : "Nothing waiting to be paid."
     }
 
-    /// The three lists: the two side by side on top, then the one below. No numbers: "1 · Quotes
-    /// waiting" read as a count ("one quote waiting"), as the step bar's numbers did.
-    static let listTitles = ["Waiting to be paid", "Still to invoice", "Quotes waiting on a reply"]
+    /// The four lists, two to a row. No numbers: "1 · Quotes waiting" read as a count ("one quote
+    /// waiting"), as the step bar's numbers did.
+    static let listTitles = ["Waiting to be paid", "Still to invoice", "Quotes waiting on a reply", "Drafts not sent yet"]
 
     /// The least height a row of lists gets: its title and padding (26), the column header and two
     /// rows. With the Getting started box showing, this keeps the lists from being squeezed away in the
@@ -104,8 +118,7 @@ struct DashboardView: View {
         ]
     }
 
-    // The quotes list sits alone on its row, so its client column has the room; Status (80) holds the
-    // icon and "Expired".
+    // The quotes list shares the bottom row with the drafts. Status (80) holds the icon and "Expired".
     static func quoteColumns(currencyCode: String) -> [DetailsColumn<Dashboard.OpenQuote>] {
         [
             .text("Quote", width: .fixed(64)) { $0.number },
@@ -115,6 +128,16 @@ struct DashboardView: View {
                 StatusLabel.cell(row.expired ? QuoteStatus.expired : .sent, selected: selected)
             },
             .money("Total", width: 96, currencyCode: currencyCode) { $0.total },
+        ]
+    }
+
+    // Draft (56) holds "Invoice", Number (72) "INV-0002".
+    static func draftColumns(currencyCode: String) -> [DetailsColumn<Dashboard.Draft>] {
+        [
+            .text("Draft", width: .fixed(56)) { $0.kind == .quote ? "Quote" : "Invoice" },
+            .text("Number", width: .fixed(72)) { $0.number },
+            .text("Client", width: .flexible(min: 40)) { $0.client },
+            .money("Total", width: 88, currencyCode: currencyCode) { $0.total },
         ]
     }
 
@@ -144,13 +167,16 @@ struct DashboardView: View {
         return columnsWidth + 24 + scroller
     }
 
-    /// The least width the screen needs for the two lists of the shared row to sit side by side with every
-    /// column whole: both group boxes at their narrowest, the gap between them and the padding
-    /// either side. It has to fit in the 778 points the smallest window (980 wide) leaves beside
-    /// the section tree, with a classic scroller in each list.
-    static func bottomRowMinimum(scroller: CGFloat) -> CGFloat {
-        gap + boxWidth(owingColumns(currencyCode: "AUD") { _ in .sent }, scroller: scroller)
-            + gap + boxWidth(jobColumns(currencyCode: "AUD"), scroller: scroller) + gap
+    /// The least width the screen needs for each row's two lists to sit side by side with every column
+    /// whole: both group boxes at their narrowest, the gap between them and the padding either side.
+    /// Each has to fit in the 778 points the smallest window (980 wide) leaves beside the section
+    /// tree, with a classic scroller in each list.
+    static func rowMinimums(scroller: CGFloat) -> [CGFloat] {
+        let rows = [[boxWidth(owingColumns(currencyCode: "AUD") { _ in .sent }, scroller: scroller),
+                     boxWidth(jobColumns(currencyCode: "AUD"), scroller: scroller)],
+                    [boxWidth(quoteColumns(currencyCode: "AUD"), scroller: scroller),
+                     boxWidth(draftColumns(currencyCode: "AUD"), scroller: scroller)]]
+        return rows.map { $0.reduce(gap) { $0 + $1 + gap } }
     }
 
     /// "Quoted, waiting on a reply", with "· 2 expired" once some have expired. The list under it shows
