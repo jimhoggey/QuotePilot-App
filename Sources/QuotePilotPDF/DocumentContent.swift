@@ -44,6 +44,11 @@ public struct DocumentContent: Equatable {
         public var notIncluded: [String]
     }
 
+    /// The table's headings: a row's title and detail, then its three figures, left to right.
+    public struct Columns: Equatable {
+        public var description = "Description", quantity = "Qty", rate = "Rate", amount = "Amount"
+    }
+
     public var title: String
     public var number: String
     public var fromName: String
@@ -63,6 +68,7 @@ public struct DocumentContent: Equatable {
     /// Quotes only: draw the tick-box form for this quote number.
     public var formQuoteNumber: String?
     public var fileName: String
+    public var columns = Columns()
 }
 
 extension DocumentContent {
@@ -208,6 +214,42 @@ extension DocumentContent {
             sections: planSection(invoice, quote: quote, deposit: deposit, money: money).map { [$0] } ?? [],
             formQuoteNumber: nil,
             fileName: fileName("Receipt \(invoice.number)", client))
+    }
+
+    /// A statement of what a client owes on `day`: one row per invoice still owing (`owing`, from
+    /// `Library.owingInvoices`) with its total, what's been paid and what's left, then the total owing.
+    /// It goes with the invoices and never stands in for them.
+    public static func statement(_ owing: [Invoice], client: Client?, brand: Brand, on day: Day) -> DocumentContent {
+        let currency = brand.currencyCode
+        func money(_ amount: Money) -> String { amount.formatted(currencyCode: currency) }
+        let total = money(owing.reduce(.zero) { $0 + $1.owing })
+        let overdue = owing.filter { day > $0.due }.count
+        var sections: [Section] = []
+        if !brand.paymentDetails.trimmed.isEmpty {
+            sections.append(Section(heading: "Payment details", text: brand.paymentDetails, source: .paymentDetails))
+        }
+        sections.append(Section(heading: "About this statement", text: "These invoices were still owing on \(day.long). "
+            + "Each was sent as its own invoice; please put the invoice numbers in your payment reference."))
+
+        return DocumentContent(
+            title: "Statement", number: day.long,
+            fromName: brand.businessName, fromDetails: fromDetails(brand),
+            toLabel: "Statement for", toName: client?.name ?? "", toDetails: clientDetails(client),
+            meta: [Meta(label: "Date", value: day.long), Meta(label: "Invoices owing", value: String(owing.count))],
+            amountLabel: "Total owing (\(currency))",
+            amount: total,
+            amountNote: overdue == 0 ? "Nothing overdue" : "\(overdue) overdue",
+            showCodes: false,
+            rows: owing.map { invoice in
+                Row(code: "", title: [invoice.number, invoice.title.trimmed].filter { !$0.isEmpty }.joined(separator: ", "),
+                    detail: "Issued \(invoice.issued.long), due \(invoice.due.long)" + (day > invoice.due ? ", overdue" : ""),
+                    quantity: money(invoice.amount), rate: money(invoice.paid), amount: money(invoice.owing))
+            },
+            totals: [TotalLine(label: "Total owing (\(currency))", value: total, strong: true)],
+            sections: sections,
+            formQuoteNumber: nil,
+            fileName: fileName("Statement \(day.iso)", client),
+            columns: Columns(description: "Invoice", quantity: "Total", rate: "Paid", amount: "Owing"))
     }
 
     /// Which part of its quote's plan an invoice (or its receipt) is. A one-off invoice has none.

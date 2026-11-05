@@ -35,12 +35,11 @@ extension AppModel {
             if library.invoice(id)?.payments.isEmpty ?? true { return show(LibraryError.noPayments, title: "Can't Send") }
         case .invoices(let ids):
             if ids.contains(where: { library.invoice($0)?.stage == .void }) { return show(LibraryError.isVoid, title: "Can't Send") }
+        case .statement:
+            break
         }
         guard let parts = mailParts(document) else { return }
-        let (what, draft) = (parts.what, parts.draft)
-        let name = Self.list(parts.numbers)
-        // Activity ties a line to one document; a line about several stands alone.
-        let number = parts.numbers.count == 1 ? name : nil
+        let (name, number, what, draft) = (parts.name, parts.number, parts.what, parts.draft)
         guard let clientID = parts.clientID else {
             return show(title: "No Client", text: "\(what.capitalizedFirst) \(name) has no client yet. Choose one first.", kind: .warning)
         }
@@ -150,6 +149,14 @@ extension AppModel {
             track(.sent, ["kind": "invoices", "count": ids.count])
             go(to: .dashboard)
             note("\(Self.list(ids.compactMap { library.invoice($0)?.number })) marked as sent")
+        case .statement(let id):
+            // Nothing changes stage; Activity keeps the record of when the client was last sent one.
+            guard let name = library.client(id)?.shownName else { return }
+            let owing = library.owingInvoices(forClient: id).reduce(Money.zero) { $0 + $1.owing }
+            guard change("Couldn't note the statement", { $0.log("Sent a statement to \(name), \(money(owing)) owing") })
+            else { return }
+            track(.sent, ["kind": "statement"])
+            note("Statement for \(name) sent")
         }
     }
 
@@ -168,30 +175,36 @@ extension AppModel {
         return items.dropLast().joined(separator: ", ") + " and " + last
     }
 
-    /// The numbers, a word for them, their client, the Mail wording and the PDF contents.
+    /// What the messages call it, the one document number Activity ties it to (none for several, or a
+    /// statement), a word for it, its client, the Mail wording and the PDF contents.
     private func mailParts(_ document: MailDocument)
-        -> (numbers: [String], what: String, clientID: UUID?, draft: MailDraft, contents: [DocumentContent])? {
+        -> (name: String, number: String?, what: String, clientID: UUID?, draft: MailDraft, contents: [DocumentContent])? {
         switch document {
         case .quote(let id):
             guard let quote = library.quote(id), let draft = library.mailDraft(forQuote: id),
                   let content = quoteContent(id) else { return nil }
-            return ([quote.number], "quote", quote.clientID, draft, [content])
+            return (quote.number, quote.number, "quote", quote.clientID, draft, [content])
         case .invoice(let id):
             guard let invoice = library.invoice(id), let draft = library.mailDraft(forInvoice: id),
                   let content = invoiceContent(id) else { return nil }
-            return ([invoice.number], "invoice", invoice.clientID, draft, [content])
+            return (invoice.number, invoice.number, "invoice", invoice.clientID, draft, [content])
         case .receipt(let id):
             guard let invoice = library.invoice(id), let draft = library.mailDraft(forReceipt: id) else { return nil }
             let plan = planSources(invoice)
             let content = DocumentContent.receipt(invoice, client: library.client(invoice.clientID), brand: library.brand,
                                                   quote: plan.quote, deposit: plan.deposit)
-            return ([invoice.number], "the receipt for", invoice.clientID, draft, [content])
+            return (invoice.number, invoice.number, "the receipt for", invoice.clientID, draft, [content])
         case .invoices(let ids):
             let invoices = ids.compactMap(library.invoice)
             let contents = ids.compactMap(invoiceContent)
             guard invoices.count == ids.count, contents.count == ids.count,
                   let draft = library.mailDraft(forInvoices: ids) else { return nil }
-            return (invoices.map(\.number), "invoices", invoices.first?.clientID, draft, contents)
+            return (Self.list(invoices.map(\.number)), nil, "invoices", invoices.first?.clientID, draft, contents)
+        case .statement(let id):
+            guard let client = library.client(id), let draft = library.mailDraft(forStatement: id) else { return nil }
+            let content = DocumentContent.statement(library.owingInvoices(forClient: id), client: client,
+                                                    brand: library.brand, on: today)
+            return (client.shownName, nil, "the statement for", id, draft, [content])
         }
     }
 }

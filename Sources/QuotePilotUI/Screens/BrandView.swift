@@ -455,6 +455,8 @@ struct EmailsTab: View {
             template("Receipt email", $brand.emails.receipt)
             template("Invoices sent together", $brand.emails.together,
                      note: "{count} is how many invoices, {list} has a line for each and {amount} is their total.")
+            template("Statement email", $brand.emails.statement,
+                     note: "{list} has a line for each invoice still owing and {amount} is the total owing.")
         }
     }
 
