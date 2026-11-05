@@ -15,6 +15,7 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.9.1"),
         Release("1.9.0", "Invoice templates: set one up in Brand → Documents, such as Billing for meeting time, then start an invoice from it with New Invoice in the toolbar."),
         Release("1.8.1", "Brand → Settings → Quote Pilot fee takes your first name and email, for the fee's invoice."),
         Release("1.8.0",
