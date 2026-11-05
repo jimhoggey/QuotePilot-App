@@ -15,12 +15,12 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.9.1"),
         Release("1.9.0", "Invoice templates: set one up in Brand → Documents, such as Billing for meeting time, then start an invoice from it with New Invoice in the toolbar."),
         Release("1.8.1", "Brand → Settings → Quote Pilot fee takes your first name and email, for the fee's invoice."),
         Release("1.8.0",
                 "Quotes can be paid in your own split, such as 30/70. Choose it in Brand → Documents → Custom split.",
-                "Send Together: ⌘-click draft invoices for one client in the Dashboard's Drafts list, then right-click to email them in one go.",
-                "Clients → Send Statement emails a client the invoices still owing, with the total."),
+                "Send Together: ⌘-click draft invoices for one client in the Dashboard's Drafts list, then right-click to email them in one go."),
         Release("1.7.1"),
         Release("1.7.0",
                 "The Dashboard lists the quotes and invoices you haven't sent yet, under Drafts not sent yet.",

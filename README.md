@@ -45,9 +45,6 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Send Together:** in the Dashboard's Drafts list, ⌘-click two or more draft invoices for one
   client, then right-click → Send Together. One Mail draft carries each invoice as its own PDF and
   lists them with the total; its wording is in Brand → Emails.
-- **Statements:** Clients → Send Statement emails a PDF of the client's sent invoices still owing,
-  with what each has had paid and the total owing. It goes with the invoices, never in place of
-  them, and Activity notes each one sent.
 - **Invoice templates:** Brand → Documents → Invoice templates holds invoices you send often, such as
   "Billing for meeting time" with an hour of meeting time. Once there's one, New Invoice in the
   toolbar offers a blank invoice or a template (File → New Invoice from Template does too).

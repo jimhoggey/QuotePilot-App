@@ -15,8 +15,7 @@ public enum UsageEvent: String, CaseIterable, Sendable {
     case invoiceCreated = "invoice_created"
     case clientCreated = "client_created"
     case expenseCreated = "expense_created"
-    /// kind: quote, invoice, receipt, invoices (with count, for Send Together) or statement. Sent once
-    /// the user says Yes, Sent.
+    /// kind: quote, invoice or receipt. Sent once the user says Yes, Sent.
     case sent
     case replyRead = "reply_read"
     case jobCompleted = "job_completed"
