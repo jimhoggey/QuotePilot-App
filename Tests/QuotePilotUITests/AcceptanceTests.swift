@@ -381,13 +381,21 @@ private struct SizeRecorder: Layout {
         #expect(try review(model).replacementNote == "This replaces the decision recorded on 15 October 2026.")
     }
 
+    static func quote(_ plan: PaymentPlan, split: Int? = nil) -> Quote {
+        var quote = Quote(number: "Q-0001", issued: UIFixture.today, validUntil: UIFixture.today, plan: plan)
+        quote.customSplit = split
+        return quote
+    }
+
     @Test func theDepositNoteUsesThePlansOwnPercent() {
-        let fifty = AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: Money(dollars: 450), ticked: true,
-                                                  currencyCode: "AUD")
-        #expect(fifty.contains("$225.00"))
-        #expect(AcceptanceReviewView.planNote(plan: .fullAmount, accepted: Money(dollars: 450), ticked: true,
-                                              currencyCode: "AUD").hasPrefix("Full amount"))
-        #expect(AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: .zero, ticked: false, currencyCode: "AUD")
+        let note = { (quote: Quote) in
+            AcceptanceReviewView.planNote(for: quote, accepted: Money(dollars: 450), ticked: true, currencyCode: "AUD")
+        }
+        #expect(note(Self.quote(.fiftyFifty)).contains("$225.00"))
+        #expect(note(Self.quote(.customSplit, split: 30)).hasPrefix("30% deposit"))
+        #expect(note(Self.quote(.customSplit, split: 30)).contains("$135.00"))
+        #expect(note(Self.quote(.fullAmount)).hasPrefix("Full amount"))
+        #expect(AcceptanceReviewView.planNote(for: Self.quote(.fiftyFifty), accepted: .zero, ticked: false, currencyCode: "AUD")
             .hasPrefix("Nothing is ticked"))
     }
 
@@ -395,7 +403,7 @@ private struct SizeRecorder: Layout {
     /// costs nothing still makes the button say Confirm, so the note must not say nothing is ticked.
     @Test func theNothingTickedNoteAndTheButtonAgree() throws {
         let note = { (ticked: Bool, money: Money) in
-            AcceptanceReviewView.planNote(plan: .fiftyFifty, accepted: money, ticked: ticked, currencyCode: "AUD")
+            AcceptanceReviewView.planNote(for: Self.quote(.fiftyFifty), accepted: money, ticked: ticked, currencyCode: "AUD")
         }
         #expect(note(false, .zero).hasPrefix("Nothing is ticked"))
         #expect(!note(true, .zero).hasPrefix("Nothing is ticked"))

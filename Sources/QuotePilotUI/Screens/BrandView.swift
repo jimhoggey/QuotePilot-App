@@ -387,6 +387,18 @@ struct DocumentsTab: View {
                     Text("New quotes above this total are 50% on acceptance and 50% on completion; the rest are paid in full on completion. Choosing a plan on a quote keeps it. Blank turns this off.")
                         .font(Win95.small)
                         .fixedSize(horizontal: false, vertical: true)
+                    Win95FieldRow("Custom split:") {
+                        Picker("Custom split", selection: $brand.customSplit) {
+                            Text("None").tag(Int?.none)
+                            ForEach(PaymentPlan.customSplits, id: \.self) { Text(PaymentPlan.splitName($0)).tag(Int?.some($0)) }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.menu)
+                        .fixedSize()
+                    }
+                    Text(Self.customSplitNote(brand.customSplit))
+                        .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Terms printed on quotes:")
                     Win95TextEditor(text: $brand.quoteTerms)
                         .frame(height: 60)
@@ -419,6 +431,13 @@ struct DocumentsTab: View {
         }
         .font(Win95.body)
         .foregroundStyle(Win95.text)
+    }
+
+    /// What the custom split does, under its picker.
+    static func customSplitNote(_ split: Int?) -> String {
+        guard let split else { return "Choose a split such as 30/70 to offer it on quotes beside 50/50 and the full amount." }
+        return "Quotes can also be paid \(split)% on acceptance and \(100 - split)% on completion. "
+            + "Draft quotes follow a change here; sent quotes keep their split."
     }
 }
 

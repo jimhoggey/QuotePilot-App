@@ -448,6 +448,18 @@ import QuotePilotPDF
         #expect(rep.map(Snapshot.hasContent) == true)
     }
 
+    /// The Documents tab with a custom split chosen (snapshot: brand-documents).
+    @Test func theDocumentsTabDrawsTheCustomSplit() throws {
+        let model = try UIFixture.sampleModel()
+        var brand = model.library.brand
+        brand.customSplit = 30
+        model.updateBrand(brand)
+        #expect(DocumentsTab.customSplitNote(30).hasPrefix("Quotes can also be paid 30% on acceptance and 70% on completion."))
+        let rep = Snapshot.render(BrandView(model: model, tab: .documents).background(Win95.face),
+                                  size: CGSize(width: 778, height: 620), name: "brand-documents")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
     @Test func theLookTabDraws() throws {
         let model = try UIFixture.sampleModel()
         let rep = Snapshot.render(BrandView(model: model, tab: .look).background(Win95.face),

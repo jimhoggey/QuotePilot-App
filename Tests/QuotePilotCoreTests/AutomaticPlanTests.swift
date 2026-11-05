@@ -22,11 +22,11 @@ import Testing
     }
 
     @Test func theSummarySaysWhatEachHalfComesTo() {
-        #expect(PaymentPlan.fiftyFifty.summary(for: Money(dollars: 1500), currencyCode: "AUD")
+        #expect(PaymentPlan.summary(depositPercent: 50, total: Money(dollars: 1500), currencyCode: "AUD")
                 == "50% ($750.00) when the quote is accepted, 50% ($750.00) on completion")
-        #expect(PaymentPlan.fiftyFifty.summary(for: Money(dollars: 1000, cents: 1), currencyCode: "AUD")
+        #expect(PaymentPlan.summary(depositPercent: 50, total: Money(dollars: 1000, cents: 1), currencyCode: "AUD")
                 == "50% ($500.01) when the quote is accepted, 50% ($500.00) on completion", "the halves add up")
-        #expect(PaymentPlan.fullAmount.summary(for: Money(dollars: 800), currencyCode: "AUD")
+        #expect(PaymentPlan.summary(depositPercent: nil, total: Money(dollars: 800), currencyCode: "AUD")
                 == "Full amount ($800.00) on completion")
     }
 

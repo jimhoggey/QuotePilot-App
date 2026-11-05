@@ -94,6 +94,9 @@ public struct Brand: Codable, Hashable, Sendable {
     /// Draft quotes with a total above this are 50/50, and the rest are the full amount on completion,
     /// until a quote's plan is chosen by hand (`Quote.planIsAutomatic`). $0 turns the rule off.
     public var splitAbove = Money(dollars: 1000)
+    /// Brand → Documents: the custom split's share billed when a quote is accepted, such as 30 for
+    /// 30/70, which quotes offer beside 50/50 and the full amount. Nil when there's none.
+    public var customSplit: Int?
     /// Brand → Settings: a Done tick box on each quote line, for the user's own tracking.
     public var showsDoneColumn = false
     /// Quote Pilot's own fee setting (Brand → Settings), kept with the library. Prints nowhere.
@@ -134,28 +137,34 @@ public struct Client: Codable, Hashable, Identifiable, Sendable {
 // MARK: - Quotes
 
 public enum PaymentPlan: String, Codable, CaseIterable, Sendable {
-    case fiftyFifty, fullAmount
+    /// The custom split is Brand's (`Brand.customSplit`), such as 30% when accepted and 70% on completion.
+    case fiftyFifty, fullAmount, customSplit
 
-    public var depositPercent: Int? { self == .fiftyFifty ? 50 : nil }
+    /// The custom splits Brand → Documents offers: the share billed when a quote is accepted.
+    public static let customSplits = [10, 20, 25, 30, 40, 60, 70, 75, 80, 90]
+    /// The shares a saved custom split may have; anything else makes the library unreadable.
+    static let splitRange = 1...99
 
-    public var summary: String {
+    /// "30/70"
+    public static func splitName(_ percent: Int) -> String { "\(percent)/\(100 - percent)" }
+
+    /// The share billed when the quote is accepted, or nil when the full amount is billed on completion.
+    public func depositPercent(customSplit: Int?) -> Int? {
         switch self {
-        case .fiftyFifty: return "50% when the quote is accepted, 50% on completion"
-        case .fullAmount: return "Full amount on completion"
+        case .fiftyFifty: return 50
+        case .fullAmount: return nil
+        case .customSplit: return customSplit ?? 50
         }
     }
 
-    /// The plan with its amounts for `total`, as the quote prints it: "50% ($750.00) when the quote
-    /// is accepted, 50% ($750.00) on completion". The halves add up to the total to the cent.
-    public func summary(for total: Money, currencyCode: String) -> String {
+    /// A plan with its amounts for `total`, as the quote prints it: "30% ($450.00) when the quote is
+    /// accepted, 70% ($1,050.00) on completion", or "Full amount ($1,500.00) on completion". The two
+    /// parts add up to the total to the cent.
+    public static func summary(depositPercent: Int?, total: Money, currencyCode: String) -> String {
         let money = { (amount: Money) in amount.formatted(currencyCode: currencyCode) }
-        switch self {
-        case .fiftyFifty:
-            let now = total.percent(50)
-            return "50% (\(money(now))) when the quote is accepted, 50% (\(money(total - now))) on completion"
-        case .fullAmount:
-            return "Full amount (\(money(total))) on completion"
-        }
+        guard let percent = depositPercent else { return "Full amount (\(money(total))) on completion" }
+        let now = total.percent(percent)
+        return "\(percent)% (\(money(now))) when the quote is accepted, \(100 - percent)% (\(money(total - now))) on completion"
     }
 
     /// Brand's rule (`Brand.splitAbove`): 50/50 for a total above `splitAbove`, otherwise the full
@@ -223,6 +232,9 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
     /// True while the plan follows Brand's rule (`Brand.splitAbove`): set on a new quote, and
     /// cleared for good once the plan is chosen by hand.
     public var planIsAutomatic = false
+    /// The custom split's share billed on acceptance (`PaymentPlan.customSplit`): Brand's while the
+    /// quote is a draft (`follow(customSplit:)`), kept as it was once the quote is sent.
+    public var customSplit: Int?
     /// The lines the user has ticked Done while doing the work: their own tracker, never printed and
     /// never part of what's billed, so it can change at any stage.
     public var doneLines: Set<UUID> = []
@@ -243,6 +255,24 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
         self.summary = summary
         self.terms = terms
         self.stage = stage
+    }
+
+    /// The share billed when the quote is accepted, or nil when it's paid in full on completion.
+    public var depositPercent: Int? { plan.depositPercent(customSplit: customSplit) }
+
+    /// The plans the quote offers: the custom split only when there is one.
+    public var plans: [PaymentPlan] { customSplit == nil ? [.fiftyFifty, .fullAmount] : PaymentPlan.allCases }
+
+    /// `plan` with this quote's amounts, as the quote prints it (`PaymentPlan.summary`).
+    public func summary(of plan: PaymentPlan, currencyCode: String) -> String {
+        PaymentPlan.summary(depositPercent: plan.depositPercent(customSplit: customSplit), total: totals.total,
+                            currencyCode: currencyCode)
+    }
+
+    /// A draft follows Brand's custom split; with none left, a draft on the custom split goes back to 50/50.
+    mutating func follow(customSplit: Int?) {
+        self.customSplit = customSplit
+        if customSplit == nil, plan == .customSplit { plan = .fiftyFifty }
     }
 
     public var totals: Totals { Totals(subtotal: lines.subtotal, taxed: taxed) }
@@ -396,7 +426,7 @@ extension Brand {
     enum CodingKeys: String, CodingKey {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
-        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee, splitAbove, showsDoneColumn
+        case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee, splitAbove, customSplit, showsDoneColumn
     }
 
     public init(from decoder: Decoder) throws {
@@ -423,6 +453,7 @@ extension Brand {
         bodyFontStyle = try? c.decodeIfPresent(FontStyle.self, forKey: .bodyFontStyle)
         appFee = try c.value(.appFee, or: d.appFee)
         splitAbove = try c.value(.splitAbove, or: d.splitAbove)
+        customSplit = try c.decodeIfPresent(Int.self, forKey: .customSplit)
         showsDoneColumn = try c.value(.showsDoneColumn, or: d.showsDoneColumn)
     }
 }
@@ -447,7 +478,8 @@ extension Client {
 extension Quote {
     enum CodingKeys: String, CodingKey {
         case id, number, clientID, title, issued, validUntil, plan, taxed, lines, lastLineNumber
-        case summary, included, notIncluded, terms, stage, sentAt, acceptance, completedOn, planIsAutomatic, doneLines
+        case summary, included, notIncluded, terms, stage, sentAt, acceptance, completedOn, planIsAutomatic, customSplit
+        case doneLines
     }
 
     public init(from decoder: Decoder) throws {
@@ -472,6 +504,7 @@ extension Quote {
         completedOn = try c.decodeIfPresent(Day.self, forKey: .completedOn)
         // Quotes from before the rule keep the plan they have.
         planIsAutomatic = try c.value(.planIsAutomatic, or: false)
+        customSplit = try c.decodeIfPresent(Int.self, forKey: .customSplit)
         doneLines = try c.value(.doneLines, or: [])
     }
 }

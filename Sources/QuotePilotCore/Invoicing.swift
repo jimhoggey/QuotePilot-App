@@ -39,7 +39,7 @@ extension InvoiceKind {
         }
     }
 
-    /// The invoice that closes a quote's billing: the final one for 50/50, the full one otherwise.
+    /// The invoice that closes a quote's billing: the final one for a split, the full one otherwise.
     /// A quote has at most one, whichever the plan says, and it subtracts every live deposit.
     var isClosing: Bool { self == .final || self == .full }
 }
@@ -75,10 +75,8 @@ extension Library {
         guard let found = quote(id), found.stage == .accepted, !found.acceptedLines.isEmpty else { return nil }
         let kinds = invoices(forQuote: id).map(\.kind)
         if kinds.contains(where: \.isClosing) { return nil }
-        switch found.plan {
-        case .fiftyFifty: return kinds.contains(.deposit) ? .final : .deposit
-        case .fullAmount: return .full
-        }
+        guard found.depositPercent != nil else { return .full }
+        return kinds.contains(.deposit) ? .final : .deposit
     }
 
     /// "Draft invoice now": the deposit if there isn't one yet, otherwise the closing invoice.
@@ -90,7 +88,7 @@ extension Library {
     }
 
     /// "Job complete": records the date, then drafts the closing invoice unless it already exists.
-    /// For 50/50 without a deposit invoice, the final invoice simply bills the whole accepted total.
+    /// For a split without a deposit invoice, the final invoice simply bills the whole accepted total.
     @discardableResult
     public mutating func completeJob(quote id: UUID, on day: Day) throws -> Invoice? {
         let found = try acceptedQuote(id)
@@ -99,7 +97,7 @@ extension Library {
             quotes[index].completedOn = day
             log("Marked the job for \(found.number) complete", number: found.number)
         }
-        let closing: InvoiceKind = found.plan == .fiftyFifty ? .final : .full
+        let closing: InvoiceKind = found.depositPercent == nil ? .full : .final
         guard !invoices(forQuote: id).contains(where: { $0.kind.isClosing }) else { return nil }
         return draftInvoice(closing, for: found, on: day)
     }
@@ -123,7 +121,7 @@ extension Library {
         return max(total - paid, .zero)
     }
 
-    /// The quote's live closing invoice (the final one for 50/50, the full one otherwise), or nil when
+    /// The quote's live closing invoice (the final one for a split, the full one otherwise), or nil when
     /// it has none yet or its closing invoice was voided.
     public func closingInvoice(forQuote id: UUID) -> Invoice? {
         invoices(forQuote: id).first { $0.kind.isClosing }
@@ -161,7 +159,7 @@ extension Library {
                               due: day.adding(days: brand.paymentDueDays), taxed: quote.taxed,
                               lines: quote.acceptedLines.map(\.freshCopy), terms: brand.invoiceTerms)
         if kind == .deposit {
-            invoice.depositPercent = quote.plan.depositPercent ?? 50
+            invoice.depositPercent = quote.depositPercent
         }
         if kind.isClosing {
             invoice.deductions = invoices(forQuote: quote.id)
@@ -261,6 +259,7 @@ extension Library {
         for line in original.lines {
             copy.addLine(line.freshCopy)
         }
+        copy.follow(customSplit: brand.customSplit)
         quotes.append(copy)
         log("Copied quote \(original.number) to \(copy.number)", number: copy.number)
         return copy

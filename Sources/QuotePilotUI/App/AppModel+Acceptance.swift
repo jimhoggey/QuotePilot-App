@@ -196,7 +196,7 @@ extension AppModel {
     }
 
     /// Records the review as it stands, with no question. Nothing ticked records a decline: the
-    /// review's own button says so (`confirmTitle`). A 50/50 quote that has something accepted also
+    /// review's own button says so (`confirmTitle`). A split quote that has something accepted also
     /// gets its deposit drafted and opened, in the same save.
     public func confirmAcceptance(_ review: AcceptanceReview) {
         guard review.canBeConfirmed, library.quote(review.quoteID) != nil else { return }
@@ -210,7 +210,7 @@ extension AppModel {
         var deposit: UUID?
         let saved = change("Couldn't record the acceptance") { library in
             try library.recordAcceptance(acceptance, forQuote: review.quoteID)
-            if library.quote(review.quoteID)?.plan == .fiftyFifty, !review.accepted.isEmpty {
+            if library.quote(review.quoteID)?.depositPercent != nil, !review.accepted.isEmpty {
                 deposit = try library.draftNextInvoice(forQuote: review.quoteID, on: today).id
             }
         }
