@@ -134,9 +134,10 @@ final class Layout {
             texts.map { PageWriter.width(of: PageWriter.text($0, font, PDFStyle.ink)) }.max() ?? 0
         }
         let label = style.body(7.5, weight: .medium)
-        let qty = max(widest(content.rows.map(\.quantity), style.numbers(9.5)), widest(["Qty"], label))
-        let rate = max(widest(content.rows.map(\.rate), style.numbers(9.5)), widest(["Rate"], label))
-        let amount = max(widest(content.rows.map(\.amount), style.numbers(9.5, weight: .medium)), widest(["Amount"], label))
+        let qty = max(widest(content.rows.map(\.quantity), style.numbers(9.5)), widest([content.columns.quantity], label))
+        let rate = max(widest(content.rows.map(\.rate), style.numbers(9.5)), widest([content.columns.rate], label))
+        let amount = max(widest(content.rows.map(\.amount), style.numbers(9.5, weight: .medium)),
+                         widest([content.columns.amount], label))
         amountRight = writer.right
         rateRight = amountRight - max(Self.amountColumn, ceil(amount) + Self.columnGap)
         qtyRight = rateRight - max(Self.rateColumn, ceil(rate) + Self.columnGap)
@@ -328,10 +329,10 @@ final class Layout {
     private func drawTableHeader() {
         let top = writer.y
         if content.showCodes { writer.draw(label("ID"), x: codeX, top: top, width: 26) }
-        writer.draw(label("Description"), x: descX, top: top, width: descWidth)
-        writer.drawRight(label("Qty"), right: qtyRight, top: top)
-        writer.drawRight(label("Rate"), right: rateRight, top: top)
-        writer.drawRight(label("Amount"), right: amountRight, top: top)
+        writer.draw(label(content.columns.description), x: descX, top: top, width: descWidth)
+        writer.drawRight(label(content.columns.quantity), right: qtyRight, top: top)
+        writer.drawRight(label(content.columns.rate), right: rateRight, top: top)
+        writer.drawRight(label(content.columns.amount), right: amountRight, top: top)
         writer.y += 13
         writer.rule(top: writer.y, x: writer.left, width: writer.width, color: PDFStyle.ink, thickness: 1)
         writer.y += 4

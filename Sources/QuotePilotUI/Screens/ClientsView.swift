@@ -114,8 +114,13 @@ struct ClientForm: View {
                         Win95FieldRow("Invoiced:") { Text(model.money(summary.invoiced)).font(Win95.money) }
                         Win95FieldRow("Paid:") { Text(model.money(summary.paid)).font(Win95.money) }
                         Win95FieldRow("Owing:") { Text(model.money(summary.owing)).font(Win95.money) }
-                        Button("New Quote for This Client") { model.newQuote(for: clientID) }
-                            .buttonStyle(.win95)
+                        HStack(spacing: 6) {
+                            Button("New Quote for This Client") { model.newQuote(for: clientID) }
+                            Button("Send Statement") { model.send(.statement(clientID)) }
+                                .disabled(model.library.owingInvoices(forClient: clientID).isEmpty)
+                                .help("Email a statement of the invoices still owing, with the total")
+                        }
+                        .buttonStyle(.win95)
                     }
                     .foregroundStyle(Win95.text)
                 }

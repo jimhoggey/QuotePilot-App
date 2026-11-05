@@ -37,4 +37,6 @@ public enum MailDocument: Equatable, Hashable {
     case receipt(UUID)
     /// Several draft invoices for one client, in one email (Send Together).
     case invoices([UUID])
+    /// A statement of the invoices this client still owes.
+    case statement(UUID)
 }

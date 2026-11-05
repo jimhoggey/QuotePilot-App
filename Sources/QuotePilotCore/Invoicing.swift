@@ -60,6 +60,13 @@ extension Library {
         invoices.filter { $0.quoteID == id && $0.stage != .void }
     }
 
+    /// What a statement lists: the client's sent invoices still owing money, oldest first. Drafts
+    /// haven't been asked for yet, and void invoices are owed by nobody.
+    public func owingInvoices(forClient id: UUID) -> [Invoice] {
+        invoices.filter { $0.clientID == id && $0.stage == .sent && $0.owing > .zero }
+            .sorted { ($0.issued, $0.number) < ($1.issued, $1.number) }
+    }
+
     public func invoicedAmount(forQuote id: UUID) -> Money {
         invoices(forQuote: id).reduce(.zero) { $0 + $1.amount }
     }

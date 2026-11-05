@@ -45,6 +45,9 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Send Together:** in the Dashboard's Drafts list, ⌘-click two or more draft invoices for one
   client, then right-click → Send Together. One Mail draft carries each invoice as its own PDF and
   lists them with the total; its wording is in Brand → Emails.
+- **Statements:** Clients → Send Statement emails a PDF of the client's sent invoices still owing,
+  with what each has had paid and the total owing. It goes with the invoices, never in place of
+  them, and Activity notes each one sent.
 - **Returned quotes:** drop the client's PDF anywhere on the window, or use Read Reply (the
   toolbar, or File → Read Reply…). Check the ticks and confirm. A 50/50 quote then drafts its deposit invoice. If the
   client's app lost the ticks, tick the lines by hand.
