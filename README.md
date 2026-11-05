@@ -42,6 +42,9 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Quotes:** an editor with a live preview of the PDF the client will tick. Quote Pilot never sends
   email itself. **Send by Mail** opens a Mail draft with the PDF attached; you press Send in Mail,
   then Quote Pilot asks "Did you send it?".
+- **Send Together:** in the Dashboard's Drafts list, ⌘-click two or more draft invoices for one
+  client, then right-click → Send Together. One Mail draft carries each invoice as its own PDF and
+  lists them with the total; its wording is in Brand → Emails.
 - **Returned quotes:** drop the client's PDF anywhere on the window, or use Read Reply (the
   toolbar, or File → Read Reply…). Check the ticks and confirm. A 50/50 quote then drafts its deposit invoice. If the
   client's app lost the ticks, tick the lines by hand.

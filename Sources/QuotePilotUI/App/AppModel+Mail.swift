@@ -21,8 +21,8 @@ extension AppModel {
         }
     }
 
-    /// Saves the PDF to the sent folder, opens a Mail draft, then asks "Did you send it?". Yes marks
-    /// the document Sent; Not Yet changes nothing.
+    /// Saves the PDFs to the sent folder, opens a Mail draft, then asks "Did you send it?". Yes marks
+    /// the documents Sent; Not Yet changes nothing.
     public func send(_ document: MailDocument) {
         guard loadState == .ready else { return }
         // What can't be sent says so before anything is written.
@@ -33,41 +33,50 @@ extension AppModel {
             if library.invoice(id)?.stage == .void { return show(LibraryError.isVoid, title: "Can't Send") }
         case .receipt(let id):
             if library.invoice(id)?.payments.isEmpty ?? true { return show(LibraryError.noPayments, title: "Can't Send") }
+        case .invoices(let ids):
+            if ids.contains(where: { library.invoice($0)?.stage == .void }) { return show(LibraryError.isVoid, title: "Can't Send") }
         }
         guard let parts = mailParts(document) else { return }
-        let (number, what, draft, content) = (parts.number, parts.what, parts.draft, parts.content)
+        let (what, draft) = (parts.what, parts.draft)
+        let name = Self.list(parts.numbers)
+        // Activity ties a line to one document; a line about several stands alone.
+        let number = parts.numbers.count == 1 ? name : nil
         guard let clientID = parts.clientID else {
-            return show(title: "No Client", text: "\(what.capitalizedFirst) \(number) has no client yet. Choose one first.", kind: .warning)
+            return show(title: "No Client", text: "\(what.capitalizedFirst) \(name) has no client yet. Choose one first.", kind: .warning)
         }
         guard !draft.to.isEmpty else {
             dialog = .emailPrompt(clientID: clientID, document: document)
             return
         }
-        let data = pdf(content)
-        if case .quote = document, !DocumentRenderer.hasForm(data, quoteNumber: number) {
+        let pdfs = parts.contents.map { (content: $0, data: pdf($0)) }
+        if case .quote = document, let quote = pdfs.first, !DocumentRenderer.hasForm(quote.data, quoteNumber: name) {
             return show(title: "Quote Not Sent",
-                        text: "Quote Pilot couldn't add the tick boxes to \(number)'s PDF, so it isn't safe to send. Nothing was changed.",
+                        text: "Quote Pilot couldn't add the tick boxes to \(name)'s PDF, so it isn't safe to send. Nothing was changed.",
                         kind: .warning)
         }
-        let url = SentArchive.freshURL(for: content.fileName, year: today.year, in: sentFolder)
+        let urls: [URL]
         do {
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try data.write(to: url, options: .atomic)
+            urls = try pdfs.map { pdf in
+                let url = SentArchive.freshURL(for: pdf.content.fileName, year: today.year, in: sentFolder)
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try pdf.data.write(to: url, options: .atomic)
+                return url
+            }
         } catch {
             return show(error, title: "Couldn't save the PDF to send")
         }
 
         let question: String
-        if mail.compose(to: draft.to, subject: draft.subject, body: draft.body, attachment: url) {
-            change("Couldn't note the Mail draft") { $0.log("Opened a Mail draft of \(what) \(number) to \(draft.to)", number: number) }
-            question = "Quote Pilot opened a Mail draft of \(what) \(number) to \(draft.to). Did you send it?"
+        if mail.compose(to: draft.to, subject: draft.subject, body: draft.body, attachments: urls) {
+            change("Couldn't note the Mail draft") { $0.log("Opened a Mail draft of \(what) \(name) to \(draft.to)", number: number) }
+            question = "Quote Pilot opened a Mail draft of \(what) \(name) to \(draft.to). Did you send it?"
                 + (Self.isOutsideWorkingHours(now()) ? " " + Self.sendLaterHint : "")
         } else {
-            mail.setAside(message: "To: \(draft.to)\nSubject: \(draft.subject)\n\n\(draft.body)", attachment: url)
+            mail.setAside(message: "To: \(draft.to)\nSubject: \(draft.subject)\n\n\(draft.body)", attachments: urls)
             change("Couldn't note the Mail problem") {
-                $0.log("Mail couldn't open a draft of \(what) \(number); the PDF and message were set aside", number: number)
+                $0.log("Mail couldn't open a draft of \(what) \(name); the PDF and message were set aside", number: number)
             }
-            question = "Mail couldn't open a draft. The PDF is shown in Finder and the message is on the clipboard, ready to paste into any email app. Did you send \(what) \(number)?"
+            question = "Mail couldn't open a draft. The PDF is shown in Finder and the message is on the clipboard, ready to paste into any email app. Did you send \(what) \(name)?"
         }
         message = MessageBox(kind: .question, title: "Did You Send It?", text: question, choices: [
             MessageBox.Choice("Yes, Sent", isDefault: true) { self.markSent(document) },
@@ -131,27 +140,55 @@ extension AppModel {
             openInvoiceID = nil
             go(to: .dashboard)
             note("Receipt for \(number) marked as sent")
+        case .invoices(let ids):
+            let time = now()
+            guard change("Couldn't mark them sent", { library in try ids.forEach { try library.markSent(invoice: $0, at: time) } })
+            else { return }
+            track(.sent, ["kind": "invoices", "count": ids.count])
+            go(to: .dashboard)
+            note("\(Self.list(ids.compactMap { library.invoice($0)?.number })) marked as sent")
         }
     }
 
-    /// The number, a word for it, its client, the Mail wording and the PDF content.
+    /// Send Together: two or more draft invoices for one client, in number order. Nil for any other
+    /// selection, so the menu item is greyed out.
+    public func togetherDocument(_ ids: Set<UUID>) -> MailDocument? {
+        let invoices = ids.compactMap(library.invoice)
+        guard !isLocked, invoices.count > 1, invoices.count == ids.count, invoices.allSatisfy({ $0.stage == .draft }),
+              let client = invoices[0].clientID, invoices.allSatisfy({ $0.clientID == client }) else { return nil }
+        return .invoices(invoices.sorted { $0.number.localizedStandardCompare($1.number) == .orderedAscending }.map(\.id))
+    }
+
+    /// "INV-0004", "INV-0004 and INV-0005", "INV-0004, INV-0005 and INV-0006"
+    static func list(_ items: [String]) -> String {
+        guard let last = items.last, items.count > 1 else { return items.joined() }
+        return items.dropLast().joined(separator: ", ") + " and " + last
+    }
+
+    /// The numbers, a word for them, their client, the Mail wording and the PDF contents.
     private func mailParts(_ document: MailDocument)
-        -> (number: String, what: String, clientID: UUID?, draft: MailDraft, content: DocumentContent)? {
+        -> (numbers: [String], what: String, clientID: UUID?, draft: MailDraft, contents: [DocumentContent])? {
         switch document {
         case .quote(let id):
             guard let quote = library.quote(id), let draft = library.mailDraft(forQuote: id),
                   let content = quoteContent(id) else { return nil }
-            return (quote.number, "quote", quote.clientID, draft, content)
+            return ([quote.number], "quote", quote.clientID, draft, [content])
         case .invoice(let id):
             guard let invoice = library.invoice(id), let draft = library.mailDraft(forInvoice: id),
                   let content = invoiceContent(id) else { return nil }
-            return (invoice.number, "invoice", invoice.clientID, draft, content)
+            return ([invoice.number], "invoice", invoice.clientID, draft, [content])
         case .receipt(let id):
             guard let invoice = library.invoice(id), let draft = library.mailDraft(forReceipt: id) else { return nil }
             let plan = planSources(invoice)
             let content = DocumentContent.receipt(invoice, client: library.client(invoice.clientID), brand: library.brand,
                                                   quote: plan.quote, deposit: plan.deposit)
-            return (invoice.number, "the receipt for", invoice.clientID, draft, content)
+            return ([invoice.number], "the receipt for", invoice.clientID, draft, [content])
+        case .invoices(let ids):
+            let invoices = ids.compactMap(library.invoice)
+            let contents = ids.compactMap(invoiceContent)
+            guard invoices.count == ids.count, contents.count == ids.count,
+                  let draft = library.mailDraft(forInvoices: ids) else { return nil }
+            return (invoices.map(\.number), "invoices", invoices.first?.clientID, draft, contents)
         }
     }
 }
