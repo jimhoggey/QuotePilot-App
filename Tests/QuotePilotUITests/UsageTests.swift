@@ -49,6 +49,16 @@ import Testing
         #expect(system["isDebug"] as? Bool == false)
         #expect(system["sdkVersion"] as? String == "quotepilot-swift@1")
         #expect((event["sessionId"] as? String)?.isEmpty == false)
+        #expect((system["locale"] as? String).map { $0.count <= 10 } == true)
+    }
+
+    /// Aptabase refuses a locale over 10 characters, so every event from a Mac set to US English in
+    /// Australia ("en_US@rg=auzzzz") was refused.
+    @Test func theLocaleIsLanguageAndRegionOnly() {
+        #expect(Usage.localeTag(Locale(identifier: "en_US@rg=auzzzz")) == "en-AU")
+        #expect(Usage.localeTag(Locale(identifier: "en_AU")) == "en-AU")
+        #expect(Usage.localeTag(Locale(identifier: "zh-Hant_TW")) == "zh-TW")
+        #expect(Usage.localeTag(Locale(identifier: "de")) == "de")
     }
 
     @Test func aPaymentSaysHowItWasPaidNotHowMuch() throws {
