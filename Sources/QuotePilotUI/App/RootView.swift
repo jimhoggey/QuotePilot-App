@@ -140,7 +140,7 @@ struct Win95Toolbar: View {
             HStack(spacing: 2) {
                 // Greyed out while the fee lock is on (`canEdit`); Save PDF stays.
                 tool("New Quote", .quote, help: "Start a new quote (⌘N)", enabled: model.canEdit) { model.newQuote() }
-                tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)", enabled: model.canEdit) { model.newInvoice() }
+                newInvoiceTool
                 ToolbarSeparator()
                 // Sending and payments live on the quote and invoice screens (Send by Mail… and the
                 // Payments box), so the toolbar keeps to making documents and PDFs in and out.
@@ -159,19 +159,48 @@ struct Win95Toolbar: View {
         .background(Win95.face)
     }
 
+    /// New Invoice: a blank invoice, or once there are invoice templates with a title (Brand →
+    /// Documents), a menu of a blank one and each of those.
+    @ViewBuilder
+    private var newInvoiceTool: some View {
+        let templates = model.library.brand.offeredInvoiceTemplates
+        if templates.isEmpty {
+            tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)", enabled: model.canEdit) { model.newInvoice() }
+        } else {
+            Menu {
+                Button("Blank Invoice") { model.newInvoice() }
+                Divider()
+                ForEach(templates) { template in
+                    Button(template.title) { model.newInvoice(from: template) }
+                }
+            } label: {
+                toolLabel("New Invoice", .invoice)
+            }
+            .menuStyle(.button)
+            .menuIndicator(.hidden)
+            .buttonStyle(Win95ToolbarButtonStyle())
+            .fixedSize()
+            .disabled(!model.canEdit)
+            .help("Start a one-off invoice, blank or from a template (⇧⌘N for blank)")
+            .accessibilityLabel("New Invoice")
+        }
+    }
+
     private func tool(_ title: String, _ icon: PixelIcon, help: String, enabled: Bool = true,
                       action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                PixelIconView(icon, size: 32)
-                Text(title)
-            }
+        Button(action: action) { toolLabel(title, icon) }
+            .buttonStyle(Win95ToolbarButtonStyle())
+            .disabled(!enabled)
+            .help(help)
+            .accessibilityLabel(title)
+            .accessibilityHint(help)
+    }
+
+    private func toolLabel(_ title: String, _ icon: PixelIcon) -> some View {
+        VStack(spacing: 4) {
+            PixelIconView(icon, size: 32)
+            Text(title)
         }
-        .buttonStyle(Win95ToolbarButtonStyle())
-        .disabled(!enabled)
-        .help(help)
-        .accessibilityLabel(title)
-        .accessibilityHint(help)
     }
 }
 

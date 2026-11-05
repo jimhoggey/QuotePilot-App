@@ -48,6 +48,9 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Statements:** Clients → Send Statement emails a PDF of the client's sent invoices still owing,
   with what each has had paid and the total owing. It goes with the invoices, never in place of
   them, and Activity notes each one sent.
+- **Invoice templates:** Brand → Documents → Invoice templates holds invoices you send often, such as
+  "Billing for meeting time" with an hour of meeting time. Once there's one, New Invoice in the
+  toolbar offers a blank invoice or a template (File → New Invoice from Template does too).
 - **Returned quotes:** drop the client's PDF anywhere on the window, or use Read Reply (the
   toolbar, or File → Read Reply…). Check the ticks and confirm. A 50/50 quote then drafts its deposit invoice. If the
   client's app lost the ticks, tick the lines by hand.
