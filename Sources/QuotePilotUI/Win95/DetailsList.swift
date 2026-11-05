@@ -243,8 +243,8 @@ public struct DetailsList<Row, ID: Hashable>: View {
                 .focusable()
                 .focusEffectDisabled()
                 .focused($focused)
-                .onKeyPress(.upArrow) { step(-1, ordered, proxy) }
-                .onKeyPress(.downArrow) { step(1, ordered, proxy) }
+                .onKeyPress(.upArrow) { step(-1, ids, proxy) }
+                .onKeyPress(.downArrow) { step(1, ids, proxy) }
                 .onKeyPress(.return) { openSelection(ordered) }
             }
         }
@@ -341,8 +341,7 @@ public struct DetailsList<Row, ID: Hashable>: View {
         return "\(columns[index].title), sorted \(sort.ascending ? "ascending" : "descending")"
     }
 
-    private func step(_ delta: Int, _ ordered: [Row], _ proxy: ScrollViewProxy) -> KeyPress.Result {
-        let ids = ordered.map { $0[keyPath: id] }
+    private func step(_ delta: Int, _ ids: [ID], _ proxy: ScrollViewProxy) -> KeyPress.Result {
         guard !ids.isEmpty else { return .ignored }
         let current = selection.flatMap { ids.firstIndex(of: $0) }
         let next = current.map { min(max($0 + delta, 0), ids.count - 1) } ?? (delta > 0 ? 0 : ids.count - 1)
@@ -354,10 +353,12 @@ public struct DetailsList<Row, ID: Hashable>: View {
     /// Chooses rows as `DetailsLayout.chosen` says and moves the selection to `rowID`, except that
     /// ⇧-click keeps the selection where it is, as the anchor of the range.
     private func click(_ rowID: ID, in ids: [ID], modifiers: NSEvent.ModifierFlags) {
+        // Rows gone from the list (sent, deleted) are neither chosen nor the anchor any more.
+        let anchor = selection.flatMap { ids.contains($0) ? $0 : nil }
         if let chosen {
-            chosen.wrappedValue = DetailsLayout.chosen(clicking: rowID, in: ids, chosen: chosen.wrappedValue,
-                                                       anchor: selection, modifiers: modifiers)
-            if modifiers.contains(.shift), selection != nil { return }
+            chosen.wrappedValue = DetailsLayout.chosen(clicking: rowID, in: ids, chosen: chosen.wrappedValue.intersection(ids),
+                                                       anchor: anchor, modifiers: modifiers)
+            if modifiers.contains(.shift), anchor != nil { return }
         }
         selection = rowID
     }

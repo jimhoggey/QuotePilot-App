@@ -64,8 +64,11 @@ struct DashboardView: View {
                     DetailsList(dashboard.drafts, id: \.id, columns: draftColumns, selection: $selectedDraft,
                                 chosen: $chosenDrafts, emptyText: "No drafts.",
                                 onOpen: { model.library.invoice($0) == nil ? model.openQuote($0) : model.openInvoice($0) },
-                                rowMenu: { _ in
-                                    let together = model.togetherDocument(chosenDrafts)
+                                rowMenu: { id in
+                                    // The menu is built before the right-click chooses its row: on a row
+                                    // outside the chosen ones it's that row alone, as the click will make it.
+                                    let rows = chosenDrafts.contains(id) ? chosenDrafts.intersection(dashboard.drafts.map(\.id)) : [id]
+                                    let together = model.togetherDocument(rows)
                                     return AnyView(Button("Send Together") { together.map(model.send) }.disabled(together == nil))
                                 })
                     .help("⌘-click to choose several invoices for one client, then right-click → Send Together.")

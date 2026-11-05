@@ -54,19 +54,22 @@ extension AppModel {
                         text: "Quote Pilot couldn't add the tick boxes to \(name)'s PDF, so it isn't safe to send. Nothing was changed.",
                         kind: .warning)
         }
-        let urls: [URL]
+        var urls: [URL] = []
         do {
-            urls = try pdfs.map { pdf in
+            for pdf in pdfs {
                 let url = SentArchive.freshURL(for: pdf.content.fileName, year: today.year, in: sentFolder)
                 try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try pdf.data.write(to: url, options: .atomic)
-                return url
+                urls.append(url)
             }
         } catch {
+            // None of a half-written set stays in the sent folder: nothing was sent.
+            urls.forEach { try? FileManager.default.removeItem(at: $0) }
             return show(error, title: "Couldn't save the PDF to send")
         }
 
         let question: String
+        let thePDFs = urls.count == 1 ? "the PDF" : "the PDFs"
         if mail.compose(to: draft.to, subject: draft.subject, body: draft.body, attachments: urls) {
             change("Couldn't note the Mail draft") { $0.log("Opened a Mail draft of \(what) \(name) to \(draft.to)", number: number) }
             question = "Quote Pilot opened a Mail draft of \(what) \(name) to \(draft.to). Did you send it?"
@@ -74,9 +77,9 @@ extension AppModel {
         } else {
             mail.setAside(message: "To: \(draft.to)\nSubject: \(draft.subject)\n\n\(draft.body)", attachments: urls)
             change("Couldn't note the Mail problem") {
-                $0.log("Mail couldn't open a draft of \(what) \(name); the PDF and message were set aside", number: number)
+                $0.log("Mail couldn't open a draft of \(what) \(name); \(thePDFs) and message were set aside", number: number)
             }
-            question = "Mail couldn't open a draft. The PDF is shown in Finder and the message is on the clipboard, ready to paste into any email app. Did you send \(what) \(name)?"
+            question = "Mail couldn't open a draft. \(thePDFs.capitalizedFirst) \(urls.count == 1 ? "is" : "are") shown in Finder and the message is on the clipboard, ready to paste into any email app. Did you send \(what) \(name)?"
         }
         message = MessageBox(kind: .question, title: "Did You Send It?", text: question, choices: [
             MessageBox.Choice("Yes, Sent", isDefault: true) { self.markSent(document) },

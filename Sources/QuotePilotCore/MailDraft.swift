@@ -36,9 +36,9 @@ extension Library {
 
     /// Send Together: one email to the invoices' client, listing each invoice by number with its title,
     /// amount and due date ("• INV-0004, Website updates, $750.00, due 19 November 2026"), and the total.
-    /// The invoices go in number order. Nil when one of them is missing.
+    /// The invoices are listed in the order given, the order of their PDFs. Nil when one is missing.
     public func mailDraft(forInvoices ids: [UUID]) -> MailDraft? {
-        let found = ids.compactMap(invoice).sorted { $0.number.localizedStandardCompare($1.number) == .orderedAscending }
+        let found = ids.compactMap(invoice)
         guard found.count == ids.count, let first = found.first else { return nil }
         let money = { (amount: Money) in amount.formatted(currencyCode: self.brand.currencyCode) }
         let list = found.map { invoice in
