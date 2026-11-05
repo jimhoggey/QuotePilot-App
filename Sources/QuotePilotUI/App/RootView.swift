@@ -159,11 +159,11 @@ struct Win95Toolbar: View {
         .background(Win95.face)
     }
 
-    /// New Invoice: a blank invoice, or once there are invoice templates (Brand → Documents), a menu
-    /// of a blank one and each template.
+    /// New Invoice: a blank invoice, or once there are invoice templates with a title (Brand →
+    /// Documents), a menu of a blank one and each of those.
     @ViewBuilder
     private var newInvoiceTool: some View {
-        let templates = model.library.brand.invoiceTemplates
+        let templates = model.library.brand.offeredInvoiceTemplates
         if templates.isEmpty {
             tool("New Invoice", .invoice, help: "Start a one-off invoice (⇧⌘N)", enabled: model.canEdit) { model.newInvoice() }
         } else {
@@ -171,7 +171,7 @@ struct Win95Toolbar: View {
                 Button("Blank Invoice") { model.newInvoice() }
                 Divider()
                 ForEach(templates) { template in
-                    Button(template.shownTitle) { model.newInvoice(from: template) }
+                    Button(template.title) { model.newInvoice(from: template) }
                 }
             } label: {
                 toolLabel("New Invoice", .invoice)

@@ -2,8 +2,8 @@ import QuotePilotCore
 import SwiftUI
 
 /// Brand → Documents' invoice templates: choose one to change its title and lines, or start a new
-/// one. New Invoice in the toolbar offers them once there are any. The lines are a compact table
-/// (item, quantity, unit, rate), as the tab shares the window with the sample preview.
+/// one. New Invoice in the toolbar offers those with a title. The lines are a compact table (item,
+/// quantity, unit, rate), as the tab shares the window with the sample preview.
 struct InvoiceTemplatesBox: View {
     let model: AppModel
     @Binding var templates: [InvoiceTemplate]
@@ -26,27 +26,34 @@ struct InvoiceTemplatesBox: View {
                     .frame(maxWidth: 200)
                 }
                 Button("New Template") {
-                    let template = InvoiceTemplate(lines: [blankLine])
+                    let template = InvoiceTemplate(lines: [.blank(hourlyRate: model.library.brand.hourlyRate)])
                     templates.append(template)
                     chosenID = template.id
                 }
-                Button("Delete Template") { templates.removeAll { $0.id == shownID } }
+                Button("Delete Template") { if let id = shownID { delete(id) } }
                     .disabled(shownID == nil)
             }
             .buttonStyle(.win95)
             if let id = shownID {
-                TemplateForm(template: binding(id), currency: model.currencyCode, blankLine: blankLine)
+                TemplateForm(model: model, template: binding(id))
             }
             Text(templates.isEmpty
                  ? "A template starts an invoice with its title and lines filled in, such as \"Billing for meeting time\" with an hour of meeting time."
-                 : "New Invoice in the toolbar offers your templates. Each invoice still gets its own client and dates.")
+                 : "Once it has a title, New Invoice in the toolbar offers it. Each invoice still gets its own client and dates.")
                 .font(Win95.small)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var blankLine: LineItem { .blank(hourlyRate: model.library.brand.hourlyRate) }
+    /// Removes the template at once when it's empty, and asks first when it isn't.
+    private func delete(_ id: UUID) {
+        guard let template = templates.first(where: { $0.id == id }) else { return }
+        let removeIt = { templates.removeAll { $0.id == id } }
+        guard template.hasContent else { return removeIt() }
+        model.confirm(title: "Delete Template", text: "Delete the template \(template.shownTitle)? Invoices made from it stay as they are.",
+                      confirm: "Delete", action: removeIt)
+    }
 
     private func binding(_ id: UUID) -> Binding<InvoiceTemplate> {
         Binding(get: { templates.first { $0.id == id } ?? InvoiceTemplate() },
@@ -57,13 +64,21 @@ struct InvoiceTemplatesBox: View {
     }
 }
 
-/// One template's title and lines.
+extension InvoiceTemplate {
+    /// Whether deleting it would lose anything: a title, or a line with something in it.
+    var hasContent: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || lines.contains(where: \.hasContent)
+    }
+}
+
+/// One template's title and lines, edited as the invoice editor edits lines: found by identity, the
+/// hourly rate filled in for a line put in hours, and a line with something in it removed only after asking.
 private struct TemplateForm: View {
+    let model: AppModel
     @Binding var template: InvoiceTemplate
-    let currency: String
-    let blankLine: LineItem
 
     var body: some View {
+        let currency = model.currencyCode
         VStack(alignment: .leading, spacing: 4) {
             Win95FieldRow("Title:") {
                 Win95TextField("Template title", text: $template.title, prompt: "e.g. Billing for meeting time")
@@ -75,26 +90,44 @@ private struct TemplateForm: View {
                 head("Rate", width: LineColumns.rate)
                 Spacer().frame(width: 20)
             }
-            ForEach($template.lines) { $line in
+            ForEach(template.lines) { line in
+                let id = line.id
+                let edited = lineBinding(id)
                 HStack(spacing: 4) {
-                    Win95TextField("Template line item", text: $line.title, prompt: "What the work is")
+                    Win95TextField("Template line item", text: edited.title, prompt: "What the work is")
                     CommitField(label: "Template line quantity", value: line.quantity,
-                                format: FieldParser.quantityText, parse: FieldParser.quantity) { line.quantity = $0 }
+                                format: FieldParser.quantityText, parse: FieldParser.quantity) { edited.wrappedValue.quantity = $0 }
                         .frame(width: LineColumns.quantity)
-                    Picker("Template line unit", selection: $line.unit) {
+                    Picker("Template line unit", selection: edited.unit) {
                         ForEach(QuotePilotCore.Unit.allCases, id: \.self) { Text($0.label).tag($0) }
                     }
                     .labelsHidden()
                     .frame(width: LineColumns.unit)
                     CommitField(label: "Template line rate", value: line.rate,
-                                format: { $0.formatted(currencyCode: currency) }, parse: FieldParser.money) { line.rate = $0 }
+                                format: { $0.formatted(currencyCode: currency) }, parse: FieldParser.money) { edited.wrappedValue.rate = $0 }
                         .frame(width: LineColumns.rate)
-                    SquareButton(PixelGlyph.cross, label: "Remove line") { template.lines.removeAll { $0.id == line.id } }
+                    SquareButton(PixelGlyph.cross, label: "Remove line") { remove(id) }
                 }
             }
-            Button("Add Line") { template.lines.append(blankLine) }
+            Button("Add Line") { template.lines.append(.blank(hourlyRate: model.library.brand.hourlyRate)) }
                 .buttonStyle(.win95)
         }
+    }
+
+    private func lineBinding(_ id: UUID) -> Binding<LineItem> {
+        Binding(get: { template.lines.first { $0.id == id } ?? LineItem(id: id, title: "", rate: .zero) },
+                set: { line in
+                    guard let edited = template.lines.replacing(line, id: id, hourlyRate: model.library.brand.hourlyRate,
+                                                                editable: true) else { return }
+                    template.lines = edited
+                })
+    }
+
+    private func remove(_ id: UUID) {
+        guard let line = template.lines.first(where: { $0.id == id }) else { return }
+        let removeIt = { template.lines.removeAll { $0.id == id } }
+        guard line.hasContent else { return removeIt() }
+        model.confirm(title: "Remove Line", text: "Remove \(line.removalName(showCode: false))?", confirm: "Remove", action: removeIt)
     }
 
     private func head(_ title: String, width: CGFloat?) -> some View {

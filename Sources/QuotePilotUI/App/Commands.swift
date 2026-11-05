@@ -23,11 +23,11 @@ public struct QuotePilotCommands: Commands {
             Button("New Invoice") { model.whenFree { model.newInvoice() } }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
                 .disabled(!model.canEdit)
-            // Only once there are invoice templates (Brand → Documents).
-            if !model.library.brand.invoiceTemplates.isEmpty {
+            // Only once there are invoice templates with a title (Brand → Documents).
+            if !model.library.brand.offeredInvoiceTemplates.isEmpty {
                 Menu("New Invoice from Template") {
-                    ForEach(model.library.brand.invoiceTemplates) { template in
-                        Button(template.shownTitle) { model.whenFree { model.newInvoice(from: template) } }
+                    ForEach(model.library.brand.offeredInvoiceTemplates) { template in
+                        Button(template.title) { model.whenFree { model.newInvoice(from: template) } }
                     }
                 }
                 .disabled(!model.canEdit)

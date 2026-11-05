@@ -138,8 +138,13 @@ public struct Brand: Codable, Hashable, Sendable {
     /// Quote Pilot's own fee setting (Brand → Settings), kept with the library. Prints nowhere.
     public var appFee = AppFee()
     /// Brand → Documents: invoices that start with a title and lines filled in, such as "Billing for
-    /// meeting time" with an hour of meeting time. New Invoice offers them once there are any.
+    /// meeting time" with an hour of meeting time. New Invoice offers those with a title.
     public var invoiceTemplates: [InvoiceTemplate] = []
+
+    /// The invoice templates New Invoice offers: those with a title, as an untitled one can't be told apart.
+    public var offeredInvoiceTemplates: [InvoiceTemplate] {
+        invoiceTemplates.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
 
     public init() {}
 }

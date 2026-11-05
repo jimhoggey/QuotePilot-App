@@ -36,6 +36,13 @@ import Testing
         #expect(library.problems().contains { $0.hasPrefix("The template Billing for meeting time line 1 has a rate") })
     }
 
+    /// An untitled template can't be told apart in a menu, so New Invoice leaves it out until it has a title.
+    @Test func onlyTitledTemplatesAreOffered() {
+        var brand = Brand()
+        brand.invoiceTemplates = [InvoiceTemplate(title: "  "), meeting]
+        #expect(brand.offeredInvoiceTemplates.map(\.title) == ["Billing for meeting time"])
+    }
+
     /// Libraries from before templates have none.
     @Test func anOlderLibraryHasNoTemplates() throws {
         let brand = try JSONDecoder().decode(Brand.self, from: Data(#"{"businessName":"Sample Studio"}"#.utf8))
