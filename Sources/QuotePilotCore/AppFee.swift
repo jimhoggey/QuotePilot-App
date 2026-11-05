@@ -16,6 +16,10 @@ public struct AppFee: Codable, Hashable, Sendable {
     public var startMonth: CalendarMonth
     /// The months marked paid with "I've paid", by `CalendarMonth.key` ("2026-10").
     public var paidMonths: [String: AppFeePaid]
+    /// Who the fee's invoice goes to: a first name and an email, sent with each month's fee events so
+    /// the developer can invoice it. Empty until typed.
+    public var name = ""
+    public var email = ""
 
     public init(calculates: Bool = true, percent: Decimal = 3, startMonth: CalendarMonth = .thisMonth(),
                 paidMonths: [String: AppFeePaid] = [:]) {
@@ -44,7 +48,7 @@ public struct AppFeePaid: Codable, Hashable, Sendable {
 
 extension AppFee {
     enum CodingKeys: String, CodingKey {
-        case calculates, percent, startMonth, paidMonths
+        case calculates, percent, startMonth, paidMonths, name, email
     }
 
     public init(from decoder: Decoder) throws {
@@ -54,6 +58,8 @@ extension AppFee {
         percent = try c.value(.percent, or: d.percent)
         startMonth = try c.value(.startMonth, or: d.startMonth)
         paidMonths = try c.value(.paidMonths, or: d.paidMonths)
+        name = try c.value(.name, or: d.name)
+        email = try c.value(.email, or: d.email)
     }
 }
 

@@ -4,8 +4,9 @@ import Observation
 /// Everything Quote Pilot can tell its developer about how it's used, through Aptabase
 /// (aptabase.com). This list is the whole of it: an event's name, plus a few short words or numbers.
 /// The fee events also carry the Quote Pilot fee's month, rate and amount, so the developer can check
-/// them against what was transferred (the user, 24 Oct 2026). Never client names, document numbers,
-/// amounts received, file names or anything typed.
+/// them against what was transferred (the user, 24 Oct 2026), and the first name and email typed for
+/// the fee in Brand → Settings, so they can invoice it (the user, 5 Nov 2026). Never client names,
+/// document numbers, amounts received, file names or anything else typed.
 public enum UsageEvent: String, CaseIterable, Sendable {
     /// fee_on, fee_percent.
     case appStarted = "app_started"
@@ -32,19 +33,19 @@ public enum UsageEvent: String, CaseIterable, Sendable {
     case numbersReset = "numbers_reset"
     /// fee_on, fee_percent: the fee's tick box or rate changed.
     case feeSettingChanged = "fee_setting_changed"
-    /// month, fee_percent, fee: once for each month whose fee falls due.
+    /// month, fee_percent, fee, name, email: once for each month whose fee falls due.
     case feeDue = "fee_due"
-    /// month, fee_percent, fee: once if that fee locks Quote Pilot.
+    /// month, fee_percent, fee, name, email: once if that fee locks Quote Pilot.
     case feeLocked = "fee_locked"
-    /// month, fee_percent, fee: I've paid.
+    /// month, fee_percent, fee, name, email: I've paid.
     case feePaid = "fee_paid"
     /// tool: which of Claude's tools ran (`ClaudeTools`).
     case claudeTool = "claude_tool"
 }
 
 /// Sends `UsageEvent`s to Aptabase, one small HTTPS post each, without waiting and without a word
-/// when one fails. No identifier: a session is a random number kept in memory and renewed after an
-/// hour idle, as Aptabase's own SDKs do. Only the installed app sends (or a run with `QP_STATS=1`);
+/// when one fails. No identifier beyond the fee events' name and email: a session is a random number
+/// kept in memory and renewed after an hour idle, as Aptabase's own SDKs do. Only the installed app sends (or a run with `QP_STATS=1`);
 /// the tests, `swift run` and test copies with their own bundle id send nothing, and `QP_STATS=0`
 /// turns it off. Brand → Settings has a tick box for it.
 @MainActor @Observable

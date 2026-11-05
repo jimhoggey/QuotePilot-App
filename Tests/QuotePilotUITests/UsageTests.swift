@@ -84,6 +84,10 @@ import Testing
     /// and I've paid sends the month, the rate and the fee.
     @Test func theFeeEventsCarryTheMonthRateAndFee() throws {
         let model = try FeeBarTests().lockedModel()
+        var brand = model.library.brand
+        brand.appFee.name = " Sam "
+        brand.appFee.email = "sam@example.com"
+        model.updateBrand(brand)
         let recorder = recording(model)
         model.track(.appStarted, model.feeSettingProps)
         model.markFeePaid()
@@ -95,6 +99,18 @@ import Testing
         #expect(paid["fee"] as? Double == 22.5)
         #expect(recorder.props("fee_due")?["fee"] as? Double == 22.5)
         #expect(recorder.props("app_started")?["fee_on"] as? Bool == true)
+        // Who to invoice it to, on every fee event and no other.
+        for name in ["fee_due", "fee_locked", "fee_paid"] {
+            #expect(recorder.props(name)?["name"] as? String == "Sam", "\(name)")
+            #expect(recorder.props(name)?["email"] as? String == "sam@example.com", "\(name)")
+        }
+        #expect(recorder.props("app_started")?["email"] == nil)
+    }
+
+    /// Libraries from before the fee's contact have none.
+    @Test func anOlderFeeHasNoContact() throws {
+        let fee = try JSONDecoder().decode(AppFee.self, from: Data(#"{"calculates":true,"percent":3}"#.utf8))
+        #expect(fee.name.isEmpty && fee.email.isEmpty)
     }
 
     @Test func changingTheFeeSaysSo() throws {

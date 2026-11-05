@@ -24,9 +24,13 @@ extension AppModel {
         }
     }
 
-    /// A month's fee as the fee events carry it: "2026-10", 3 and 22.5.
+    /// A month's fee as the fee events carry it: "2026-10", 3 and 22.5, and who to invoice it to
+    /// (Brand → Settings), so the developer can send the invoice.
     func feeProps(_ month: CalendarMonth, _ fee: Money) -> [String: Any] {
-        ["month": month.key, "fee_percent": percentNumber, "fee": Double(fee.cents) / 100]
+        let payer = library.brand.appFee
+        return ["month": month.key, "fee_percent": percentNumber, "fee": Double(fee.cents) / 100,
+                "name": payer.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                "email": payer.email.trimmingCharacters(in: .whitespacesAndNewlines)]
     }
 
     /// The fee's tick box and rate, as app_started and fee_setting_changed carry them.

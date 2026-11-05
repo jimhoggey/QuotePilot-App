@@ -526,11 +526,20 @@ struct SettingsTab: View {
                     }
                     // Greyed out while the fee isn't calculated, and its figures hidden.
                     .disabled(!brand.appFee.calculates)
+                    Group {
+                        Win95FieldRow("First name:") {
+                            Win95TextField("First name for the fee's invoice", text: $brand.appFee.name)
+                        }
+                        Win95FieldRow("Email:") {
+                            Win95TextField("Email for the fee's invoice", text: $brand.appFee.email, prompt: "name@example.com")
+                        }
+                    }
+                    .disabled(!brand.appFee.calculates)
                     ForEach(model.appFeeLines, id: \.self) { line in
                         Text(line)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("A percentage of the payments recorded each calendar month, 0 to 100%, counted from the month it's turned on. Each month's fee is due on the 1st of the next; from the 5th an unpaid fee locks editing until you press I've paid in the red bar.")
+                    Text("A percentage of the payments recorded each calendar month, 0 to 100%, counted from the month it's turned on. Each month's fee is due on the 1st of the next; from the 5th an unpaid fee locks editing until you press I've paid in the red bar. Your first name and email go to the developer with each month's fee, for its invoice.")
                         .font(Win95.small)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -561,9 +570,9 @@ struct SettingsTab: View {
             }
             GroupBox("Usage") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Send anonymous usage counts", isOn: Bindable(model.usage).isOn)
+                    Toggle("Send usage counts", isOn: Bindable(model.usage).isOn)
                         .toggleStyle(.win95)
-                    Text("Which features are used, the app and macOS versions, and each month's Quote Pilot fee, so the developer can improve Quote Pilot. Never client names, documents or amounts received.")
+                    Text("Which features are used, the app and macOS versions, and each month's Quote Pilot fee with the name and email above, so the developer can invoice the fee and improve Quote Pilot. Never client names, documents or amounts received.")
                         .font(Win95.small)
                         .fixedSize(horizontal: false, vertical: true)
                 }
