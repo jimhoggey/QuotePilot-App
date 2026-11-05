@@ -148,8 +148,8 @@ app's preferences. **Copy Setup Command** gives the `claude mcp add …` line, w
 
 ## Usage counts
 
-The installed app sends anonymous usage counts to [Aptabase](https://aptabase.com), so the developer
-can see which features are used. `UsageEvent` in `Sources/QuotePilotUI/App/Usage.swift` is the whole
+The installed app sends usage counts to [Aptabase](https://aptabase.com), so the developer can see
+which features are used. `UsageEvent` in `Sources/QuotePilotUI/App/Usage.swift` is the whole
 list. Each event carries:
 
 - its name, such as `quote_created` or `payment_recorded`;
@@ -157,9 +157,10 @@ list. Each event carries:
 - the app and macOS versions.
 
 The fee events (`fee_due`, `fee_locked`, `fee_paid`) also carry the month, the fee's rate and the fee
-itself. Nothing is sent about client names, documents, numbers, amounts received or anything typed.
-There's no identifier: a session is a random number held in memory. Untick Send anonymous usage
-counts on Brand → Settings to stop it. Builds run with `swift run`, the tests and copies with another
+itself, and the first name and email typed for the fee in Brand → Settings, so the developer can
+send the fee's invoice. Nothing is sent about client names, documents, numbers, amounts received or
+anything else typed. Beyond that name and email there's no identifier: a session is a random number
+held in memory. Untick Send usage counts on Brand → Settings to stop it. Builds run with `swift run`, the tests and copies with another
 bundle id send nothing. `QP_STATS=0` turns it off, and `QP_STATS=1` turns it on in a development run,
 marked as debug.
 

@@ -15,6 +15,7 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.8.1", "Brand → Settings → Quote Pilot fee takes your first name and email, for the fee's invoice."),
         Release("1.8.0",
                 "Quotes can be paid in your own split, such as 30/70. Choose it in Brand → Documents → Custom split.",
                 "Send Together: ⌘-click draft invoices for one client in the Dashboard's Drafts list, then right-click to email them in one go.",
