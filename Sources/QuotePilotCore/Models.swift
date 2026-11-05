@@ -137,6 +137,9 @@ public struct Brand: Codable, Hashable, Sendable {
     public var showsDoneColumn = false
     /// Quote Pilot's own fee setting (Brand → Settings), kept with the library. Prints nowhere.
     public var appFee = AppFee()
+    /// Brand → Documents: invoices that start with a title and lines filled in, such as "Billing for
+    /// meeting time" with an hour of meeting time. New Invoice offers them once there are any.
+    public var invoiceTemplates: [InvoiceTemplate] = []
 
     public init() {}
 }
@@ -338,6 +341,24 @@ public struct Quote: Codable, Hashable, Identifiable, Sendable {
 
 // MARK: - Invoices
 
+/// A starting point for one-off invoices (Brand → Documents): its title becomes the invoice's
+/// Reference and names it in New Invoice's menu; its lines are copied in.
+public struct InvoiceTemplate: Codable, Hashable, Identifiable, Sendable {
+    public var id = UUID()
+    public var title = ""
+    public var lines: [LineItem] = []
+
+    public init(title: String = "", lines: [LineItem] = []) {
+        self.title = title
+        self.lines = lines
+    }
+
+    /// The title as menus and messages show it: "(no title)" until one is typed.
+    public var shownTitle: String {
+        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(no title)" : title
+    }
+}
+
 public enum InvoiceKind: String, Codable, Sendable {
     case deposit, final, full, standalone
 }
@@ -468,6 +489,7 @@ extension Brand {
         case businessName, details, abn, paymentDetails, accentHex, logoFile, headingFontFile
         case quoteTerms, invoiceTerms, emails, gstRegistered, currencyCode, paymentDueDays, quoteValidDays
         case hourlyRate, headingFontStyle, bodyFontFile, bodyFontStyle, appFee, splitAbove, customSplit, showsDoneColumn
+        case invoiceTemplates
     }
 
     public init(from decoder: Decoder) throws {
@@ -496,6 +518,7 @@ extension Brand {
         splitAbove = try c.value(.splitAbove, or: d.splitAbove)
         customSplit = try c.decodeIfPresent(Int.self, forKey: .customSplit)
         showsDoneColumn = try c.value(.showsDoneColumn, or: d.showsDoneColumn)
+        invoiceTemplates = try c.value(.invoiceTemplates, or: d.invoiceTemplates)
     }
 }
 

@@ -173,14 +173,17 @@ public struct Library: Codable, Sendable {
         return quote
     }
 
-    /// A standalone invoice: extra hourly work, a monthly fee.
+    /// A standalone invoice: extra hourly work, a monthly fee. From a template it starts with the
+    /// template's title and copies of its lines.
     @discardableResult
-    public mutating func newInvoice(on day: Day, clientID: UUID? = nil) -> Invoice {
+    public mutating func newInvoice(on day: Day, clientID: UUID? = nil, from template: InvoiceTemplate? = nil) -> Invoice {
         let invoice = Invoice(number: takeNumber(.invoice), clientID: clientID, kind: .standalone,
-                              issued: day, due: day.adding(days: brand.paymentDueDays),
-                              taxed: brand.gstRegistered, terms: brand.invoiceTerms)
+                              title: template?.title ?? "", issued: day, due: day.adding(days: brand.paymentDueDays),
+                              taxed: brand.gstRegistered, lines: template?.lines.map(\.freshCopy) ?? [],
+                              terms: brand.invoiceTerms)
         invoices.append(invoice)
-        log("Started invoice \(invoice.number)", number: invoice.number)
+        log("Started invoice \(invoice.number)" + (template.map { " from the template \($0.shownTitle)" } ?? ""),
+            number: invoice.number)
         return invoice
     }
 
@@ -396,6 +399,9 @@ extension Library {
         }
         for quote in quotes {
             check(quote.lines, of: quote.number)
+        }
+        for template in brand.invoiceTemplates {
+            check(template.lines, of: "The template \(template.shownTitle)")
         }
         for invoice in invoices {
             check(invoice.lines, of: invoice.number)

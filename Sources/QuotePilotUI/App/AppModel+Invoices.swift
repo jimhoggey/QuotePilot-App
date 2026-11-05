@@ -13,13 +13,13 @@ public struct PaymentEntry: Equatable {
 }
 
 extension AppModel {
-    /// ⇧⌘N: a one-off invoice, for extra work or a monthly fee.
-    public func newInvoice(for clientID: UUID? = nil) {
+    /// ⇧⌘N: a one-off invoice, for extra work or a monthly fee, blank or from a template.
+    public func newInvoice(for clientID: UUID? = nil, from template: InvoiceTemplate? = nil) {
         var created: UUID?
         guard change("Couldn't start a new invoice", { library in
-            created = library.newInvoice(on: today, clientID: clientID).id
+            created = library.newInvoice(on: today, clientID: clientID, from: template).id
         }), let created else { return }
-        track(.invoiceCreated)
+        track(.invoiceCreated, template == nil ? [:] : ["from": "template"])
         openInvoice(created)
     }
 

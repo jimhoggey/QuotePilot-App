@@ -425,6 +425,9 @@ struct DocumentsTab: View {
                     BrandPlacementNote(model: model, element: .invoiceTerms)
                 }
             }
+            GroupBox("Invoice templates") {
+                InvoiceTemplatesBox(model: model, templates: $brand.invoiceTemplates)
+            }
             GroupBox("Currency") {
                 Text("Australian dollars (\(brand.currencyCode))")
             }
