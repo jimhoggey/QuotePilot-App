@@ -163,6 +163,11 @@ public struct Client: Codable, Hashable, Identifiable, Sendable {
         self.notes = notes
     }
 
+    /// The name as lists, messages and Activity show it: "(no name)" until one is typed.
+    public var shownName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(no name)" : name
+    }
+
     /// Who "Hi …" is addressed to: the contact's first name, or the business name.
     public var greetingName: String {
         let first = contactName.split(separator: " ").first.map(String.init) ?? ""

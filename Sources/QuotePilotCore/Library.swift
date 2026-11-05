@@ -155,9 +155,7 @@ public struct Library: Codable, Sendable {
     public mutating func deleteClient(_ id: UUID) throws {
         guard let index = clients.firstIndex(where: { $0.id == id }) else { throw LibraryError.notFound }
         guard canDeleteClient(id) else { throw LibraryError.clientInUse(clients[index].name) }
-        let name = clients.remove(at: index).name
-        // A client with no name yet shows as "(no name)" in the list, so Activity does too.
-        log("Deleted client \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(no name)" : name)")
+        log("Deleted client \(clients.remove(at: index).shownName)")
     }
 
     @discardableResult

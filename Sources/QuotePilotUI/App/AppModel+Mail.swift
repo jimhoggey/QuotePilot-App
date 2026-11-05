@@ -151,7 +151,7 @@ extension AppModel {
             note("\(Self.list(ids.compactMap { library.invoice($0)?.number })) marked as sent")
         case .statement(let id):
             // Nothing changes stage; Activity keeps the record of when the client was last sent one.
-            guard let name = library.client(id)?.name else { return }
+            guard let name = library.client(id)?.shownName else { return }
             let owing = library.owingInvoices(forClient: id).reduce(Money.zero) { $0 + $1.owing }
             guard change("Couldn't note the statement", { $0.log("Sent a statement to \(name), \(money(owing)) owing") })
             else { return }
@@ -204,7 +204,7 @@ extension AppModel {
             guard let client = library.client(id), let draft = library.mailDraft(forStatement: id) else { return nil }
             let content = DocumentContent.statement(library.owingInvoices(forClient: id), client: client,
                                                     brand: library.brand, on: today)
-            return (client.name, nil, "the statement for", id, draft, [content])
+            return (client.shownName, nil, "the statement for", id, draft, [content])
         }
     }
 }

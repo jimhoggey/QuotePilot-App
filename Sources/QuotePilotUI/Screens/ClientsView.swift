@@ -71,7 +71,7 @@ struct ClientsView: View {
     /// fits in the list at the smallest window; unequal minimums would overflow it before that.
     private var columns: [DetailsColumn<Client>] {
         [
-            .text("Name", width: .flexible(min: 100)) { $0.name.isEmpty ? "(no name)" : $0.name },
+            .text("Name", width: .flexible(min: 100)) { $0.shownName },
             .text("Contact", width: .flexible(min: 100)) { $0.contactName },
             .text("Email", width: .flexible(min: 100)) { $0.email },
             .text("Quotes", width: .fixed(70), alignment: .trailing, monospaced: true,

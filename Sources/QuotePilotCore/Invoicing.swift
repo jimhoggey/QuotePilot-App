@@ -64,7 +64,8 @@ extension Library {
     /// haven't been asked for yet, and void invoices are owed by nobody.
     public func owingInvoices(forClient id: UUID) -> [Invoice] {
         invoices.filter { $0.clientID == id && $0.stage == .sent && $0.owing > .zero }
-            .sorted { ($0.issued, $0.number) < ($1.issued, $1.number) }
+            .sorted { $0.issued != $1.issued ? $0.issued < $1.issued
+                : $0.number.localizedStandardCompare($1.number) == .orderedAscending }
     }
 
     public func invoicedAmount(forQuote id: UUID) -> Money {
