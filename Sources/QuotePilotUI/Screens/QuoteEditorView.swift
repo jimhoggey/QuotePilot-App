@@ -180,8 +180,8 @@ struct QuoteEditorView: View {
                     Win95FieldRow("Valid until:") { DayPicker(label: "Valid until", day: quote.validUntil) }
                     Win95FieldRow("Payment:") {
                         VStack(alignment: .leading, spacing: 4) {
-                            Win95RadioGroup(selection: quote.plan, options: PaymentPlan.allCases.map {
-                                ($0, $0.summary(for: current.totals.total, currencyCode: model.currencyCode))
+                            Win95RadioGroup(selection: quote.plan, options: current.plans.map {
+                                ($0, current.summary(of: $0, currencyCode: model.currencyCode))
                             })
                             .disabled(locked)
                             if current.planIsAutomatic, current.stage == .draft {

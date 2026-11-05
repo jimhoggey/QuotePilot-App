@@ -243,7 +243,7 @@ import QuotePilotCore
         #expect(states(next) == [.done, .done, .current, .todo, .todo])
         #expect(next.sentence == "Next: when the job is done, press Job Complete.")
         #expect(next.action == .jobComplete)
-        #expect(AcceptanceReviewView.planNote(plan: .fullAmount, accepted: Money(dollars: 1), ticked: true,
+        #expect(AcceptanceReviewView.planNote(for: AcceptanceTests.quote(.fullAmount), accepted: Money(dollars: 1), ticked: true,
                                               currencyCode: "AUD").contains("Job Complete"))
     }
 

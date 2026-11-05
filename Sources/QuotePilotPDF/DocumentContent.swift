@@ -94,7 +94,7 @@ extension DocumentContent {
             sections.append(Section(heading: "", text: "", lists: Lists(included: included, notIncluded: notIncluded)))
         }
         sections.append(Section(heading: "Payment plan",
-                                text: "\(quote.plan.summary(for: totals.total, currencyCode: currency)), for the whole quote. You're only invoiced for the lines you accept."))
+                                text: "\(quote.summary(of: quote.plan, currencyCode: currency)), for the whole quote. You're only invoiced for the lines you accept."))
         if !quote.terms.trimmed.isEmpty { sections.append(Section(heading: "Terms", text: quote.terms, source: .quoteTerms)) }
 
         return DocumentContent(
@@ -216,7 +216,7 @@ extension DocumentContent {
                             money: (Money) -> String) -> Section? {
         guard let quote, invoice.kind != .standalone else { return nil }
         let opening = "Quote \(quote.number) (\(money(quote.acceptedTotals.total)))"
-        let percent = invoice.depositPercent ?? deposit?.depositPercent ?? quote.plan.depositPercent
+        let percent = invoice.depositPercent ?? deposit?.depositPercent ?? quote.depositPercent
         // A full-amount invoice, or a final one with no deposit before it, bills the whole total.
         guard let percent, invoice.kind == .deposit || (invoice.kind == .final && deposit != nil) else {
             return Section(heading: "Payment plan", text: "\(opening) is paid in full when the job is complete.")

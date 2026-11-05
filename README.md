@@ -18,8 +18,9 @@ The engine the app runs on is written and covered by automated tests. Everything
 - **Reading a returned quote.** The ticks, name and date come back out of the PDF and become a
   proposal: which lines were accepted, which were declined, and anything that needs a second look.
 - **Invoicing rules.** A payment plan per quote: **50/50** (a deposit invoice, then the balance on
-  completion) or **full amount**. Only accepted lines are billed, and the deposit and balance always
-  add up to the accepted total exactly.
+  completion), **full amount**, or your own **custom split** such as 30/70, chosen in Brand →
+  Documents. Draft quotes follow the custom split; sent quotes keep theirs. Only accepted lines are
+  billed, and the deposit and balance always add up to the accepted total exactly.
 - **Payments and figures.** Payments, overdue invoices, money received this month and this
   financial year (1 July to 30 June), and a spreadsheet of payments for tax time.
 - **Safe storage.** One library file, saved atomically, never overwritten if it can't be read, with
@@ -133,7 +134,7 @@ app's preferences. **Copy Setup Command** gives the `claude mcp add …` line, w
 
 - **What Claude can do:** see what's open, list quotes and clients, start a draft quote, and fill
   in a draft's lines, title, Work summary, Included / Not included lists, terms and payment plan
-  (50/50 or full amount).
+  (50/50, full amount, or the custom split).
 - **What it can't do:** send, record payments, delete documents, or change anything that has been
   sent. It's refused while the fee lock is on.
 - Each change goes in Activity as "Claude …". The tools are in

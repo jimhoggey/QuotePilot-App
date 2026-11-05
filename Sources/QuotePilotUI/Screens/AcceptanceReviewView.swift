@@ -66,7 +66,7 @@ struct AcceptanceReviewView: View {
                 Win95FieldRow("Date:", labelWidth: 110) {
                     Win95TextField("Date the client signed", text: $review.clientDate)
                 }
-                Text(Self.planNote(plan: quote?.plan, accepted: accepted, ticked: !review.accepted.isEmpty,
+                Text(Self.planNote(for: quote, accepted: accepted, ticked: !review.accepted.isEmpty,
                                    currencyCode: model.currencyCode))
                     .font(Win95.small)
                     .fixedSize(horizontal: false, vertical: true)
@@ -110,12 +110,12 @@ struct AcceptanceReviewView: View {
     /// What confirming will do beyond recording the ticks. The deposit is the plan's own percentage,
     /// the one `draftNextInvoice` uses. "Nothing is ticked" goes by `ticked` (whether any line is
     /// ticked, as the button's title does), not by the money: a ticked line can cost nothing.
-    static func planNote(plan: PaymentPlan?, accepted: Money, ticked: Bool, currencyCode: String) -> String {
+    static func planNote(for quote: Quote?, accepted: Money, ticked: Bool, currencyCode: String) -> String {
         guard ticked else {
             return "Nothing is ticked: this records that the client declined every line."
         }
-        guard let plan else { return "" }
-        if let percent = plan.depositPercent {
+        guard let quote else { return "" }
+        if let percent = quote.depositPercent {
             return "\(percent)% deposit: confirming also drafts the deposit invoice for "
                 + "\(accepted.percent(percent).formatted(currencyCode: currencyCode)) and opens it."
         }

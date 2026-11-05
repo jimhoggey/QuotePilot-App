@@ -128,7 +128,7 @@ struct NextStep: Equatable {
             return NextStep(steps: progress(titles, at: step),
                             sentence: "Next: Draft Invoice Now.", action: .draftInvoiceNow)
         case .final?:
-            // 50/50 with the deposit out: the balance waits for the job. If the job is already marked
+            // A split with the deposit out: the balance waits for the job. If the job is already marked
             // complete (the closing invoice was voided), Job Complete is gone and Draft Invoice Now
             // drafts the balance again.
             if quote.completedOn == nil {

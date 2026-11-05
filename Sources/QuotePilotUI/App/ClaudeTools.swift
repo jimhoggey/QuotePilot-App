@@ -10,7 +10,7 @@ extension AppModel {
         Quote Pilot is the user's Mac app for quotes and invoices, in Australian dollars. Call \
         get_current_view first to see what the user is looking at. You can start draft quotes and fill \
         them in: lines, title, Work summary, the Included / Not included lists, terms and the payment \
-        plan (50/50 or full amount). You can't send anything, record payments or delete documents; the \
+        plan (50/50, full amount, or the user's custom split). You can't send anything, record payments or delete documents; the \
         user does those in Quote Pilot. Only draft quotes can be changed. Keep line titles short (a few \
         words) and put longer wording in detail. Rates are dollars per unit before GST; for work in \
         hours, leave rate out to use the user's hourly rate. Line IDs (01, 02, …) renumber when a line \
@@ -119,12 +119,12 @@ extension AppModel {
                   "summary": Self.text("The Work summary. Lines starting with \"-\" print as dot points."),
                   "included": itemList, "not_included": itemList, "terms": Self.text("The quote's Terms, printed at the end of the quote."),
                   "plan": ["type": "string", "enum": PaymentPlan.allCases.map(\.claudeName),
-                           "description": "fifty_fifty: a 50% deposit invoice, then the rest when the job is complete. full_amount: one invoice for the whole amount."]]) { [self] arguments in
+                           "description": "fifty_fifty: a 50% deposit invoice, then the rest when the job is complete. full_amount: one invoice for the whole amount. custom_split: the user's own split from Brand → Documents, such as 30/70, only when they have one."]]) { [self] arguments in
                 let quote = try claudeTarget(arguments)
                 let title = arguments.string("title"), summary = arguments.string("summary"), terms = arguments.string("terms")
                 let included = arguments.strings("included"), notIncluded = arguments.strings("not_included")
-                let plan = try arguments.value("plan", { name in PaymentPlan.allCases.first { $0.claudeName == name.lowercased() } },
-                                               else: "plan must be \(PaymentPlan.allCases.map(\.claudeName).joined(separator: " or ")).")
+                let plan = try arguments.value("plan", { name in quote.plans.first { $0.claudeName == name.lowercased() } },
+                                               else: "plan must be \(quote.plans.map(\.claudeName).joined(separator: " or ")).")
                 let names = [(title != nil, "title"), (summary != nil, "Work summary"), (included != nil, "Included list"),
                              (notIncluded != nil, "Not included list"), (terms != nil, "terms"), (plan != nil, "payment plan")].filter(\.0).map(\.1)
                 guard !names.isEmpty else { throw MCPError("Pass at least one of title, summary, included, not_included, terms or plan.") }
@@ -180,7 +180,7 @@ extension AppModel {
     private func claudeJSON(_ quote: Quote) -> [String: Any] {
         ["number": quote.number, "client": clientName(quote.clientID), "title": quote.title, "stage": quote.stage.rawValue,
          "editable": claudeEditProblem(quote) == nil,
-         "plan": quote.plan.claudeName,
+         "plan": quote.plan.claudeName, "payment": quote.summary(of: quote.plan, currencyCode: currencyCode),
          "summary": quote.summary, "included": quote.included, "not_included": quote.notIncluded, "terms": quote.terms,
          "lines": quote.lines.map { line -> [String: Any] in
              ["line": line.code, "title": line.title, "detail": line.detail,
@@ -264,6 +264,7 @@ private extension PaymentPlan {
         switch self {
         case .fiftyFifty: return "fifty_fifty"
         case .fullAmount: return "full_amount"
+        case .customSplit: return "custom_split"
         }
     }
 }
