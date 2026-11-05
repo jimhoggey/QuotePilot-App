@@ -11,6 +11,8 @@ struct DashboardView: View {
     @State private var selectedQuote: UUID?
     @State private var selectedJob: UUID?
     @State private var selectedDraft: UUID?
+    /// The drafts chosen with ⌘- and ⇧-click, for Send Together.
+    @State private var chosenDrafts: Set<UUID> = []
 
     var body: some View {
         let dashboard = model.dashboard
@@ -60,8 +62,16 @@ struct DashboardView: View {
                 .frame(minWidth: Self.boxWidth(quoteColumns, scroller: DetailsLayout.legacyScrollerWidth))
                 GroupBox(Self.listTitles[3]) {
                     DetailsList(dashboard.drafts, id: \.id, columns: draftColumns, selection: $selectedDraft,
-                                emptyText: "No drafts.",
-                                onOpen: { model.library.invoice($0) == nil ? model.openQuote($0) : model.openInvoice($0) })
+                                chosen: $chosenDrafts, emptyText: "No drafts.",
+                                onOpen: { model.library.invoice($0) == nil ? model.openQuote($0) : model.openInvoice($0) },
+                                rowMenu: { id in
+                                    // The menu is built before the right-click chooses its row: on a row
+                                    // outside the chosen ones it's that row alone, as the click will make it.
+                                    let rows = chosenDrafts.contains(id) ? chosenDrafts.intersection(dashboard.drafts.map(\.id)) : [id]
+                                    let together = model.togetherDocument(rows)
+                                    return AnyView(Button("Send Together") { together.map(model.send) }.disabled(together == nil))
+                                })
+                    .help("⌘-click to choose several invoices for one client, then right-click → Send Together.")
                 }
                 .frame(minWidth: Self.boxWidth(draftColumns, scroller: DetailsLayout.legacyScrollerWidth))
             }

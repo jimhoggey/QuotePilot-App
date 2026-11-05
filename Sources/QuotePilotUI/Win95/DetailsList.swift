@@ -139,6 +139,16 @@ public enum DetailsLayout {
         return selection
     }
 
+    /// The rows chosen after a click on `row`, as in Windows: ⇧ takes every row from `anchor` to it,
+    /// ⌘ adds or removes it, and a plain click chooses it alone.
+    static func chosen<ID: Hashable>(clicking row: ID, in ids: [ID], chosen: Set<ID>, anchor: ID?,
+                                     modifiers: NSEvent.ModifierFlags) -> Set<ID> {
+        if modifiers.contains(.shift), let anchor, let from = ids.firstIndex(of: anchor), let to = ids.firstIndex(of: row) {
+            return Set(ids[min(from, to)...max(from, to)])
+        }
+        return modifiers.contains(.command) ? chosen.symmetricDifference([row]) : [row]
+    }
+
     /// A stable sort: rows that compare equal keep their order.
     public static func sorted<Row>(_ rows: [Row], by value: (Row) -> SortValue, ascending: Bool) -> [Row] {
         rows.enumerated()
@@ -157,7 +167,10 @@ public struct DetailsList<Row, ID: Hashable>: View {
     let rows: [Row]
     let id: KeyPath<Row, ID>
     let columns: [DetailsColumn<Row>]
+    /// The row the keyboard is on, and the anchor for ⇧-click.
     @Binding var selection: ID?
+    /// The rows chosen with ⌘- and ⇧-click, on a list that allows several; nil on one that doesn't.
+    let chosen: Binding<Set<ID>>?
     let emptyText: String
     let onOpen: ((ID) -> Void)?
     let rowMenu: ((ID) -> AnyView)?
@@ -171,12 +184,13 @@ public struct DetailsList<Row, ID: Hashable>: View {
     private var isFocused: Bool { forcedFocus ?? focused }
 
     public init(_ rows: [Row], id: KeyPath<Row, ID>, columns: [DetailsColumn<Row>], selection: Binding<ID?>,
-                sort: DetailsSort? = nil, emptyText: String,
+                chosen: Binding<Set<ID>>? = nil, sort: DetailsSort? = nil, emptyText: String,
                 onOpen: ((ID) -> Void)? = nil, rowMenu: ((ID) -> AnyView)? = nil) {
         self.rows = rows
         self.id = id
         self.columns = columns
         self._selection = selection
+        self.chosen = chosen
         self.emptyText = emptyText
         self.onOpen = onOpen
         self.rowMenu = rowMenu
@@ -190,6 +204,7 @@ public struct DetailsList<Row, ID: Hashable>: View {
 
     public var body: some View {
         let ordered = orderedRows
+        let ids = ordered.map { $0[keyPath: id] }
         // With nothing selected (or the selection gone), the dotted focus rectangle goes round the list.
         let listShowsFocus = isFocused && DetailsLayout.visibleSelection(selection, in: ordered, id: id) == nil
         // The empty state has no scroller, so it keeps the whole width.
@@ -206,7 +221,7 @@ public struct DetailsList<Row, ID: Hashable>: View {
                         ScrollView(.vertical) {
                             LazyVStack(spacing: 0) {
                                 ForEach(ordered, id: id) { row in
-                                    rowView(row, widths: widths)
+                                    rowView(row, widths: widths, ids: ids)
                                 }
                             }
                         }
@@ -215,6 +230,8 @@ public struct DetailsList<Row, ID: Hashable>: View {
                             if rowMenu != nil {
                                 SelectOnRightClick {
                                     guard let target = rowHover.hover.target else { return }
+                                    // On a chosen row the rows stay chosen, so its menu acts on all of them.
+                                    if chosen?.wrappedValue.contains(target) == false { chosen?.wrappedValue = [target] }
                                     selection = target
                                     focused = true
                                 }
@@ -226,8 +243,8 @@ public struct DetailsList<Row, ID: Hashable>: View {
                 .focusable()
                 .focusEffectDisabled()
                 .focused($focused)
-                .onKeyPress(.upArrow) { step(-1, ordered, proxy) }
-                .onKeyPress(.downArrow) { step(1, ordered, proxy) }
+                .onKeyPress(.upArrow) { step(-1, ids, proxy) }
+                .onKeyPress(.downArrow) { step(1, ids, proxy) }
                 .onKeyPress(.return) { openSelection(ordered) }
             }
         }
@@ -274,18 +291,18 @@ public struct DetailsList<Row, ID: Hashable>: View {
     }
 
     @ViewBuilder
-    private func rowView(_ row: Row, widths: [CGFloat]) -> some View {
+    private func rowView(_ row: Row, widths: [CGFloat], ids: [ID]) -> some View {
         let rowID = row[keyPath: id]
-        let selected = rowID == selection
+        let selected = chosen?.wrappedValue.contains(rowID) ?? (rowID == selection)
         let base = DetailsRowView(row: row, columns: columns, widths: widths, selected: selected,
-                                  showsFocus: selected && isFocused)
+                                  showsFocus: rowID == selection && isFocused)
             .id(rowID)
             .onTapGesture(count: 2) {
-                selection = rowID
+                click(rowID, in: ids, modifiers: [])
                 onOpen?(rowID)
             }
             .simultaneousGesture(TapGesture().onEnded {
-                selection = rowID
+                click(rowID, in: ids, modifiers: NSEvent.modifierFlags)
                 focused = true
             })
             .accessibilityAddTraits(selected ? .isSelected : [])
@@ -324,14 +341,26 @@ public struct DetailsList<Row, ID: Hashable>: View {
         return "\(columns[index].title), sorted \(sort.ascending ? "ascending" : "descending")"
     }
 
-    private func step(_ delta: Int, _ ordered: [Row], _ proxy: ScrollViewProxy) -> KeyPress.Result {
-        let ids = ordered.map { $0[keyPath: id] }
+    private func step(_ delta: Int, _ ids: [ID], _ proxy: ScrollViewProxy) -> KeyPress.Result {
         guard !ids.isEmpty else { return .ignored }
         let current = selection.flatMap { ids.firstIndex(of: $0) }
         let next = current.map { min(max($0 + delta, 0), ids.count - 1) } ?? (delta > 0 ? 0 : ids.count - 1)
-        selection = ids[next]
+        click(ids[next], in: ids, modifiers: [])
         proxy.scrollTo(ids[next])
         return .handled
+    }
+
+    /// Chooses rows as `DetailsLayout.chosen` says and moves the selection to `rowID`, except that
+    /// ⇧-click keeps the selection where it is, as the anchor of the range.
+    private func click(_ rowID: ID, in ids: [ID], modifiers: NSEvent.ModifierFlags) {
+        // Rows gone from the list (sent, deleted) are neither chosen nor the anchor any more.
+        let anchor = selection.flatMap { ids.contains($0) ? $0 : nil }
+        if let chosen {
+            chosen.wrappedValue = DetailsLayout.chosen(clicking: rowID, in: ids, chosen: chosen.wrappedValue.intersection(ids),
+                                                       anchor: anchor, modifiers: modifiers)
+            if modifiers.contains(.shift), anchor != nil { return }
+        }
+        selection = rowID
     }
 
     private func openSelection(_ ordered: [Row]) -> KeyPress.Result {

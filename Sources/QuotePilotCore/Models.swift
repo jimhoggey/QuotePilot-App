@@ -11,7 +11,8 @@ public struct EmailTemplate: Codable, Hashable, Sendable {
         self.body = body
     }
 
-    /// Replaces `{key}` placeholders: client, contact, number, amount, due, business.
+    /// Replaces `{key}` placeholders: client, contact, number, amount, due, business, and for several
+    /// invoices together count and list.
     public func filled(_ values: [String: String]) -> (subject: String, body: String) {
         func fill(_ text: String) -> String {
             values.reduce(text) { $0.replacingOccurrences(of: "{\($1.key)}", with: $1.value) }
@@ -24,6 +25,9 @@ public struct EmailTemplates: Codable, Hashable, Sendable {
     public var quote: EmailTemplate
     public var invoice: EmailTemplate
     public var receipt: EmailTemplate
+    /// Several invoices to one client in one email (Send Together): {count} and {list}, one line per
+    /// invoice with its amount and due date, and {amount}, their total.
+    public var together: EmailTemplate
 
     public static let standard = EmailTemplates(
         quote: EmailTemplate(
@@ -53,6 +57,21 @@ public struct EmailTemplates: Codable, Hashable, Sendable {
             Hi {contact},
 
             Thanks for your payment. Attached is your receipt for invoice {number}.
+
+            Thanks,
+            {business}
+            """),
+        together: EmailTemplate(
+            subject: "Invoices from {business}",
+            body: """
+            Hi {contact},
+
+            Attached are {count} invoices:
+
+            {list}
+
+            Total: {amount}. Payment details are on each invoice. You're welcome to pay them in one \
+            transfer; please put the invoice numbers in the reference.
 
             Thanks,
             {business}
@@ -551,7 +570,7 @@ extension EmailTemplate {
 
 extension EmailTemplates {
     enum CodingKeys: String, CodingKey {
-        case quote, invoice, receipt
+        case quote, invoice, receipt, together
     }
 
     public init(from decoder: Decoder) throws {
@@ -560,6 +579,7 @@ extension EmailTemplates {
         quote = try c.value(.quote, or: standard.quote)
         invoice = try c.value(.invoice, or: standard.invoice)
         receipt = try c.value(.receipt, or: standard.receipt)
+        together = try c.value(.together, or: standard.together)
     }
 }
 

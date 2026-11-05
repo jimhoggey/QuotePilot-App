@@ -11,21 +11,23 @@ final class FakeMail: MailComposer {
         var to: String
         var subject: String
         var body: String
-        var attachment: URL
+        var attachments: [URL]
+        /// The one PDF of a draft about one document.
+        var attachment: URL { attachments[0] }
     }
 
     var available = true
     var drafts: [Draft] = []
-    var setAside: [(message: String, attachment: URL)] = []
+    var setAside: [(message: String, attachments: [URL])] = []
 
-    func compose(to: String, subject: String, body: String, attachment: URL) -> Bool {
+    func compose(to: String, subject: String, body: String, attachments: [URL]) -> Bool {
         guard available else { return false }
-        drafts.append(Draft(to: to, subject: subject, body: body, attachment: attachment))
+        drafts.append(Draft(to: to, subject: subject, body: body, attachments: attachments))
         return true
     }
 
-    func setAside(message: String, attachment: URL) {
-        setAside.append((message, attachment))
+    func setAside(message: String, attachments: [URL]) {
+        setAside.append((message, attachments))
     }
 }
 

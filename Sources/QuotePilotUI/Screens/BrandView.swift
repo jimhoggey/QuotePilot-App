@@ -453,10 +453,12 @@ struct EmailsTab: View {
             template("Quote email", $brand.emails.quote)
             template("Invoice email", $brand.emails.invoice)
             template("Receipt email", $brand.emails.receipt)
+            template("Invoices sent together", $brand.emails.together,
+                     note: "{count} is how many invoices, {list} has a line for each and {amount} is their total.")
         }
     }
 
-    private func template(_ title: String, _ template: Binding<EmailTemplate>) -> some View {
+    private func template(_ title: String, _ template: Binding<EmailTemplate>, note: String? = nil) -> some View {
         GroupBox(title) {
             VStack(alignment: .leading, spacing: 6) {
                 Win95FieldRow("Subject:", labelWidth: 64) {
@@ -464,6 +466,11 @@ struct EmailsTab: View {
                 }
                 Win95TextEditor(text: template.body)
                     .frame(height: 110)
+                if let note {
+                    Text(note)
+                        .font(Win95.small)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if focusedTemplate == title {
                     BrandPlacementNote(model: model, element: .emails)
                 }
