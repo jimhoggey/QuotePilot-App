@@ -159,7 +159,7 @@ extension Library {
                               due: day.adding(days: brand.paymentDueDays), taxed: quote.taxed,
                               lines: quote.acceptedLines.map(\.freshCopy), terms: brand.invoiceTerms)
         if kind == .deposit {
-            invoice.depositPercent = quote.depositPercent ?? 50
+            invoice.depositPercent = quote.depositPercent
         }
         if kind.isClosing {
             invoice.deductions = invoices(forQuote: quote.id)
@@ -259,6 +259,7 @@ extension Library {
         for line in original.lines {
             copy.addLine(line.freshCopy)
         }
+        copy.follow(customSplit: brand.customSplit)
         quotes.append(copy)
         log("Copied quote \(original.number) to \(copy.number)", number: copy.number)
         return copy

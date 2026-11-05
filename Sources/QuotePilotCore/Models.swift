@@ -142,6 +142,8 @@ public enum PaymentPlan: String, Codable, CaseIterable, Sendable {
 
     /// The custom splits Brand → Documents offers: the share billed when a quote is accepted.
     public static let customSplits = [10, 20, 25, 30, 40, 60, 70, 75, 80, 90]
+    /// The shares a saved custom split may have; anything else makes the library unreadable.
+    static let splitRange = 1...99
 
     /// "30/70"
     public static func splitName(_ percent: Int) -> String { "\(percent)/\(100 - percent)" }

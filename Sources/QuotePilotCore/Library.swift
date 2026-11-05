@@ -195,14 +195,19 @@ public struct Library: Codable, Sendable {
         var quote = quote
         quote.renumberLinesIfDraft()
         quote.doneLines.formIntersection(quote.lines.map(\.id))
-        if quotes[index].stage == .draft { quote.follow(customSplit: brand.customSplit) }
-        // A plan chosen by hand stays chosen; until then a draft's plan follows its total.
-        if quotes[index].stage == .draft, quote.planIsAutomatic {
-            if quote.plan != quotes[index].plan {
-                quote.planIsAutomatic = false
-            } else if let plan = PaymentPlan.automatic(for: quote.totals.total, splitAbove: brand.splitAbove) {
-                quote.plan = plan
+        if quotes[index].stage == .draft {
+            quote.follow(customSplit: brand.customSplit)
+            // A plan chosen by hand stays chosen; until then a draft's plan follows its total.
+            if quote.planIsAutomatic {
+                if quote.plan != quotes[index].plan {
+                    quote.planIsAutomatic = false
+                } else if let plan = PaymentPlan.automatic(for: quote.totals.total, splitAbove: brand.splitAbove) {
+                    quote.plan = plan
+                }
             }
+        } else {
+            // A sent quote keeps the split it was sent with.
+            quote.customSplit = quotes[index].customSplit
         }
         if !invoices(forQuote: quote.id).isEmpty, quote.billsDifferently(from: quotes[index]) {
             throw LibraryError.alreadyInvoiced
@@ -366,12 +371,14 @@ extension Library {
         if !AppFee.percentLimit.contains(brand.appFee.percent) {
             found.append("Brand: the Quote Pilot fee is \(brand.appFee.percent)%, outside 0 to 100%.")
         }
-        if let split = brand.customSplit, !(1...99).contains(split) {
+        if let split = brand.customSplit, !PaymentPlan.splitRange.contains(split) {
             found.append("Brand: the custom split bills \(split)% when a quote is accepted, outside 1 to 99%.")
         }
         for quote in quotes {
-            if let split = quote.customSplit, !(1...99).contains(split) {
+            if let split = quote.customSplit, !PaymentPlan.splitRange.contains(split) {
                 found.append("\(quote.number) has a custom split of \(split)%, outside 1 to 99%.")
+            } else if quote.plan == .customSplit, quote.customSplit == nil {
+                found.append("\(quote.number) is on the custom split but has no split.")
             }
         }
         let over = "over the \(Library.amountLimit.formatted(currencyCode: currency)) limit"

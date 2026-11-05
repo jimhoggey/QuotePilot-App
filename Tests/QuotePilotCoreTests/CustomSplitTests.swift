@@ -65,12 +65,33 @@ import Testing
         #expect(final.kind == .final && final.amount == Money(dollars: 1050))
     }
 
+    /// Nothing can change the split of a quote once it's sent, whatever an edit carries.
+    @Test func aSentQuotesSplitCantChange() throws {
+        var (library, id) = try library(split: 30)
+        try library.markSent(quote: id)
+        var edited = try #require(library.quote(id))
+        edited.customSplit = 80
+        try library.update(edited)
+        #expect(library.quote(id)?.depositPercent == 30)
+    }
+
+    @Test func aCopyOfACustomSplitQuoteTakesBrandsSplit() throws {
+        var (library, id) = try library(split: 30)
+        try library.markSent(quote: id)
+        library.brand.customSplit = 20
+        let copy = try library.duplicateQuote(id, on: day)
+        #expect(copy.plan == .customSplit && copy.depositPercent == 20)
+    }
+
     @Test func aSplitOutsideOneTo99IsAProblem() throws {
-        var (library, _) = try library(split: 30)
+        var (library, id) = try library(split: 30)
         #expect(library.problems().isEmpty)
         library.brand.customSplit = 100
         #expect(library.problems().contains { $0.hasPrefix("Brand: the custom split") })
         #expect(library.problems().contains { $0.hasPrefix("Q-0001 has a custom split") })
+        let index = try #require(library.quotes.firstIndex { $0.id == id })
+        library.quotes[index].customSplit = nil
+        #expect(library.problems().contains { $0 == "Q-0001 is on the custom split but has no split." })
     }
 
     /// Libraries from before the custom split have none, and their quotes keep the plan they had.
