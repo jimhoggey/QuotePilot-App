@@ -40,38 +40,24 @@ extension Library {
     public func mailDraft(forInvoices ids: [UUID]) -> MailDraft? {
         let found = ids.compactMap(invoice)
         guard found.count == ids.count, let first = found.first else { return nil }
+        let money = { (amount: Money) in amount.formatted(currencyCode: self.brand.currencyCode) }
+        let list = found.map { invoice in
+            let title = invoice.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            return "• " + [invoice.number, title, money(invoice.amount), "due \(invoice.due.long)"]
+                .filter { !$0.isEmpty }.joined(separator: ", ")
+        }
         return mailDraft(brand.emails.together, client: client(first.clientID), [
             "count": String(found.count),
-            "list": list(found) { money($0.amount) },
+            "list": list.joined(separator: "\n"),
             "amount": money(found.reduce(.zero) { $0 + $1.amount }),
         ])
     }
 
-    /// A statement for the client: each invoice still owing ("• INV-0004, Website updates, $750.00
-    /// owing, due 19 November 2026") and the total owing. Nil when nothing is owing.
-    public func mailDraft(forStatement clientID: UUID) -> MailDraft? {
-        let owing = owingInvoices(forClient: clientID)
-        guard !owing.isEmpty else { return nil }
-        return mailDraft(brand.emails.statement, client: client(clientID), [
-            "count": String(owing.count),
-            "list": list(owing) { "\(money($0.owing)) owing" },
-            "amount": money(owing.reduce(.zero) { $0 + $1.owing }),
-        ])
-    }
-
-    /// One line per invoice: its number, title, `amount` and due date.
-    private func list(_ invoices: [Invoice], amount: (Invoice) -> String) -> String {
-        invoices.map { invoice in
-            "• " + [invoice.number, invoice.title.trimmingCharacters(in: .whitespacesAndNewlines), amount(invoice),
-                    "due \(invoice.due.long)"].filter { !$0.isEmpty }.joined(separator: ", ")
-        }.joined(separator: "\n")
-    }
-
-    private func money(_ amount: Money) -> String { amount.formatted(currencyCode: brand.currencyCode) }
-
     /// Fills {number}, {amount} and {due}, and the rest that every email has.
     private func mailDraft(_ template: EmailTemplate, client: Client?, number: String, amount: Money, due: Day) -> MailDraft {
-        mailDraft(template, client: client, ["number": number, "amount": money(amount), "due": due.long])
+        mailDraft(template, client: client, [
+            "number": number, "amount": amount.formatted(currencyCode: brand.currencyCode), "due": due.long,
+        ])
     }
 
     /// Fills `values`, and {client}, {contact} and {business}.

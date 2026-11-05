@@ -28,8 +28,6 @@ public struct EmailTemplates: Codable, Hashable, Sendable {
     /// Several invoices to one client in one email (Send Together): {count} and {list}, one line per
     /// invoice with its amount and due date, and {amount}, their total.
     public var together: EmailTemplate
-    /// A statement of what a client owes: {list}, one line per invoice still owing, and {amount}, the total.
-    public var statement: EmailTemplate
 
     public static let standard = EmailTemplates(
         quote: EmailTemplate(
@@ -74,21 +72,6 @@ public struct EmailTemplates: Codable, Hashable, Sendable {
 
             Total: {amount}. Payment details are on each invoice. You're welcome to pay them in one \
             transfer; please put the invoice numbers in the reference.
-
-            Thanks,
-            {business}
-            """),
-        statement: EmailTemplate(
-            subject: "Statement from {business}",
-            body: """
-            Hi {contact},
-
-            Attached is a statement of your account. These invoices are still owing:
-
-            {list}
-
-            Total owing: {amount}. Payment details are on the statement; please put the invoice numbers \
-            in the reference. If you've paid already, thank you, and please ignore this.
 
             Thanks,
             {business}
@@ -169,11 +152,6 @@ public struct Client: Codable, Hashable, Identifiable, Sendable {
         self.phone = phone
         self.address = address
         self.notes = notes
-    }
-
-    /// The name as lists, messages and Activity show it: "(no name)" until one is typed.
-    public var shownName: String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(no name)" : name
     }
 
     /// Who "Hi …" is addressed to: the contact's first name, or the business name.
@@ -620,7 +598,7 @@ extension EmailTemplate {
 
 extension EmailTemplates {
     enum CodingKeys: String, CodingKey {
-        case quote, invoice, receipt, together, statement
+        case quote, invoice, receipt, together
     }
 
     public init(from decoder: Decoder) throws {
@@ -630,7 +608,6 @@ extension EmailTemplates {
         invoice = try c.value(.invoice, or: standard.invoice)
         receipt = try c.value(.receipt, or: standard.receipt)
         together = try c.value(.together, or: standard.together)
-        statement = try c.value(.statement, or: standard.statement)
     }
 }
 
