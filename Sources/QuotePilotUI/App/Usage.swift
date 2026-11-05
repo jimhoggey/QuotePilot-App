@@ -117,7 +117,7 @@ public final class Usage {
             "eventName": event.rawValue,
             "systemProps": [
                 "isDebug": isDebug,
-                "locale": Locale.current.identifier.replacingOccurrences(of: "_", with: "-"),
+                "locale": Self.localeTag(.current),
                 "osName": "macOS",
                 "osVersion": "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)",
                 "appVersion": version,
@@ -126,6 +126,12 @@ public final class Usage {
             "props": props.filter { $0.value is String || $0.value is Bool || $0.value is Int || $0.value is Double },
         ]
         return try? JSONSerialization.data(withJSONObject: object)
+    }
+
+    /// "en-AU": the language and region only. Aptabase refuses a locale over 10 characters, and
+    /// macOS's own identifier can be longer, such as "en_US@rg=auzzzz" for US English set to Australia.
+    static func localeTag(_ locale: Locale) -> String {
+        [locale.language.languageCode?.identifier, locale.region?.identifier].compactMap { $0 }.joined(separator: "-")
     }
 
     /// Seconds since 1970 × 10⁸ plus eight random digits, renewed after an hour with no events.
