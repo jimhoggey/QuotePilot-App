@@ -158,9 +158,4 @@ public struct LibraryStore: Sendable {
         try writeLibrary(library)
         return library
     }
-
-    /// "File → Back up to…": a copy wherever the user picks.
-    public func exportCopy(to destination: URL) throws {
-        try Data(contentsOf: libraryURL).write(to: destination, options: .atomic)
-    }
 }

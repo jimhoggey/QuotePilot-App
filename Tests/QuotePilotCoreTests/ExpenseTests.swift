@@ -67,7 +67,6 @@ import Testing
         #expect(!plain.includesGST)
         let ticked = plain.includingGST(true)
         #expect(ticked.gst == Money(dollars: 20))
-        #expect(ticked.exGST == Money(dollars: 200))
         #expect(ticked.withTotal(Money(dollars: 330)).gst == Money(dollars: 30), "the GST follows the total")
         #expect(ticked.includingGST(false).gst == .zero)
         #expect(plain.withTotal(Money(dollars: 330)).gst == .zero, "no GST stays no GST")

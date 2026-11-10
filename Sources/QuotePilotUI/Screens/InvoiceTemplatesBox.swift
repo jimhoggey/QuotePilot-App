@@ -67,7 +67,7 @@ struct InvoiceTemplatesBox: View {
 extension InvoiceTemplate {
     /// Whether deleting it would lose anything: a title, or a line with something in it.
     var hasContent: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || lines.contains(where: \.hasContent)
+        !title.trimmed.isEmpty || lines.contains(where: \.hasContent)
     }
 }
 

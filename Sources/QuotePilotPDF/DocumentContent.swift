@@ -278,7 +278,3 @@ extension DocumentContent {
         return name.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-") + ".pdf"
     }
 }
-
-extension String {
-    var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
-}

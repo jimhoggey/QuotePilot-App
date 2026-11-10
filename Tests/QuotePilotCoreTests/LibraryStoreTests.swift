@@ -245,12 +245,4 @@ import Testing
         let names = try FileManager.default.contentsOfDirectory(atPath: store.folder.path)
         #expect(!names.contains { $0.hasPrefix("library-replaced-") })
     }
-
-    @Test func exportsACopyAnywhere() throws {
-        let store = tempStore()
-        try store.save(Library())
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("QuotePilot-copy-\(UUID().uuidString).json")
-        try store.exportCopy(to: destination)
-        #expect(try Data(contentsOf: destination) == Data(contentsOf: store.libraryURL))
-    }
 }

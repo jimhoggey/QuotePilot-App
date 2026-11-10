@@ -1,5 +1,4 @@
 import AppKit
-import CoreText
 import Foundation
 import Observation
 import QuotePilotCore
@@ -537,7 +536,7 @@ public final class AppModel {
         whenFree {
             guard canDeleteClient, let client = clientToDelete else { return beep() }
             let id = client.id
-            let name = client.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = client.name.trimmed
             confirm(title: "Delete Client", text: "Delete \(name.isEmpty ? "this client" : client.name)? This can't be undone.",
                     confirm: "Delete") { [weak self] in
                 guard let self,

@@ -42,7 +42,7 @@ extension Library {
         guard found.count == ids.count, let first = found.first else { return nil }
         let money = { (amount: Money) in amount.formatted(currencyCode: self.brand.currencyCode) }
         let list = found.map { invoice in
-            let title = invoice.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = invoice.title.trimmed
             return "• " + [invoice.number, title, money(invoice.amount), "due \(invoice.due.long)"]
                 .filter { !$0.isEmpty }.joined(separator: ", ")
         }
@@ -67,7 +67,7 @@ extension Library {
             "contact": client?.greetingName ?? "there",
             "business": brand.businessName,
         ]) { $1 })
-        return MailDraft(to: (client?.email ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
+        return MailDraft(to: (client?.email ?? "").trimmed,
                          subject: filled.subject, body: filled.body)
     }
 }

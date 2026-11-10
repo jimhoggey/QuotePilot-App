@@ -185,7 +185,7 @@ extension AppModel {
             return false
         }
         let payment = Payment(date: entry.date, amount: amount, method: entry.method,
-                              note: entry.note.trimmingCharacters(in: .whitespacesAndNewlines))
+                              note: entry.note.trimmed)
         guard change("Couldn't record the payment", { try $0.recordPayment(payment, toInvoice: entry.invoiceID) }),
               let invoice = library.invoice(entry.invoiceID)
         else { return false }

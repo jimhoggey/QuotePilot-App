@@ -85,7 +85,7 @@ extension BrandElement {
     /// Where this part of the brand prints, when the Brand screen's sample quote doesn't show it
     /// (so it has nothing to highlight); nil when the sample shows it.
     func placementNote(on brand: Brand) -> String? {
-        func empty(_ text: String) -> Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        func empty(_ text: String) -> Bool { text.trimmed.isEmpty }
         switch self {
         case .paymentDetails, .invoiceTerms: return "Prints on invoices only."
         case .paymentDueDays: return "Sets the due date, which prints on invoices only."

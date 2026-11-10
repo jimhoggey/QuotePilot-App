@@ -99,7 +99,7 @@ extension AppModel {
 
     /// Saves the client's email, then carries on sending.
     public func saveEmailAndSend(_ email: String, clientID: UUID, document: MailDocument) {
-        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = email.trimmed
         guard AppModel.looksLikeEmail(trimmed), var client = library.client(clientID) else {
             return show(title: "Email Address", text: "That doesn't look like an email address.", kind: .warning)
         }

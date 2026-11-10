@@ -40,7 +40,7 @@ struct GettingStarted: Equatable {
 
     init(library: Library) {
         // A name made only of spaces is no name.
-        business = !library.brand.businessName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        business = !library.brand.businessName.trimmed.isEmpty
         client = !library.clients.isEmpty
         quote = !library.quotes.isEmpty
     }
