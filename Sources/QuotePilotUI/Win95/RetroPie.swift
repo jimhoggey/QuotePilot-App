@@ -78,10 +78,19 @@ struct PiePixels: Equatable {
 
 /// The pie on screen, one point to a pixel.
 struct RetroPie: View {
+    /// The disc's face, width by height, and how deep its rim is, in pixels.
+    struct Size {
+        var width: Int, faceHeight: Int, depth: Int
+
+        /// A deep rim, so it reads as a solid disc.
+        static let large = Size(width: 140, faceHeight: 60, depth: 16)
+        /// For a narrow window, where the large one would crowd the figures beside it.
+        static let compact = Size(width: 112, faceHeight: 48, depth: 12)
+    }
+
     /// The first slice's part, 0 to 1; nil for an empty grey disc.
     let share: Double?
-
-    static let size = (width: 112, faceHeight: 48, depth: 12)
+    var size = Size.large
     /// Windows 95's drive pie colours, which the legend's swatches use too.
     static let firstColor = Color(hex: 0x0000FF)
     static let restColor = Color(hex: 0xFF00FF)
@@ -99,8 +108,7 @@ struct RetroPie: View {
     }
 
     var body: some View {
-        let pixels = PiePixels(share: share, width: Self.size.width, faceHeight: Self.size.faceHeight,
-                               depth: Self.size.depth)
+        let pixels = PiePixels(share: share, width: size.width, faceHeight: size.faceHeight, depth: size.depth)
         Canvas { context, _ in
             // One rectangle for each run of a colour along a row.
             for (y, row) in pixels.rows.enumerated() {
