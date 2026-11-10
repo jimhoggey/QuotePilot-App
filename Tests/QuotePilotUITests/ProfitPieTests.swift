@@ -54,6 +54,22 @@ import QuotePilotCore
         #expect(ProfitBox.pieDescription(none) == "Empty pie chart: no payments yet")
     }
 
+    /// A Quote Pilot fee paid is listed with the expenses; selecting it shows what it is in place of
+    /// the form, and it can't be deleted (snapshot: expenses-fee).
+    @Test func aPaidFeeIsListedWithANote() throws {
+        let model = try UIFixture.sampleModel()
+        model.change("test") { $0.brand.appFee.paidMonths["2026-09"] = AppFeePaid(on: model.today, amount: Money(cents: 2790)) }
+        let fee = try #require(model.library.feeExpenses.first)
+        #expect(ExpensesView.summary(model.library.expenses + model.library.feeExpenses, money: model.money)
+            == "1 expense · $27.90, $0.00 GST")
+        model.section = .expenses
+        model.selectedExpenseID = fee.id
+        model.deleteSelectedExpense()
+        #expect(model.message == nil && model.library.feeExpenses.count == 1, "nothing to delete")
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 800), name: "expenses-fee")
+        #expect(rep.map(Snapshot.hasContent) == true)
+    }
+
     /// Snapshots: profit-box (a profit, a loss, no income) and expenses-profit (the whole tab).
     @Test func theBoxDraws() throws {
         let money = { (amount: Money) in amount.formatted() }

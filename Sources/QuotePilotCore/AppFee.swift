@@ -228,4 +228,32 @@ extension Library {
         brand.appFee.paidMonths[month.key] = AppFeePaid(on: day, amount: fee)
         log("Marked the \(month.label) Quote Pilot fee as paid (\(fee.formatted(currencyCode: brand.currencyCode)))", at: time)
     }
+
+    /// The Quote Pilot fees marked paid, as the Expenses list shows them: a row each, dated the day it
+    /// was paid and filed as the money record files it, so the list adds up to what the record and
+    /// the profit pie count. They aren't the library's expenses: `expense(_:)` doesn't find them, so
+    /// they can't be changed or deleted. Oldest first.
+    public var feeExpenses: [Expense] {
+        brand.appFee.paidMonths.compactMap { key, paid in
+            CalendarMonth(key: key).map { month in
+                Expense(id: Self.feeExpenseID(month), date: paid.on, supplier: "Quote Pilot",
+                        description: "Quote Pilot fee for \(month.label)", category: Self.appFeeCategory,
+                        total: paid.amount)
+            }
+        }
+        .sorted { ($0.date, $0.id.uuidString) < ($1.date, $1.id.uuidString) }
+    }
+
+    /// The month of the fee row with this id, if it is one, and what was paid.
+    public func feePaid(forExpense id: UUID) -> (month: CalendarMonth, paid: AppFeePaid)? {
+        brand.appFee.paidMonths.lazy.compactMap { key, paid in
+            CalendarMonth(key: key).flatMap { Self.feeExpenseID($0) == id ? ($0, paid) : nil }
+        }.first
+    }
+
+    /// A fee row's id: the same every time for its month, so the row stays selected.
+    static func feeExpenseID(_ month: CalendarMonth) -> UUID {
+        UUID(uuid: (0x51, 0x50, 0x46, 0x45, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    UInt8(truncatingIfNeeded: month.year >> 8), UInt8(truncatingIfNeeded: month.year), UInt8(month.month)))
+    }
 }
