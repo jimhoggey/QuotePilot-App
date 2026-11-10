@@ -1,5 +1,4 @@
 import AppKit
-import CoreText
 import Foundation
 import Observation
 import QuotePilotCore
