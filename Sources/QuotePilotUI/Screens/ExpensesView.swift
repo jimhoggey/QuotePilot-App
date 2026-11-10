@@ -1,8 +1,9 @@
 import QuotePilotCore
 import SwiftUI
 
-/// Expenses: the list on the left, the selected expense's form on the right, as on Clients. New
-/// Expense lives in the list's button row only, not the toolbar.
+/// Expenses: the list on the left, the selected expense's form on the right, as on Clients, with this
+/// financial year's profit pie under the form. New Expense lives in the list's button row only, not
+/// the toolbar.
 struct ExpensesView: View {
     @Bindable var model: AppModel
 
@@ -32,8 +33,9 @@ struct ExpensesView: View {
             }
             // At the smallest window the list and the form have 754 points between them.
             .frame(minWidth: Self.listMinimum, maxWidth: .infinity)
-            Group {
-                if let id = model.selectedExpenseID, model.library.expense(id) != nil {
+            let shown = model.selectedExpenseID.flatMap { model.library.expense($0) }?.id
+            VStack(spacing: 8) {
+                if let id = shown {
                     // A fresh form for each expense, so no half-typed text lands on the next one.
                     ExpenseForm(model: model, expenseID: id)
                         .id(id)
@@ -45,6 +47,10 @@ struct ExpensesView: View {
                         .background(Win95.desktop)
                         .overlay(Bevel(.sunken))
                 }
+                ProfitBox(profit: model.library.profit(in: FinancialYear(containing: model.today)),
+                          gstRegistered: model.library.brand.gstRegistered, money: model.money)
+                    // In line with the form's boxes, which leave room for its scroll bar.
+                    .padding(.trailing, shown == nil ? 0 : 6)
             }
             .frame(minWidth: Self.formMinimum, idealWidth: 440, maxWidth: 440)
             .layoutPriority(1)

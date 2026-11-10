@@ -15,6 +15,7 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.11.0", "Expenses shows this financial year's profit as a pie: expenses in blue, profit in magenta, with your margin beside it."),
         Release("1.10.0", "Travel expenses record the trip: type From and To, and Apple Maps fills in the kilometres. Tick Return trip to count them twice."),
         Release("1.9.1"),
         Release("1.9.0", "Invoice templates: set one up in Brand → Documents, such as Billing for meeting time, then start an invoice from it with New Invoice in the toolbar."),

@@ -60,6 +60,9 @@ shows; with View → Show Steps off, the screen's own button takes its place.
   A **Travel** expense also takes the trip: From and To, and Apple Maps fills in the driving distance
   (the two places go to Apple, as in the Maps app; no key). Return trip counts it twice. The money
   record shows each trip, and the year's summary totals the business kilometres for the accountant.
+  Under the form, **Profit** shows this financial year as a Windows 95 drive-style pie: income is the
+  whole disc, expenses (and Quote Pilot fees paid) the blue slice, profit the magenta rest, with the
+  margin beside it. Payments leave out their GST, and expenses theirs when you're registered for GST.
 - **Clients**, **Brand** (logo, heading font, colour, wording and terms) and **Activity**, a log of
   what happened: quotes started and sent, Mail drafts, acceptances, invoices, payments and restores.
   ⌘F finds in the Quotes, Invoices, Clients and Activity lists.
