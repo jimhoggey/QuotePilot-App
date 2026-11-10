@@ -13,6 +13,8 @@ struct DashboardView: View {
     @State private var selectedDraft: UUID?
     /// The drafts chosen with ⌘- and ⇧-click, for Send Together.
     @State private var chosenDrafts: Set<UUID> = []
+    /// The invoices waiting to be paid chosen with ⌘- and ⇧-click, for Mark Paid.
+    @State private var chosenOwing: Set<UUID> = []
 
     var body: some View {
         let dashboard = model.dashboard
@@ -39,8 +41,15 @@ struct DashboardView: View {
                 let jobColumns = Self.jobColumns(currencyCode: model.currencyCode)
                 GroupBox(Self.listTitles[0]) {
                     DetailsList(dashboard.waiting, id: \.invoiceID, columns: owingColumns, selection: $selectedInvoice,
-                                emptyText: Self.waitingEmptyText(model.library),
-                                onOpen: { model.openInvoice($0) })
+                                chosen: $chosenOwing, emptyText: Self.waitingEmptyText(model.library),
+                                onOpen: { model.openInvoice($0) },
+                                rowMenu: { id in
+                                    // As Send Together's: the chosen rows, or the row clicked if it isn't one.
+                                    let rows = chosenOwing.contains(id) ? chosenOwing.intersection(dashboard.waiting.map(\.invoiceID)) : [id]
+                                    return AnyView(Button(Self.markPaidTitle(rows.count)) { model.markPaid(rows) }
+                                        .disabled(!model.canEdit))
+                                })
+                    .help("⌘-click to choose several invoices, then right-click → Mark Paid.")
                 }
                 .frame(minWidth: Self.boxWidth(owingColumns, scroller: DetailsLayout.legacyScrollerWidth))
                 GroupBox(Self.listTitles[1]) {
@@ -86,6 +95,9 @@ struct DashboardView: View {
 
     /// The screen's padding, and the gap between the two lists side by side.
     static let gap: CGFloat = 8
+
+    /// "Mark Paid", or "Mark 3 Paid" for several.
+    static func markPaidTitle(_ count: Int) -> String { count > 1 ? "Mark \(count) Paid" : "Mark Paid" }
 
     /// What "Still to invoice" says when it is empty: that nothing is accepted yet while no quote has
     /// been accepted, and that the accepted jobs are done once some have.
