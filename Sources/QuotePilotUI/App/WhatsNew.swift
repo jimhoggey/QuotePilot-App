@@ -15,6 +15,9 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.13.0",
+                "Brand → Settings: the padlock beside the Quote Pilot fee locks its settings with a password.",
+                "With the fee turned off, it isn't listed as an expense."),
         Release("1.12.1", "Quote Pilot fees you've paid are listed with your expenses, so the list adds up to the profit pie."),
         Release("1.12.0",
                 "Record Payment is at the top of a sent invoice, and Send Receipt… takes Send by Mail…'s place once it's paid.",
