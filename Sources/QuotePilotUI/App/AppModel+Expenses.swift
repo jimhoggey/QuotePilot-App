@@ -90,22 +90,24 @@ extension AppModel {
         do {
             try FileManager.default.createDirectory(at: expenseAttachmentsFolder, withIntermediateDirectories: true)
             expense.attachment = try copyAssetQuietly(url, prefix: "Expenses/expense")
+            expense.attachmentName = url.lastPathComponent
         } catch {
             return show(error, title: "Couldn't copy \(url.lastPathComponent)")
         }
         updateExpense(expense)
     }
 
-    /// Open Attachment: the attached file in its own app (Preview, usually).
+    /// Double-clicking the attached file: it opens in its own app (Preview, usually).
     public func openAttachment(_ id: UUID) {
         guard let expense = library.expense(id), let url = attachmentURL(expense) else { return beep() }
         openInFinder(url)
     }
 
-    /// Remove Attachment: the expense no longer points at the file; the copy stays in Assets/Expenses.
+    /// The attached file's ×: the expense no longer points at the file; the copy stays in Assets/Expenses.
     public func removeAttachment(_ id: UUID) {
         guard var expense = library.expense(id), expense.attachment != nil else { return beep() }
         expense.attachment = nil
+        expense.attachmentName = nil
         updateExpense(expense)
     }
 }

@@ -74,6 +74,13 @@ import QuotePilotCore
         .background(Win95.face)
         let rep = Snapshot.render(boxes, size: CGSize(width: 320, height: 500), name: "profit-box")
         #expect(rep.map(Snapshot.hasContent) == true)
+        // The form's usual width, where the large pie fits.
+        let wide = ProfitBox(profit: Profit(year: year, income: Money(dollars: 12000), expenses: Money(dollars: 3200)),
+                             gstRegistered: true, money: money)
+            .padding(8)
+            .frame(width: 440)
+            .background(Win95.face)
+        #expect(Snapshot.render(wide, size: CGSize(width: 440, height: 130), name: "profit-box-wide").map(Snapshot.hasContent) == true)
 
         let model = try UIFixture.sampleModel()
         model.newExpense()

@@ -194,6 +194,42 @@ extension AppModel {
         return true
     }
 
+    /// The invoices the Dashboard's Mark Paid records, in number order: the sent ones still owing.
+    func invoicesToMarkPaid(_ ids: Set<UUID>) -> [Invoice] {
+        ids.compactMap { library.invoice($0) }
+            .filter { $0.stage == .sent && $0.owing > .zero }
+            .sorted { $0.number.localizedStandardCompare($1.number) == .orderedAscending }
+    }
+
+    /// The Dashboard's Mark Paid. Asks once, then gives each invoice a payment of what it still owes,
+    /// today, by bank transfer, as Record Payment would untouched. All are recorded or none.
+    public func markPaid(_ ids: Set<UUID>) {
+        let invoices = invoicesToMarkPaid(ids)
+        guard canEdit, !invoices.isEmpty else { return }
+        let numbers = Self.list(invoices.map(\.number))
+        let total = invoices.reduce(Money.zero) { $0 + $1.owing }
+        confirm(title: "Mark Paid",
+                text: "Mark \(numbers) paid? This records \(money(total)) received today by bank transfer.",
+                confirm: "Mark Paid") {
+            // What's owing now, in case something changed while the question was up.
+            let invoices = self.invoicesToMarkPaid(ids)
+            guard !invoices.isEmpty else { return }
+            let day = self.today
+            guard self.change("Couldn't record the payments", { library in
+                for invoice in invoices {
+                    try library.recordPayment(Payment(date: day, amount: invoice.owing), toInvoice: invoice.id)
+                }
+            }) else { return }
+            for _ in invoices {
+                self.track(.paymentRecorded, ["method": PaymentMethod.bankTransfer.rawValue, "from": "mark_paid"])
+            }
+            let total = invoices.reduce(Money.zero) { $0 + $1.owing }
+            // The status bar's cell holds about three numbers.
+            let which = invoices.count > 3 ? "\(invoices.count) invoices" : Self.list(invoices.map(\.number))
+            self.note("Recorded \(self.money(total)) for \(which)")
+        }
+    }
+
     /// Asks first: removing a payment is a change to what the client owes.
     public func removePayment(_ paymentID: UUID, from invoiceID: UUID) {
         guard let invoice = library.invoice(invoiceID),

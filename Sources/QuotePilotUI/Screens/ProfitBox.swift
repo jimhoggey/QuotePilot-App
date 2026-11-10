@@ -10,58 +10,71 @@ struct ProfitBox: View {
     let money: (Money) -> String
 
     var body: some View {
-        let isLoss = profit.profit < .zero
         GroupBox("Profit for \(profit.year.label)") {
-            HStack(spacing: 14) {
-                RetroPie(share: profit.expenseShare)
-                    .accessibilityElement()
-                    .accessibilityLabel(Self.pieDescription(profit))
-                VStack(alignment: .leading, spacing: 5) {
-                    Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 3) {
-                        GridRow {
-                            LegendSwatch(color: RetroPie.firstColor)
-                            Text("Expenses:")
-                            Text(money(profit.expenses)).gridColumnAlignment(.trailing)
-                        }
-                        GridRow {
-                            // No profit leaves no magenta slice to point at.
-                            LegendSwatch(color: profit.profit > .zero ? RetroPie.restColor : nil)
-                            Text(isLoss ? "Loss:" : "Profit:")
-                            Text(money(Money(cents: abs(profit.profit.cents))))
-                        }
-                        .foregroundStyle(isLoss ? Win95.overdue : Win95.text)
-                        GridRow {
-                            VStack(spacing: 0) {
-                                Win95.shadow.frame(height: 1)
-                                Win95.highlight.frame(height: 1)
-                            }
-                            .gridCellColumns(3)
-                            .gridCellUnsizedAxes(.horizontal)
-                        }
-                        GridRow {
-                            LegendSwatch(color: nil)
-                            Text("Income:")
-                            Text(money(profit.income))
-                        }
-                        GridRow {
-                            LegendSwatch(color: nil)
-                            Text("Margin:")
-                            Text(Self.marginText(profit.margin))
-                        }
-                    }
-                    .font(Win95.money)
-                    if let note = Self.note(profit, gstRegistered: gstRegistered) {
-                        Text(note)
-                            .font(Win95.small)
-                            .foregroundStyle(Win95.note)
-                    }
-                }
-                .foregroundStyle(Win95.text)
-                .fixedSize()
-                Spacer(minLength: 0)
+            // The large pie when there's room beside the figures; the compact one in a narrow window.
+            ViewThatFits(in: .horizontal) {
+                row(.large)
+                row(.compact)
             }
         }
         .groupBoxStyle(.win95)
+    }
+
+    private func row(_ size: RetroPie.Size) -> some View {
+        HStack(spacing: 14) {
+            RetroPie(share: profit.expenseShare, size: size)
+                .accessibilityElement()
+                .accessibilityLabel(Self.pieDescription(profit))
+            legend
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// The figures beside the pie, as Windows 95 listed used and free space beside a drive's.
+    private var legend: some View {
+        let isLoss = profit.profit < .zero
+        return VStack(alignment: .leading, spacing: 5) {
+            Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 3) {
+                GridRow {
+                    LegendSwatch(color: RetroPie.firstColor)
+                    Text("Expenses:")
+                    Text(money(profit.expenses)).gridColumnAlignment(.trailing)
+                }
+                GridRow {
+                    // No profit leaves no magenta slice to point at.
+                    LegendSwatch(color: profit.profit > .zero ? RetroPie.restColor : nil)
+                    Text(isLoss ? "Loss:" : "Profit:")
+                    Text(money(Money(cents: abs(profit.profit.cents))))
+                }
+                .foregroundStyle(isLoss ? Win95.overdue : Win95.text)
+                GridRow {
+                    VStack(spacing: 0) {
+                        Win95.shadow.frame(height: 1)
+                        Win95.highlight.frame(height: 1)
+                    }
+                    .gridCellColumns(3)
+                    .gridCellUnsizedAxes(.horizontal)
+                }
+                GridRow {
+                    LegendSwatch(color: nil)
+                    Text("Income:")
+                    Text(money(profit.income))
+                }
+                GridRow {
+                    LegendSwatch(color: nil)
+                    Text("Margin:")
+                    Text(Self.marginText(profit.margin))
+                }
+            }
+            .font(Win95.money)
+            if let note = Self.note(profit, gstRegistered: gstRegistered) {
+                Text(note)
+                    .font(Win95.small)
+                    .foregroundStyle(Win95.note)
+            }
+        }
+        .foregroundStyle(Win95.text)
+        .fixedSize()
     }
 
     /// "73%", "−25%" for a loss, or a dash before any income.

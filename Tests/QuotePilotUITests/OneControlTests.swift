@@ -128,6 +128,29 @@ import QuotePilotCore
         #expect(try UIFixture.model(library).newPaymentEntry(for: depositID) != nil, "Record Payment shows")
     }
 
+    /// An invoice's top row has one way to mail it: the invoice until it's paid in full, then the
+    /// receipt, outlined until it has gone. ⌘S sends the same.
+    @Test func paidInFullSwapsSendByMailForSendReceipt() throws {
+        let model = try UIFixture.sampleModel()
+        func invoice(_ number: String) throws -> Invoice {
+            try #require(model.library.invoices.first { $0.number == number })
+        }
+        let paid = try invoice("INV-0001"), owing = try invoice("INV-0002"), part = try invoice("INV-0003")
+        #expect(!paid.offersSend && paid.offersReceipt && paid.receiptIsNext)
+        #expect(owing.offersSend && !owing.offersReceipt)
+        var nothingAsked = owing
+        nothingAsked.lines = []
+        #expect(nothingAsked.offersSend && !nothingAsked.offersReceipt, "a $0 invoice with no payments can still be sent")
+        #expect(part.offersSend && part.offersReceipt && !part.receiptIsNext, "part paid: both, the receipt not outlined")
+
+        model.openInvoice(paid.id)
+        #expect(model.sendableDocument == .receipt(paid.id))
+        model.change("test") { try $0.markReceiptSent(invoice: paid.id) }
+        #expect(model.library.invoice(paid.id)?.receiptIsNext == false, "sent already: still there, not outlined")
+        model.openInvoice(part.id)
+        #expect(model.sendableDocument == .invoice(part.id))
+    }
+
     /// A quote: Send by Mail… is outlined while it is a draft and not once it is sent or accepted, when
     /// the next step is the reply or invoicing.
     @Test func aQuoteOutlinesSendOnlyWhileItIsADraft() throws {

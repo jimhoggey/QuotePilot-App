@@ -24,11 +24,22 @@ public struct Expense: Codable, Hashable, Identifiable, Sendable {
     public var note: String
     /// The attached quote or invoice: a file name in the library's Assets/Expenses folder.
     public var attachment: String?
+    /// What the attached file was called when it was attached ("Officeworks invoice.pdf"). Nil for one
+    /// attached before 1.12, when it wasn't kept.
+    public var attachmentName: String?
     /// Where a trip went. Kept whatever the category, but it counts only on a Travel expense (`travel`).
     public var trip: Trip?
 
     /// The trip, on a Travel expense.
     public var travel: Trip? { category == Expense.travelCategory ? trip : nil }
+
+    /// The attachment as the form lists it: the name it had, or for one attached before names were
+    /// kept, what kind of file it is.
+    public var attachmentTitle: String? {
+        guard let attachment else { return nil }
+        if let name = attachmentName?.trimmed, !name.isEmpty { return name }
+        return (attachment as NSString).pathExtension.lowercased() == "pdf" ? "Attached PDF" : "Attached picture"
+    }
 
     public init(id: UUID = UUID(), date: Day, supplier: String = "", description: String = "",
                 category: String = Expense.otherCategory, total: Money = .zero, gst: Money = .zero,

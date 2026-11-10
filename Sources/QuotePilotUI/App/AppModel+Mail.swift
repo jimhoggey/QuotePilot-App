@@ -2,6 +2,19 @@ import Foundation
 import QuotePilotCore
 import QuotePilotPDF
 
+/// What can be mailed for an invoice: the invoice itself, or once it's paid in full, its receipt.
+/// The invoice editor's top row and ⌘S go by these, so each shows one button for each.
+extension Invoice {
+    /// Sent, paid, and nothing left owing. (A $0 invoice with no payments can still be sent again.)
+    var isPaidInFull: Bool { stage == .sent && owing <= .zero && !payments.isEmpty }
+    /// Send by Mail… sends the invoice until it's paid in full; then Send Receipt… takes its place.
+    var offersSend: Bool { stage != .void && !isPaidInFull }
+    /// Send Receipt… shows once a payment is recorded.
+    var offersReceipt: Bool { stage == .sent && !payments.isEmpty }
+    /// Send Receipt… is the next step, outlined, once the invoice is paid in full, until the receipt goes.
+    var receiptIsNext: Bool { isPaidInFull && offersReceipt && receiptSentAt == nil }
+}
+
 extension AppModel {
     /// What ⌘S sends: the open quote on Quotes, the open or selected invoice on Invoices. A void
     /// invoice no longer counts, and a quote or invoice with no client has nobody to write to, so
@@ -14,9 +27,10 @@ extension AppModel {
             guard let id = openQuoteID ?? selectedQuoteID, library.quote(id)?.clientID != nil else { return nil }
             return .quote(id)
         case .invoices:
+            // Paid in full, the receipt is what's left to send, as the editor's top row says.
             guard let id = editingInvoiceID ?? selectedInvoiceID, let invoice = library.invoice(id),
-                  invoice.stage != .void, invoice.clientID != nil else { return nil }
-            return .invoice(id)
+                  invoice.clientID != nil else { return nil }
+            return invoice.offersSend ? .invoice(id) : invoice.offersReceipt ? .receipt(id) : nil
         default: return nil
         }
     }

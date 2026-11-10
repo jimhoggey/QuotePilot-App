@@ -188,6 +188,21 @@ import QuotePilotCore
                 .hasPrefix("Saved"))
     }
 
+    /// Record Payment sits at the top of a sent invoice and says exactly what it will record.
+    @Test func recordPaymentSaysWhatItRecords() {
+        let today = UIFixture.today
+        let money = { (amount: Money) in amount.formatted() }
+        var entry = PaymentEntry(invoiceID: UUID(), date: today, amount: "$750.00", method: .bankTransfer, note: "")
+        #expect(InvoiceEditorView.recordHelp(entry, today: today, money: money)
+            .hasPrefix("Records $750.00 paid today by bank transfer. If it was different"))
+        entry.date = today.adding(days: -2)
+        entry.method = .other
+        #expect(InvoiceEditorView.recordHelp(entry, today: today, money: money)
+            .hasPrefix("Records $750.00 paid on \(entry.date.short). If"))
+        entry.amount = "lots"
+        #expect(InvoiceEditorView.recordHelp(entry, today: today, money: money) == "Type the amount paid under New payment first.")
+    }
+
     // MARK: Drawing
 
     @Test func thePaymentsBoxDraws() throws {
@@ -198,12 +213,13 @@ import QuotePilotCore
     }
 
     /// The New payment area needs 500 pt less the form's 6-pt right padding, so every name in it
-    /// (Date:, Amount:, Method:, Note:, Record Payment) fits whole when the editor is at its narrowest.
-    /// This measures the whole box, group-box padding included.
+    /// (Date:, Amount:, Method:, Note:) fits whole when the editor is at its narrowest. This measures
+    /// the whole box, group-box padding included.
     @Test func thePaymentsBoxFitsTheEditorFormAtItsNarrowest() throws {
         func width(_ model: AppModel, _ number: String) throws -> CGFloat {
             let invoice = try #require(model.library.invoices.first { $0.number == number })
-            return idealWidth(PaymentsBox(model: model, invoice: invoice).groupBoxStyle(.win95))
+            let payment = model.newPaymentEntry(for: invoice.id).map { Binding.constant($0) }
+            return idealWidth(PaymentsBox(model: model, invoice: invoice, payment: payment).groupBoxStyle(.win95))
         }
         let model = try UIFixture.sampleModel()
         let owing = try width(model, "INV-0002")

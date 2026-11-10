@@ -19,7 +19,7 @@ public enum UsageEvent: String, CaseIterable, Sendable {
     case sent
     case replyRead = "reply_read"
     case jobCompleted = "job_completed"
-    /// method: how it was paid.
+    /// method: how it was paid; from: mark_paid when the Dashboard's Mark Paid recorded it.
     case paymentRecorded = "payment_recorded"
     /// kind: PDF, CSV or backup.
     case fileSaved = "file_saved"

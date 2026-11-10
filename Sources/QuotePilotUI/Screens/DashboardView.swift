@@ -13,6 +13,8 @@ struct DashboardView: View {
     @State private var selectedDraft: UUID?
     /// The drafts chosen with ⌘- and ⇧-click, for Send Together.
     @State private var chosenDrafts: Set<UUID> = []
+    /// The invoices waiting to be paid chosen with ⌘- and ⇧-click, for Mark Paid.
+    @State private var chosenOwing: Set<UUID> = []
 
     var body: some View {
         let dashboard = model.dashboard
@@ -39,8 +41,14 @@ struct DashboardView: View {
                 let jobColumns = Self.jobColumns(currencyCode: model.currencyCode)
                 GroupBox(Self.listTitles[0]) {
                     DetailsList(dashboard.waiting, id: \.invoiceID, columns: owingColumns, selection: $selectedInvoice,
-                                emptyText: Self.waitingEmptyText(model.library),
-                                onOpen: { model.openInvoice($0) })
+                                chosen: $chosenOwing, emptyText: Self.waitingEmptyText(model.library),
+                                onOpen: { model.openInvoice($0) },
+                                rowMenu: { id in
+                                    let rows = Self.menuRows(id, chosen: chosenOwing, listed: dashboard.waiting.map(\.invoiceID))
+                                    return AnyView(Button(Self.markPaidTitle(rows.count)) { model.markPaid(rows) }
+                                        .disabled(!model.canEdit))
+                                })
+                    .help("⌘-click to choose several invoices, then right-click → Mark Paid.")
                 }
                 .frame(minWidth: Self.boxWidth(owingColumns, scroller: DetailsLayout.legacyScrollerWidth))
                 GroupBox(Self.listTitles[1]) {
@@ -65,9 +73,7 @@ struct DashboardView: View {
                                 chosen: $chosenDrafts, emptyText: "No drafts.",
                                 onOpen: { model.library.invoice($0) == nil ? model.openQuote($0) : model.openInvoice($0) },
                                 rowMenu: { id in
-                                    // The menu is built before the right-click chooses its row: on a row
-                                    // outside the chosen ones it's that row alone, as the click will make it.
-                                    let rows = chosenDrafts.contains(id) ? chosenDrafts.intersection(dashboard.drafts.map(\.id)) : [id]
+                                    let rows = Self.menuRows(id, chosen: chosenDrafts, listed: dashboard.drafts.map(\.id))
                                     let together = model.togetherDocument(rows)
                                     return AnyView(Button("Send Together") { together.map(model.send) }.disabled(together == nil))
                                 })
@@ -86,6 +92,16 @@ struct DashboardView: View {
 
     /// The screen's padding, and the gap between the two lists side by side.
     static let gap: CGFloat = 8
+
+    /// The rows a right-click menu acts on: the chosen ones still listed, or the row clicked alone when
+    /// it isn't one of them. The menu is built before the click chooses its row, so this says what
+    /// the click will make it.
+    static func menuRows(_ id: UUID, chosen: Set<UUID>, listed: [UUID]) -> Set<UUID> {
+        chosen.contains(id) ? chosen.intersection(listed) : [id]
+    }
+
+    /// "Mark Paid", or "Mark 3 Paid" for several.
+    static func markPaidTitle(_ count: Int) -> String { count > 1 ? "Mark \(count) Paid" : "Mark Paid" }
 
     /// What "Still to invoice" says when it is empty: that nothing is accepted yet while no quote has
     /// been accepted, and that the accepted jobs are done once some have.

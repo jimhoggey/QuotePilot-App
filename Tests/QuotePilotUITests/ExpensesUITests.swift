@@ -71,6 +71,10 @@ import UniformTypeIdentifiers
         let copy = try #require(model.library.expense(id).flatMap(model.attachmentURL))
         #expect(copy.deletingLastPathComponent().standardizedFileURL == model.expenseAttachmentsFolder.standardizedFileURL)
         #expect(try Data(contentsOf: copy) == Data(contentsOf: source))
+        #expect(model.library.expense(id)?.attachmentTitle == "supplier invoice.pdf", "listed by the name it had")
+        model.section = .expenses
+        let rep = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 860), name: "expense-attachment")
+        #expect(rep.map(Snapshot.hasContent) == true)
 
         var opened: [URL] = []
         model.openInFinder = { opened.append($0) }
@@ -79,6 +83,7 @@ import UniformTypeIdentifiers
 
         model.removeAttachment(id)
         #expect(model.library.expense(id)?.attachment == nil)
+        #expect(model.library.expense(id)?.attachmentName == nil)
         #expect(FileManager.default.fileExists(atPath: copy.path), "the copy stays in Assets")
     }
 

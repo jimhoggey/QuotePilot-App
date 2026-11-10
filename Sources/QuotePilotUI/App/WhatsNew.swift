@@ -15,6 +15,10 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.12.0",
+                "Record Payment is at the top of a sent invoice, and Send Receipt… takes Send by Mail…'s place once it's paid.",
+                "Mark Paid: ⌘-click invoices in the Dashboard's Waiting to be paid list, then right-click to record them paid today.",
+                "An expense's attached file is listed by name: double-click to open it, × to remove it."),
         Release("1.11.0", "Expenses shows this financial year's profit as a pie: expenses in blue, profit in magenta, with your margin beside it."),
         Release("1.10.0", "Travel expenses record the trip: type From and To, and Apple Maps fills in the kilometres. Tick Return trip to count them twice."),
         Release("1.9.1"),
