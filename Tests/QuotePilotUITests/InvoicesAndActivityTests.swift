@@ -51,17 +51,35 @@ import QuotePilotCore
             #expect(layout.previewWidth <= 520)
         }
         let smallest = InvoicesView.layout(width: 778)
-        #expect(!smallest.showKind)
+        #expect(!smallest.showKind && !smallest.showPaid)
         let usual = InvoicesView.layout(width: 1038) // the 1240-wide window the app opens at
-        #expect(usual.showKind)
+        #expect(usual.showKind && usual.showPaid)
         #expect(usual.previewWidth >= 300)
+        // Narrowing, Kind goes before Paid on.
+        let between = (778...1038).map { InvoicesView.layout(width: CGFloat($0)) }
+        #expect(between.contains { !$0.showKind && $0.showPaid })
+        #expect(!between.contains { $0.showKind && !$0.showPaid })
+    }
+
+    /// Paid on says when an invoice was paid in full: the day of its last payment, blank till then.
+    @Test func paidOnIsTheDayItWasPaidInFull() throws {
+        let model = try UIFixture.sampleModel()
+        func row(_ number: String) throws -> InvoiceRow {
+            let invoice = try #require(model.library.invoices.first { $0.number == number })
+            return InvoiceRow(invoice, library: model.library, today: model.today)
+        }
+        let paid = try #require(model.library.invoices.first { $0.number == "INV-0001" })
+        #expect(try row("INV-0001").paidOn == paid.payments.map(\.date).max())
+        #expect(try row("INV-0001").paidOn != nil)
+        #expect(try row("INV-0003").paidOn == nil, "part paid")
+        #expect(try row("INV-0002").paidOn == nil, "nothing paid")
     }
 
     /// The list's minimum keeps room for a classic scroller (17 wide), whatever the Mac shows now.
     @Test func theListReservesAClassicScroller() {
         for width: CGFloat in [778, 1038] {
             let layout = InvoicesView.layout(width: width)
-            let columns = InvoicesView.columns(showKind: layout.showKind, currencyCode: "AUD")
+            let columns = InvoicesView.columns(showKind: layout.showKind, showPaid: layout.showPaid, currencyCode: "AUD")
             let columnsWidth = columns.reduce(CGFloat(0)) { total, column in
                 switch column.width {
                 case .fixed(let width): return total + width
