@@ -60,7 +60,8 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Expenses:** what the business paid for: date, supplier, category, the total and the GST in it
   (Includes GST fills in total ÷ 11), with the supplier's PDF or picture attached (Attach Quote or
   Invoice…, or drop a PDF on the window while the expense shows; it's then listed by name, double-click
-  to open, × to remove). New Expense is in the list's buttons.
+  to open, × to remove). New Expense is in the list's buttons. Each Quote Pilot fee marked paid is
+  listed too (read-only), so the list adds up to what the profit pie and the money record count.
   A **Travel** expense also takes the trip: From and To, and Apple Maps fills in the driving distance
   (the two places go to Apple, as in the Maps app; no key). Return trip counts it twice. The money
   record shows each trip, and the year's summary totals the business kilometres for the accountant.
