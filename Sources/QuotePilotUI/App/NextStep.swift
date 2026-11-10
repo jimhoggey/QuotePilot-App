@@ -183,7 +183,7 @@ struct NextStep: Equatable {
                 return NextStep(steps: progress(titles, at: nil), sentence: sentence, action: nil)
             }
             return NextStep(steps: progress(titles, at: 1),
-                            sentence: "Next: when the client pays, record it under New payment.",
+                            sentence: "Next: when the client pays, press Record Payment.",
                             action: .recordPayment)
         }
     }

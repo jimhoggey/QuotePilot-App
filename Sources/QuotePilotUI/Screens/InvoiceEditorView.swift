@@ -10,6 +10,9 @@ struct InvoiceEditorView: View {
     var stepDefaults: UserDefaults = .standard
     /// Full View: the preview takes the form's place too.
     @State private var fullView = false
+    /// What was typed under New payment, so the header's Record Payment records it. Kept with the
+    /// `PaymentsBox.areaID` it was typed for: a different invoice, or a payment since, starts afresh.
+    @State private var typedPayment: (areaID: String, entry: PaymentEntry)?
 
     var body: some View {
         let invoice = model.invoiceBinding(invoiceID)
@@ -44,6 +47,29 @@ struct InvoiceEditorView: View {
     /// sent invoice's outlined button is Record Payment, so the screen never has two.
     static func sendIsDefault(_ invoice: Invoice) -> Bool { invoice.stage == .draft }
 
+    /// The New payment area's entry: what was typed for this invoice since its last payment, or else
+    /// what's owing, today, by bank transfer. Nil when the invoice can't take a payment.
+    private func payment(_ invoice: Invoice) -> Binding<PaymentEntry>? {
+        guard let fresh = model.newPaymentEntry(for: invoice.id) else { return nil }
+        let areaID = PaymentsBox.areaID(invoice)
+        return Binding(get: { typedPayment.flatMap { $0.areaID == areaID ? $0.entry : nil } ?? fresh },
+                       set: { typedPayment = (areaID, $0) })
+    }
+
+    /// Records the New payment area's payment. Once it's in, what was typed is done with, so removing
+    /// that payment again starts the area afresh.
+    private func record(_ entry: PaymentEntry) {
+        if model.recordPayment(entry) { typedPayment = nil }
+    }
+
+    /// Record Payment's explanation: exactly what it will record.
+    static func recordHelp(_ entry: PaymentEntry, today: Day, money: (Money) -> String) -> String {
+        guard let amount = FieldParser.money(entry.amount) else { return "Type the amount paid under New payment first." }
+        let day = entry.date == today ? "today" : "on \(entry.date.short)"
+        let how = entry.method == .other ? "" : " by \(entry.method.label.lowercased())"
+        return "Records \(money(amount)) paid \(day)\(how). If it was different, change it under New payment first. (Return there does it too.)"
+    }
+
     /// Two rows, like the quote's: the name, status and amount above, with the step bar in the space
     /// between them; the actions below, on the same left edge as All Invoices. 8 pt above the first
     /// row, between the rows and below the actions. (Not private: a test measures it at the smallest
@@ -53,6 +79,12 @@ struct InvoiceEditorView: View {
         return VStack(spacing: 0) {
             titleRow(invoice)
             HStack(spacing: 6) {
+                // Paying is what a sent invoice waits for, so it comes first, where it's easy to see.
+                if let payment = payment(invoice) {
+                    Button("Record Payment") { record(payment.wrappedValue) }
+                        .buttonStyle(.win95Default)
+                        .explained(Self.recordHelp(payment.wrappedValue, today: model.today, money: model.money))
+                }
                 if invoice.stage != .void {
                     Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
                         .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(invoice)))
@@ -191,7 +223,7 @@ struct InvoiceEditorView: View {
             // without scrolling; the invoice's own boxes are the record below it. Everything from here
             // down is greyed out while the fee lock is on (`canEdit`); the banners above stay.
             if current.stage != .draft {
-                PaymentsBox(model: model, invoice: current)
+                PaymentsBox(model: model, invoice: current, payment: payment(current), record: record)
                     .disabled(!model.canEdit)
             }
             GroupBox("Invoice") {

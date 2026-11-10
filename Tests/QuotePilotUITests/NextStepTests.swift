@@ -441,7 +441,7 @@ import QuotePilotCore
         try made.library.markSent(invoice: made.invoice)
         let next = try self.next(invoice: made.invoice, in: made.library)
         #expect(states(next) == [.done, .current, .todo])
-        #expect(next.sentence == "Next: when the client pays, record it under New payment.")
+        #expect(next.sentence == "Next: when the client pays, press Record Payment.")
         #expect(next.action == .recordPayment)
     }
 
@@ -514,7 +514,7 @@ import QuotePilotCore
 
         try library.markSent(invoice: deposit.id)
         let sentOne = try self.next(invoice: deposit.id, in: library)
-        #expect(sentOne.sentence == "Next: when the client pays, record it under New payment.")
+        #expect(sentOne.sentence == "Next: when the client pays, press Record Payment.")
         #expect(sentOne.action == .recordPayment)
 
         try library.recordPayment(Payment(date: today, amount: deposit.amount), toInvoice: deposit.id)

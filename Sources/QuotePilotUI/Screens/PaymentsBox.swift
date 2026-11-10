@@ -3,10 +3,15 @@ import SwiftUI
 
 /// An invoice's payments, what's paid so far, and where a new payment is entered: no dialog, so
 /// there is one place to look. A sent invoice with money owing shows the New payment area under
-/// the list. Send Receipt… appears once a payment exists.
+/// the list; the editor's Record Payment, at the top, records it. Send Receipt… appears once a
+/// payment exists.
 struct PaymentsBox: View {
     let model: AppModel
     let invoice: Invoice
+    /// The New payment area's entry, which the editor keeps; nil when the invoice can't take a payment.
+    let payment: Binding<PaymentEntry>?
+    /// Records the entry: Return in the area's fields.
+    let record: (PaymentEntry) -> Void
 
     /// The area starts fresh for each invoice and after each payment, taking the new amount owing,
     /// and keeps what was typed after a refusal (the payment count hasn't changed).
@@ -59,10 +64,9 @@ struct PaymentsBox: View {
                         }
                     }
                 }
-                if let start = model.newPaymentEntry(for: invoice.id) {
+                if let payment {
                     EtchedLine()
-                    NewPaymentArea(model: model, entry: start)
-                        .id(Self.areaID(invoice))
+                    NewPaymentArea(entry: payment, record: record)
                 }
             }
             .font(Win95.body)
@@ -71,23 +75,24 @@ struct PaymentsBox: View {
     }
 }
 
-/// Date, amount, method and note for the next payment, and the button that records it. Two or three
-/// short rows, so it fits the editor form at its narrowest (500 pt).
+/// Date, amount, method and note for the next payment. The editor's Record Payment, at the top,
+/// records it, and so does Return in any of the fields. Two or three short rows, so it fits the
+/// editor form at its narrowest (500 pt).
 struct NewPaymentArea: View {
-    let model: AppModel
-    @State private var entry: PaymentEntry
-
-    init(model: AppModel, entry: PaymentEntry) {
-        self.model = model
-        _entry = State(initialValue: entry)
-    }
+    @Binding var entry: PaymentEntry
+    let record: (PaymentEntry) -> Void
 
     private static let labelWidth: CGFloat = 58
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("New payment")
-                .font(Win95.label)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("New payment")
+                    .font(Win95.label)
+                Text("Press Record Payment at the top to record it.")
+                    .font(Win95.small)
+                    .foregroundStyle(Win95.note)
+            }
             HStack(spacing: 16) {
                 Win95FieldRow("Date:", labelWidth: Self.labelWidth) {
                     DayPicker(label: "Payment date", day: $entry.date)
@@ -102,19 +107,12 @@ struct NewPaymentArea: View {
                 Win95RadioGroup(selection: $entry.method,
                                 options: PaymentMethod.allCases.map { ($0, $0.label) }, axis: .horizontal)
             }
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Win95FieldRow("Note:", labelWidth: Self.labelWidth) {
-                    Win95TextField("Note", text: $entry.note, prompt: "Optional, e.g. a reference")
-                }
-                // Styled as the default button because Return in any of these fields presses it
-                // (`onSubmit` below); it takes no shortcut of its own, so Return elsewhere on the
-                // screen doesn't record a payment.
-                Button("Record Payment") { model.recordPayment(entry) }
-                    .buttonStyle(.win95Default)
-                    .help("Record this payment against the invoice (Return in a field does too)")
+            Win95FieldRow("Note:", labelWidth: Self.labelWidth) {
+                Win95TextField("Note", text: $entry.note, prompt: "Optional, e.g. a reference")
             }
         }
-        // Return in any of the fields records it too.
-        .onSubmit { model.recordPayment(entry) }
+        // Return in any of the fields records it, as the outlined Record Payment says. It takes no
+        // shortcut of its own, so Return elsewhere on the screen doesn't record a payment.
+        .onSubmit { record(entry) }
     }
 }
