@@ -76,7 +76,10 @@ shows; with View → Show Steps off, the screen's own button takes its place.
     the payments recorded each month, from the month it's turned on. A red bar under the toolbar
     shows it. Each month's fee is due on the 1st of the next; one still unpaid from the 5th locks
     editing (viewing, PDFs, backups, exports and Settings stay open) until you press I've paid.
-    Unticking the fee removes the bar and the lock.
+    Unticking the fee removes the bar and the lock, and leaves its rows out of the expenses, the
+    pie and the money record. The padlock beside the tick locks the fee's settings (tick,
+    percentage, first name, email) with a password, so whoever sets Quote Pilot up decides them;
+    only a salted fingerprint of it is kept.
 - **File menu:** Import from Invoice Generator Backup…, Export Payments for Tax Time…, Back Up To…,
   Restore Backup…, Start Fresh… and Reset Quote and Invoice Numbers…. Restore Backup… restores the
   daily backup you pick, with no extra question. The status bar says which backup came back.
