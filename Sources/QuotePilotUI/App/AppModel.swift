@@ -154,6 +154,8 @@ public final class AppModel {
     @ObservationIgnored var beep: () -> Void = { NSSound.beep() }
     /// Where a Travel expense's driving distance comes from. Tests swap it so nothing goes to Apple.
     @ObservationIgnored var distances: any DistanceFinding = AppleMapsDistance()
+    /// Trips Maps said have no route ("from\nto"), so they aren't asked about again this session.
+    @ObservationIgnored var routesNotFound: Set<String> = []
     /// Opens a folder or file in Finder or its own app: File → Show Money Records' Records folder, an
     /// expense's attachment. Tests swap it for a recorder.
     @ObservationIgnored var openInFinder: (URL) -> Void = { _ = NSWorkspace.shared.open($0) }

@@ -96,6 +96,11 @@ public struct Trip: Codable, Hashable, Sendable {
     /// What the trip counts for the business: the distance, twice for a return trip.
     public var businessKilometres: Decimal? { kilometres.map { returnTrip ? $0 * 2 : $0 } }
 
+    /// Whether both ends are typed, so a distance can be looked up.
+    public var hasEnds: Bool {
+        ![from, to].contains { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
     /// "Fraser ACT → City ACT, 39.8 km return", as the money record describes it.
     public var summary: String {
         let route = [from, to].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }

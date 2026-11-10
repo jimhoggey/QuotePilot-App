@@ -32,13 +32,21 @@ extension AppModel {
     }
 
     /// Fills in a Travel expense's one-way distance from Apple Maps, once it has both ends and no
-    /// distance yet. False only when Maps found no route, so the form can ask for the kilometres.
+    /// distance yet, and never while the fee lock is on. False when Maps couldn't give one, so the form
+    /// can ask for the kilometres. A route Maps says doesn't exist isn't asked about again; one that
+    /// failed because Maps couldn't be reached is, next time.
     @discardableResult
     func fillTripDistance(_ id: UUID) async -> Bool {
-        guard let trip = library.expense(id)?.travel, trip.kilometres == nil,
-              ![trip.from, trip.to].contains(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty })
-        else { return true }
-        guard let kilometres = try? await distances.drivingKilometres(from: trip.from, to: trip.to) else { return false }
+        guard canEdit, let trip = library.expense(id)?.travel, trip.kilometres == nil, trip.hasEnds else { return true }
+        let ends = "\(trip.from)\n\(trip.to)"
+        guard !routesNotFound.contains(ends) else { return false }
+        let kilometres: Decimal
+        do {
+            kilometres = try await distances.drivingKilometres(from: trip.from, to: trip.to)
+        } catch {
+            if error is RouteNotFound { routesNotFound.insert(ends) }
+            return false
+        }
         // The ends may have changed while Maps worked: only the trip it was asked about takes the answer.
         guard var expense = library.expense(id), expense.trip?.from == trip.from, expense.trip?.to == trip.to,
               expense.trip?.kilometres == nil else { return true }

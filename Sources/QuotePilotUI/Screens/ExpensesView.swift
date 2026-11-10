@@ -212,7 +212,8 @@ struct TripFields: View {
 
     var body: some View {
         let current = expense.trip ?? Trip()
-        let ready = ![current.from, current.to].contains { $0.trimmingCharacters(in: .whitespaces).isEmpty }
+        // Nothing is looked up while the fee lock is on.
+        let ready = current.hasEnds && model.canEdit
         Group {
             Win95FieldRow("From:") { Win95TextField("Trip from", text: end(\.from), prompt: "e.g. Fraser ACT") }
             Win95FieldRow("To:") { Win95TextField("Trip to", text: end(\.to), prompt: "e.g. Canberra City") }
@@ -242,13 +243,16 @@ struct TripFields: View {
             // Wait for typing to stop; a new keystroke cancels this and starts again.
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            notFound = !(await model.fillTripDistance(expenseID))
+            let found = await model.fillTripDistance(expenseID)
+            // Typing again while Maps worked cancels this; the next lookup speaks for the new ends.
+            guard !Task.isCancelled else { return }
+            notFound = !found
         }
     }
 
     /// What the note under the trip says.
     static func note(_ trip: Trip, notFound: Bool) -> String {
-        if notFound { return "Apple Maps couldn't find that route. Type the kilometres." }
+        if notFound { return "Apple Maps couldn't work out that route. Type the kilometres." }
         guard let business = trip.businessKilometres else {
             return "Type where from and to; Apple Maps fills in the driving distance."
         }
