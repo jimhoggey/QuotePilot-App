@@ -57,4 +57,43 @@ extension AppModel {
         if let paid = library.brand.appFee.paidMonths[month.key] { track(.feePaid, feeProps(month, paid.amount)) }
         note("Marked the \(month.name) fee paid")
     }
+
+    // MARK: The fee's password
+
+    /// Whether the fee's settings (the tick, the percentage, the first name and the email) are greyed
+    /// out: a password is set and hasn't been typed since Brand → Settings was opened.
+    public var feeSettingsLocked: Bool { library.brand.appFee.lock != nil && !feeSettingsUnlocked }
+
+    /// Locks the fee's settings with a new password. Activity says so, not what it is.
+    public func lockFeeSettings(password: String) {
+        guard !password.isEmpty else { return beep() }
+        let time = now()
+        guard change("Couldn't lock the fee", whileLocked: true, { library in
+            library.brand.appFee.lock = AppFeeLock(password: password)
+            library.log("Locked the Quote Pilot fee's settings with a password", at: time)
+        }) else { return }
+        feeSettingsUnlocked = false
+        dialog = nil
+        note("The Quote Pilot fee is locked")
+    }
+
+    /// Opens the fee's settings if `password` is the one chosen; false, with nothing changed, if not.
+    @discardableResult
+    public func unlockFeeSettings(password: String) -> Bool {
+        guard library.brand.appFee.lock?.opens(with: password) == true else { return false }
+        feeSettingsUnlocked = true
+        dialog = nil
+        return true
+    }
+
+    /// Remove Password, beside the open lock: only once the password has been typed.
+    public func removeFeePassword() {
+        guard library.brand.appFee.lock != nil, feeSettingsUnlocked else { return beep() }
+        let time = now()
+        guard change("Couldn't remove the password", whileLocked: true, { library in
+            library.brand.appFee.lock = nil
+            library.log("Removed the password from the Quote Pilot fee's settings", at: time)
+        }) else { return }
+        feeSettingsUnlocked = false
+    }
 }

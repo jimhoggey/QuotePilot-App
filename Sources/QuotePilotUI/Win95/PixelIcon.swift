@@ -5,7 +5,7 @@ import SwiftUI
 /// transparent and the rest are the Windows 95 icon colours in `palette`.
 public enum PixelIcon: String, CaseIterable, Sendable {
     case quote, invoice, receipt, client, dashboard, activity, brand
-    case mail, pdf, payment, warning, info, question, folder, tick, cross
+    case mail, pdf, payment, warning, info, question, folder, tick, cross, lock, unlocked
 
     /// The Windows 95 16-colour icon palette.
     static let palette: [Character: Color] = [
@@ -305,6 +305,42 @@ public enum PixelIcon: String, CaseIterable, Sendable {
                     "................",
                     "................",
                     "................",
+                    "................"]
+        case .lock:
+            // A brass padlock, shut.
+            return ["................",
+                    ".....kkkkkk.....",
+                    "....kgssssgk....",
+                    "...kgk....kgk...",
+                    "...kgk....kgk...",
+                    "...kgk....kgk...",
+                    "..kkkkkkkkkkkk..",
+                    "..kyyyyyyyyyok..",
+                    "..kyyyyyyyyyok..",
+                    "..kyyyykkyyyok..",
+                    "..kyyyykkyyyok..",
+                    "..kyyyyykyyyok..",
+                    "..kyyyyyyyyyok..",
+                    "..kooooooooook..",
+                    "..kkkkkkkkkkkk..",
+                    "................"]
+        case .unlocked:
+            // The same padlock, its shackle lifted out on the right.
+            return [".....kkkkkk.....",
+                    "....kgssssgk....",
+                    "...kgk....kgk...",
+                    "...kgk....kgk...",
+                    "...kgk....kkk...",
+                    "...kgk..........",
+                    "..kkkkkkkkkkkk..",
+                    "..kyyyyyyyyyok..",
+                    "..kyyyyyyyyyok..",
+                    "..kyyyykkyyyok..",
+                    "..kyyyykkyyyok..",
+                    "..kyyyyykyyyok..",
+                    "..kyyyyyyyyyok..",
+                    "..kooooooooook..",
+                    "..kkkkkkkkkkkk..",
                     "................"]
         }
     }

@@ -99,6 +99,9 @@ public final class AppModel {
     public var selectedClientID: UUID?
     /// The expense whose form shows beside the Expenses list.
     public var selectedExpenseID: UUID?
+    /// Whether the fee's password was typed, opening its settings until Brand → Settings is left.
+    /// Never saved: Quote Pilot always opens with them locked.
+    public var feeSettingsUnlocked = false
     /// Each list's search text, kept while you move between sections. A search that hides the
     /// selected quote, invoice or client clears that selection (`dropHiddenSelections`).
     public var findText: [AppSection: String] = [:] {
@@ -560,6 +563,11 @@ public final class AppModel {
             var kept = library.brand
             kept.appFee = brand.appFee
             brand = kept
+        }
+        // Behind its password the fee's settings stay as they are, whatever else changes. (The lock
+        // itself and the months paid change through their own paths, never through here.)
+        if feeSettingsLocked {
+            brand.appFee = library.brand.appFee
         }
         // Turning the fee on starts it afresh: only this month and later count.
         if brand.appFee.calculates, !library.brand.appFee.calculates {

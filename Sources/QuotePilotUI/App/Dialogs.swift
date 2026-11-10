@@ -15,6 +15,12 @@ public enum Dialog: Equatable {
     case restore
     /// File → Start Fresh…: what goes, what stays, and whether clients go too.
     case startFresh
+    /// The Quote Pilot fee's lock: choosing its password, or typing it to change the fee's settings.
+    case feePassword(FeePasswordStep)
+}
+
+public enum FeePasswordStep: Equatable {
+    case choose, unlock
 }
 
 /// A Windows 95 dialog: navy title bar, grey body, bevelled edge.
@@ -129,6 +135,69 @@ struct DialogOverlay: View {
             RestoreView(model: model)
         case .startFresh:
             StartFreshView(model: model)
+        case .feePassword(let step):
+            FeePasswordView(model: model, step: step)
+        }
+    }
+}
+
+/// Choosing the Quote Pilot fee's password (typed twice, so a slip can't lock you out), or typing it
+/// to change the fee's settings. A wrong one says so here, with no second box.
+struct FeePasswordView: View {
+    let model: AppModel
+    let step: FeePasswordStep
+    @State private var password = ""
+    @State private var again = ""
+    @State private var wrong = false
+
+    private var ready: Bool { !password.isEmpty && (step == .unlock || password == again) }
+
+    var body: some View {
+        DialogPanel(title: step == .choose ? "Lock the Quote Pilot Fee" : "Unlock the Quote Pilot Fee", icon: .lock) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(step == .choose
+                     ? "Choose a password. After that, the fee's settings (the tick, the percentage, the first name and the email) can only be changed once it's typed. Quote Pilot keeps a scrambled fingerprint of it, never the password itself."
+                     : "Type the password to change the fee's settings. They lock again when you leave Settings.")
+                    .fixedSize(horizontal: false, vertical: true)
+                Win95FieldRow("Password:", labelWidth: 70) {
+                    Win95TextField("Password", text: $password, secure: true)
+                }
+                if step == .choose {
+                    Win95FieldRow("Again:", labelWidth: 70) {
+                        Win95TextField("Password again", text: $again, secure: true)
+                    }
+                    if !again.isEmpty, again != password {
+                        Text("The two passwords don't match yet.")
+                            .font(Win95.small)
+                    }
+                }
+                if wrong {
+                    Text("That's not the password.")
+                        .foregroundStyle(Win95.overdue)
+                }
+                HStack(spacing: 8) {
+                    Spacer()
+                    Button(step == .choose ? "Lock" : "Unlock") { submit() }
+                        .buttonStyle(.win95Default)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!ready)
+                    Button("Cancel") { model.dialog = nil }
+                        .buttonStyle(.win95)
+                        .keyboardShortcut(.cancelAction)
+                }
+            }
+            .font(Win95.body)
+            .foregroundStyle(Win95.text)
+        }
+    }
+
+    private func submit() {
+        switch step {
+        case .choose:
+            model.lockFeeSettings(password: password)
+        case .unlock:
+            wrong = !model.unlockFeeSettings(password: password)
+            if wrong { password = "" }
         }
     }
 }
