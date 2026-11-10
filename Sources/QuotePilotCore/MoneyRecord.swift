@@ -114,8 +114,8 @@ extension Library {
         .sorted(by: MoneyEvent.inOrder)
     }
 
-    /// Every expense, then every Quote Pilot fee marked paid, each by date (expenses on one day in the
-    /// order they were added).
+    /// Every expense, then every Quote Pilot fee marked paid while the fee is on (`paidFees`), each by
+    /// date (expenses on one day in the order they were added).
     func moneyOut() -> [MoneyOut] {
         let spent = expenses.enumerated()
             .sorted { ($0.element.date, $0.offset) < ($1.element.date, $1.offset) }
@@ -123,13 +123,11 @@ extension Library {
                             description: $0.element.recordDescription, category: $0.element.category,
                             total: $0.element.total, gst: $0.element.gst, method: $0.element.method.label,
                             note: $0.element.note) }
-        let fees = brand.appFee.paidMonths.compactMap { key, paid -> (CalendarMonth, AppFeePaid)? in
-            CalendarMonth(key: key).map { ($0, paid) }
-        }
-        .sorted { ($0.1.on, $0.0) < ($1.1.on, $1.0) }
-        .map { MoneyOut(date: $0.1.on, event: "Quote Pilot fee paid", who: "Quote Pilot",
-                        description: "Quote Pilot fee for \($0.0.label)", category: Self.appFeeCategory,
-                        total: $0.1.amount, gst: .zero, method: "", note: "") }
+        let fees = paidFees
+            .sorted { ($0.paid.on, $0.month) < ($1.paid.on, $1.month) }
+            .map { MoneyOut(date: $0.paid.on, event: "Quote Pilot fee paid", who: "Quote Pilot",
+                            description: "Quote Pilot fee for \($0.month.label)", category: Self.appFeeCategory,
+                            total: $0.paid.amount, gst: .zero, method: "", note: "") }
         return spent + fees
     }
 

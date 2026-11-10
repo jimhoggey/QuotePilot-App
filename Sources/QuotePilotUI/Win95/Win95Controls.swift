@@ -135,36 +135,46 @@ public struct Win95TextField: View {
     let label: String
     @Binding var text: String
     let prompt: String
+    /// A password field: dots in place of what's typed.
+    let secure: Bool
     @FocusState private var focused: Bool
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.textEditEnded) private var editEnded
     @Environment(\.textFocusChanged) private var focusChanged
 
-    public init(_ label: String, text: Binding<String>, prompt: String = "") {
+    public init(_ label: String, text: Binding<String>, prompt: String = "", secure: Bool = false) {
         self.label = label
         self._text = text
         self.prompt = prompt
+        self.secure = secure
     }
 
     public var body: some View {
         // A locked field shows no hint to type: an empty one stays blank.
-        TextField(label, text: $text, prompt: Text(isEnabled ? prompt : ""))
-            .textFieldStyle(.plain)
-            .labelsHidden()
-            .font(Win95.body)
-            .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
-            .focused($focused)
-            .onSubmit { editEnded() }
-            .onChange(of: focused) { _, isFocused in
-                focusChanged(isFocused)
-                if !isFocused { editEnded() }
+        let hint = Text(isEnabled ? prompt : "")
+        Group {
+            if secure {
+                SecureField(label, text: $text, prompt: hint)
+            } else {
+                TextField(label, text: $text, prompt: hint)
             }
-            .padding(.horizontal, 5)
-            .padding(.vertical, 4)
-            .background(isEnabled ? Win95.field : Win95.face)
-            .overlay(Bevel(.sunken))
-            .overlay(focused ? FocusRect().padding(3) : nil)
-            .accessibilityLabel(label)
+        }
+        .textFieldStyle(.plain)
+        .labelsHidden()
+        .font(Win95.body)
+        .foregroundStyle(isEnabled ? Win95.text : Win95.shadow)
+        .focused($focused)
+        .onSubmit { editEnded() }
+        .onChange(of: focused) { _, isFocused in
+            focusChanged(isFocused)
+            if !isFocused { editEnded() }
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 4)
+        .background(isEnabled ? Win95.field : Win95.face)
+        .overlay(Bevel(.sunken))
+        .overlay(focused ? FocusRect().padding(3) : nil)
+        .accessibilityLabel(label)
     }
 }
 

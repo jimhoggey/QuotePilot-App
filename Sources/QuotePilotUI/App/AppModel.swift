@@ -84,7 +84,10 @@ public final class AppModel {
     public private(set) var loadState: LoadState
     public private(set) var lastSaved: Date?
 
-    public var section: AppSection = .dashboard
+    public var section: AppSection = .dashboard {
+        // Leaving Brand locks the fee's settings again, whatever the view does.
+        didSet { if section != .brand { feeSettingsUnlocked = false } }
+    }
     public var selectedQuoteID: UUID?
     /// The quote open in the editor; nil shows the quote list.
     public var openQuoteID: UUID? {
@@ -99,6 +102,9 @@ public final class AppModel {
     public var selectedClientID: UUID?
     /// The expense whose form shows beside the Expenses list.
     public var selectedExpenseID: UUID?
+    /// Whether the fee's password was typed, opening its settings until Brand → Settings is left.
+    /// Never saved: Quote Pilot always opens with them locked.
+    public var feeSettingsUnlocked = false
     /// Each list's search text, kept while you move between sections. A search that hides the
     /// selected quote, invoice or client clears that selection (`dropHiddenSelections`).
     public var findText: [AppSection: String] = [:] {
@@ -561,6 +567,11 @@ public final class AppModel {
             kept.appFee = brand.appFee
             brand = kept
         }
+        // Behind its password the fee's settings stay as they are, whatever else changes. (The lock
+        // itself and the months paid change through their own paths, never through here.)
+        if feeSettingsLocked {
+            brand.appFee = library.brand.appFee
+        }
         // Turning the fee on starts it afresh: only this month and later count.
         if brand.appFee.calculates, !library.brand.appFee.calculates {
             brand.appFee.startMonth = CalendarMonth(containing: today)
@@ -931,6 +942,9 @@ public final class AppModel {
     /// change as the Activity entry, and held in memory at once so none can be issued in between.
     public func restore(from backup: URL) {
         let issued = library.usedNumbers + library.documentNumbers + SentArchive.numbers(in: sentFolder)
+        // A fee behind its password stays as it is: an older backup mustn't bring back a fee with no
+        // password, or a different one.
+        let lockedFee = library.brand.appFee.lock == nil ? nil : library.brand.appFee
         do {
             library = try store.restore(from: backup, now: now())
         } catch {
@@ -938,6 +952,8 @@ public final class AppModel {
             return
         }
         library.keepUsed(issued)
+        if let lockedFee { library.brand.appFee = lockedFee }
+        feeSettingsUnlocked = false
         loadState = .ready
         lastSaved = now()
         track(.backupRestored)
@@ -949,6 +965,7 @@ public final class AppModel {
         // replaced by the note.
         guard change("Couldn't note the restore in Activity", whileLocked: true, {
                   $0.keepUsed(issued)
+                  if let lockedFee { $0.brand.appFee = lockedFee }
                   $0.log("Restored the \(Self.backupLabel(backup)) backup")
               }),
               message == nil

@@ -512,9 +512,19 @@ struct SettingsTab: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             GroupBox("Quote Pilot fee") {
+                let locked = model.feeSettingsLocked
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Calculate a monthly fee", isOn: $brand.appFee.calculates)
-                        .toggleStyle(.win95)
+                    HStack(spacing: 8) {
+                        Toggle("Calculate a monthly fee", isOn: $brand.appFee.calculates)
+                            .toggleStyle(.win95)
+                            .disabled(locked)
+                        Spacer(minLength: 0)
+                        FeeLockButton(model: model)
+                    }
+                    if locked {
+                        Text("Locked with a password. Press the lock and type it to change the fee.")
+                            .font(Win95.small)
+                    }
                     Win95FieldRow("Fee:") {
                         HStack(spacing: 6) {
                             CommitField(label: "Quote Pilot fee, in percent", value: typing.appFee.percent,
@@ -526,7 +536,7 @@ struct SettingsTab: View {
                         }
                     }
                     // Greyed out while the fee isn't calculated, and its figures hidden.
-                    .disabled(!brand.appFee.calculates)
+                    .disabled(!brand.appFee.calculates || locked)
                     Group {
                         Win95FieldRow("First name:") {
                             Win95TextField("First name for the fee's invoice", text: $brand.appFee.name)
@@ -535,7 +545,7 @@ struct SettingsTab: View {
                             Win95TextField("Email for the fee's invoice", text: $brand.appFee.email, prompt: "name@example.com")
                         }
                     }
-                    .disabled(!brand.appFee.calculates)
+                    .disabled(!brand.appFee.calculates || locked)
                     ForEach(model.appFeeLines, id: \.self) { line in
                         Text(line)
                             .fixedSize(horizontal: false, vertical: true)
@@ -546,6 +556,8 @@ struct SettingsTab: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // Typing the password opens the fee's settings only until you leave them.
+            .onDisappear { model.feeSettingsUnlocked = false }
             GroupBox("Job tracking") {
                 VStack(alignment: .leading, spacing: 6) {
                     Toggle("Show a Done column on quote lines", isOn: $brand.showsDoneColumn)

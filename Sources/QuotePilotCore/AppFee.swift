@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// The Quote Pilot fee (beta, honour system): a percentage of what's received each calendar month.
@@ -20,6 +21,8 @@ public struct AppFee: Codable, Hashable, Sendable {
     /// the developer can invoice it. Empty until typed.
     public var name = ""
     public var email = ""
+    /// The password that guards these settings in the app, once one is chosen.
+    public var lock: AppFeeLock?
 
     public init(calculates: Bool = true, percent: Decimal = 3, startMonth: CalendarMonth = .thisMonth(),
                 paidMonths: [String: AppFeePaid] = [:]) {
@@ -46,9 +49,30 @@ public struct AppFeePaid: Codable, Hashable, Sendable {
     }
 }
 
+/// The password that guards the fee's settings in the app, so the person setting Quote Pilot up for a
+/// client decides them. Only a random salt and the SHA-256 of salt and password are kept, never the
+/// password. It stops changes in the app, not someone editing the library file: the fee is on the
+/// honour system too.
+public struct AppFeeLock: Codable, Hashable, Sendable {
+    public let salt: String
+    public let hash: String
+
+    public init(password: String, salt: String = UUID().uuidString) {
+        self.salt = salt
+        hash = Self.hash(password, salt: salt)
+    }
+
+    /// Whether `password` is the one chosen.
+    public func opens(with password: String) -> Bool { Self.hash(password, salt: salt) == hash }
+
+    static func hash(_ password: String, salt: String) -> String {
+        SHA256.hash(data: Data((salt + password).utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
 extension AppFee {
     enum CodingKeys: String, CodingKey {
-        case calculates, percent, startMonth, paidMonths, name, email
+        case calculates, percent, startMonth, paidMonths, name, email, lock
     }
 
     public init(from decoder: Decoder) throws {
@@ -60,6 +84,8 @@ extension AppFee {
         paidMonths = try c.value(.paidMonths, or: d.paidMonths)
         name = try c.value(.name, or: d.name)
         email = try c.value(.email, or: d.email)
+        // A damaged lock reads as none rather than keeping the library from opening.
+        lock = try? c.decodeIfPresent(AppFeeLock.self, forKey: .lock)
     }
 }
 
@@ -234,21 +260,25 @@ extension Library {
     /// the profit pie count. They aren't the library's expenses: `expense(_:)` doesn't find them, so
     /// they can't be changed or deleted. Oldest first.
     public var feeExpenses: [Expense] {
-        brand.appFee.paidMonths.compactMap { key, paid in
-            CalendarMonth(key: key).map { month in
-                Expense(id: Self.feeExpenseID(month), date: paid.on, supplier: "Quote Pilot",
-                        description: "Quote Pilot fee for \(month.label)", category: Self.appFeeCategory,
-                        total: paid.amount)
-            }
+        paidFees.map { month, paid in
+            Expense(id: Self.feeExpenseID(month), date: paid.on, supplier: "Quote Pilot",
+                    description: "Quote Pilot fee for \(month.label)", category: Self.appFeeCategory,
+                    total: paid.amount)
         }
         .sorted { ($0.date, $0.id.uuidString) < ($1.date, $1.id.uuidString) }
     }
 
     /// The month of the fee row with this id, if it is one, and what was paid.
     public func feePaid(forExpense id: UUID) -> (month: CalendarMonth, paid: AppFeePaid)? {
-        brand.appFee.paidMonths.lazy.compactMap { key, paid in
-            CalendarMonth(key: key).flatMap { Self.feeExpenseID($0) == id ? ($0, paid) : nil }
-        }.first
+        paidFees.first { Self.feeExpenseID($0.month) == id }
+    }
+
+    /// The fees marked paid, while the fee is calculated: with it turned off, Quote Pilot is no
+    /// expense, so the Expenses list, the profit pie and the money record leave them out. The months
+    /// stay marked paid and count again once it's turned back on.
+    var paidFees: [(month: CalendarMonth, paid: AppFeePaid)] {
+        guard brand.appFee.calculates else { return [] }
+        return brand.appFee.paidMonths.compactMap { key, paid in CalendarMonth(key: key).map { ($0, paid) } }
     }
 
     /// A fee row's id: the same every time for its month, so the row stays selected.
