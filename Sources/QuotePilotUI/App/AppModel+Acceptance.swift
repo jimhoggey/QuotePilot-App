@@ -170,12 +170,12 @@ extension AppModel {
     private func acceptanceReview(_ quote: Quote, proposal: AcceptanceProposal, source: AcceptanceSource,
                                   fileName: String?) -> AcceptanceReview {
         var review = AcceptanceReview(quote: quote, proposal: proposal, source: source, fileName: fileName)
-        if review.clientName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+        if review.clientName.trimmed.isEmpty,
            let client = library.client(quote.clientID) {
-            let contact = client.contactName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let contact = client.contactName.trimmed
             review.clientName = contact.isEmpty ? client.name : contact
         }
-        if review.clientDate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if review.clientDate.trimmed.isEmpty {
             let day = today
             review.clientDate = String(format: "%02d/%02d/%04d", day.day, day.month, day.year)
         }

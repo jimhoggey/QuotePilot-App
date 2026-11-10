@@ -197,7 +197,7 @@ struct NextStep: Equatable {
     private static func draftHint(hasClient: Bool, lines: [LineItem], total: Money,
                                   ready: String) -> (String, Action?) {
         if !hasClient { return ("Next: choose the client.", nil) }
-        let hasWork = lines.contains { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let hasWork = lines.contains { !$0.title.trimmed.isEmpty }
         if !hasWork { return ("Next: add the work, one line each.", nil) }
         if total <= .zero { return ("Next: give the work a price.", nil) }
         return (ready, .send)

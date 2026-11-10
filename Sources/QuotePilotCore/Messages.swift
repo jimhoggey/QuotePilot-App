@@ -38,7 +38,7 @@ extension LibraryError: LocalizedError {
         case .paymentMoreThanOwing(let owing):
             return "That's more than the \(owing.formatted()) still owing on this invoice."
         case .clientInUse(let name):
-            let who = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "This client" : name
+            let who = name.trimmed.isEmpty ? "This client" : name
             return "\(who) has quotes or invoices, so it can't be deleted."
         case .depositStillDeducted(let final):
             return "\(final) deducts this deposit. Delete \(final) first."

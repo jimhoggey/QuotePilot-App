@@ -65,7 +65,7 @@ extension AppModel {
     /// Assets/Expenses, as a replaced logo does.
     public func deleteSelectedExpense() {
         guard canEdit, let id = selectedExpenseID, let expense = library.expense(id) else { return beep() }
-        let who = expense.supplier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let who = expense.supplier.trimmed
         confirm(title: "Delete Expense",
                 text: "Delete the expense\(who.isEmpty ? "" : " from \(who)") on \(expense.date.short)? This can't be undone.",
                 confirm: "Delete") { [weak self] in

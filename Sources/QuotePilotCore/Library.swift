@@ -157,7 +157,7 @@ public struct Library: Codable, Sendable {
         guard canDeleteClient(id) else { throw LibraryError.clientInUse(clients[index].name) }
         let name = clients.remove(at: index).name
         // A client with no name yet shows as "(no name)" in the list, so Activity does too.
-        log("Deleted client \(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(no name)" : name)")
+        log("Deleted client \(name.trimmed.isEmpty ? "(no name)" : name)")
     }
 
     @discardableResult

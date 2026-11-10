@@ -29,8 +29,8 @@ extension AppModel {
     func feeProps(_ month: CalendarMonth, _ fee: Money) -> [String: Any] {
         let payer = library.brand.appFee
         return ["month": month.key, "fee_percent": percentNumber, "fee": Double(fee.cents) / 100,
-                "name": payer.name.trimmingCharacters(in: .whitespacesAndNewlines),
-                "email": payer.email.trimmingCharacters(in: .whitespacesAndNewlines)]
+                "name": payer.name.trimmed,
+                "email": payer.email.trimmed]
     }
 
     /// The fee's tick box and rate, as app_started and fee_setting_changed carry them.

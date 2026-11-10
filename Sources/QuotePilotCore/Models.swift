@@ -126,7 +126,7 @@ public struct Brand: Codable, Hashable, Sendable {
 
     /// The invoice templates New Invoice offers: those with a title, as an untitled one can't be told apart.
     public var offeredInvoiceTemplates: [InvoiceTemplate] {
-        invoiceTemplates.filter { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        invoiceTemplates.filter { !$0.title.trimmed.isEmpty }
     }
 
     public init() {}
@@ -338,7 +338,7 @@ public struct InvoiceTemplate: Codable, Hashable, Identifiable, Sendable {
 
     /// The title as menus and messages show it: "(no title)" until one is typed.
     public var shownTitle: String {
-        title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(no title)" : title
+        title.trimmed.isEmpty ? "(no title)" : title
     }
 }
 

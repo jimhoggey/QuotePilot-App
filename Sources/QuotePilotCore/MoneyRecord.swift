@@ -35,7 +35,7 @@ extension Expense {
     /// "Client meeting (Fraser ACT → City ACT, 39.8 km return)".
     var recordDescription: String {
         guard let trip = travel?.summary, !trip.isEmpty else { return description }
-        return description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? trip : "\(description) (\(trip))"
+        return description.trimmed.isEmpty ? trip : "\(description) (\(trip))"
     }
 }
 
