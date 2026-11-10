@@ -60,6 +60,10 @@ import QuotePilotCore
         let boxes = VStack(spacing: 8) {
             ProfitBox(profit: Profit(year: year, income: Money(dollars: 12000), expenses: Money(dollars: 3200)),
                       gstRegistered: true, money: money)
+            // The widest figures a one-person business is likely to see, at the narrowest form.
+            ProfitBox(profit: Profit(year: year, income: Money(dollars: 987_654, cents: 32),
+                                     expenses: Money(dollars: 123_456, cents: 78)),
+                      gstRegistered: true, money: money)
             ProfitBox(profit: Profit(year: year, income: Money(dollars: 1000), expenses: Money(dollars: 1250)),
                       gstRegistered: false, money: money)
             ProfitBox(profit: Profit(year: year, income: .zero, expenses: Money(dollars: 40)),
@@ -68,7 +72,7 @@ import QuotePilotCore
         .padding(8)
         .frame(width: 320)
         .background(Win95.face)
-        let rep = Snapshot.render(boxes, size: CGSize(width: 320, height: 380), name: "profit-box")
+        let rep = Snapshot.render(boxes, size: CGSize(width: 320, height: 500), name: "profit-box")
         #expect(rep.map(Snapshot.hasContent) == true)
 
         let model = try UIFixture.sampleModel()

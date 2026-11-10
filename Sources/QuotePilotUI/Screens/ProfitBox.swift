@@ -24,8 +24,8 @@ struct ProfitBox: View {
                             Text(money(profit.expenses)).gridColumnAlignment(.trailing)
                         }
                         GridRow {
-                            // A loss has no magenta slice to point at.
-                            LegendSwatch(color: isLoss ? nil : RetroPie.restColor)
+                            // No profit leaves no magenta slice to point at.
+                            LegendSwatch(color: profit.profit > .zero ? RetroPie.restColor : nil)
                             Text(isLoss ? "Loss:" : "Profit:")
                             Text(money(Money(cents: abs(profit.profit.cents))))
                         }
