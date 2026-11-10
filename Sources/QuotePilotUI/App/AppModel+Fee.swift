@@ -64,9 +64,10 @@ extension AppModel {
     /// out: a password is set and hasn't been typed since Brand → Settings was opened.
     public var feeSettingsLocked: Bool { library.brand.appFee.lock != nil && !feeSettingsUnlocked }
 
-    /// Locks the fee's settings with a new password. Activity says so, not what it is.
+    /// Locks the fee's settings with a new password. Activity says so, not what it is. A password
+    /// already set has to be removed first, so this can't replace it.
     public func lockFeeSettings(password: String) {
-        guard !password.isEmpty else { return beep() }
+        guard !password.isEmpty, library.brand.appFee.lock == nil else { return beep() }
         let time = now()
         guard change("Couldn't lock the fee", whileLocked: true, { library in
             library.brand.appFee.lock = AppFeeLock(password: password)

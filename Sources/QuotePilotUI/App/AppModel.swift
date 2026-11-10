@@ -84,7 +84,10 @@ public final class AppModel {
     public private(set) var loadState: LoadState
     public private(set) var lastSaved: Date?
 
-    public var section: AppSection = .dashboard
+    public var section: AppSection = .dashboard {
+        // Leaving Brand locks the fee's settings again, whatever the view does.
+        didSet { if section != .brand { feeSettingsUnlocked = false } }
+    }
     public var selectedQuoteID: UUID?
     /// The quote open in the editor; nil shows the quote list.
     public var openQuoteID: UUID? {
@@ -939,6 +942,9 @@ public final class AppModel {
     /// change as the Activity entry, and held in memory at once so none can be issued in between.
     public func restore(from backup: URL) {
         let issued = library.usedNumbers + library.documentNumbers + SentArchive.numbers(in: sentFolder)
+        // A fee behind its password stays as it is: an older backup mustn't bring back a fee with no
+        // password, or a different one.
+        let lockedFee = library.brand.appFee.lock == nil ? nil : library.brand.appFee
         do {
             library = try store.restore(from: backup, now: now())
         } catch {
@@ -946,6 +952,8 @@ public final class AppModel {
             return
         }
         library.keepUsed(issued)
+        if let lockedFee { library.brand.appFee = lockedFee }
+        feeSettingsUnlocked = false
         loadState = .ready
         lastSaved = now()
         track(.backupRestored)
@@ -957,6 +965,7 @@ public final class AppModel {
         // replaced by the note.
         guard change("Couldn't note the restore in Activity", whileLocked: true, {
                   $0.keepUsed(issued)
+                  if let lockedFee { $0.brand.appFee = lockedFee }
                   $0.log("Restored the \(Self.backupLabel(backup)) backup")
               }),
               message == nil

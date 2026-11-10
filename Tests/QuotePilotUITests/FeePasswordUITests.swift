@@ -58,6 +58,32 @@ import QuotePilotCore
         #expect(model.library.activity.first?.message == "Removed the password from the Quote Pilot fee's settings")
     }
 
+    /// Restoring a backup from before the password keeps today's fee and its password, locked.
+    @Test func aRestoreKeepsTheLockedFee() throws {
+        let model = try UIFixture.sampleModel()
+        model.newClient() // makes today's backup, before the password
+        let backup = try #require(model.latestBackup)
+        model.lockFeeSettings(password: password)
+        model.unlockFeeSettings(password: password)
+        model.restore(from: backup)
+        #expect(model.message == nil)
+        #expect(model.library.brand.appFee.lock?.opens(with: password) == true)
+        #expect(model.feeSettingsLocked)
+        guard case .loaded(let reopened) = model.store.load() else { Issue.record("the library didn't load"); return }
+        #expect(reopened.brand.appFee.lock?.opens(with: password) == true, "saved, not only shown")
+    }
+
+    @Test func leavingBrandLocksItAgainAndAPasswordIsntReplaced() throws {
+        let model = try lockedModel()
+        model.section = .brand
+        model.unlockFeeSettings(password: password)
+        model.section = .dashboard
+        #expect(model.feeSettingsLocked)
+
+        model.lockFeeSettings(password: "another")
+        #expect(model.library.brand.appFee.lock?.opens(with: password) == true, "remove it first")
+    }
+
     @Test func theLockSaysWhatItDoes() {
         #expect(FeeLockButton.help(hasPassword: false, locked: false).hasPrefix("Lock the fee's settings"))
         #expect(FeeLockButton.help(hasPassword: true, locked: true).hasPrefix("Locked."))

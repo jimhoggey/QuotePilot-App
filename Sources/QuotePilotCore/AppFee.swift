@@ -84,7 +84,8 @@ extension AppFee {
         paidMonths = try c.value(.paidMonths, or: d.paidMonths)
         name = try c.value(.name, or: d.name)
         email = try c.value(.email, or: d.email)
-        lock = try c.decodeIfPresent(AppFeeLock.self, forKey: .lock)
+        // A damaged lock reads as none rather than keeping the library from opening.
+        lock = try? c.decodeIfPresent(AppFeeLock.self, forKey: .lock)
     }
 }
 
