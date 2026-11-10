@@ -27,7 +27,7 @@ struct InvoicesView: View {
         let rows = Self.visibleRows(model)
         return GeometryReader { geometry in
             let layout = Self.layout(width: geometry.size.width)
-            let columns = Self.columns(showKind: layout.showKind, currencyCode: model.currencyCode)
+            let columns = Self.columns(showKind: layout.showKind, showPaid: layout.showPaid, currencyCode: model.currencyCode)
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 6) {
                     // No New Invoice here: the toolbar's, right above, is the one control for it.
@@ -47,7 +47,7 @@ struct InvoicesView: View {
                                 onOpen: { model.openInvoice($0) },
                                 rowMenu: { id in AnyView(rowMenu(id)) })
                         // A sort is a column number, so a different set of columns starts afresh.
-                        .id(layout.showKind)
+                        .id([layout.showKind, layout.showPaid])
                 }
                 .frame(minWidth: layout.listMinimum, maxWidth: .infinity)
                 GroupBox("Preview") {
@@ -90,6 +90,8 @@ struct InvoicesView: View {
     struct Layout: Equatable {
         /// Whether the Kind column is shown.
         var showKind: Bool
+        /// Whether the Paid on column is shown.
+        var showPaid: Bool
         /// The least the list needs for its columns not to be cut.
         var listMinimum: CGFloat
         var previewWidth: CGFloat
@@ -97,19 +99,21 @@ struct InvoicesView: View {
 
     /// The preview is never under 220 (the quote editor's minimum), and about a third of the width
     /// up to 520. The window is at least 980 wide, which leaves 778 beside the section tree; all
-    /// seven columns need about 590 of that, which would squeeze the preview to nothing, so the
-    /// Kind column (the least useful) is dropped until the preview can have 300.
+    /// eight columns need about 680 of that, which would squeeze the preview to nothing, so columns
+    /// are dropped until the preview can have 300: Kind (the least useful) first, then Paid on.
     static func layout(width: CGFloat) -> Layout {
         let available = width - 24 // the padding either side, and the gap between list and preview
-        let fullMinimum = listMinimum(columns(showKind: true, currencyCode: "AUD"))
-        let showKind = available - fullMinimum >= 300
-        let minimum = showKind ? fullMinimum : listMinimum(columns(showKind: false, currencyCode: "AUD"))
+        let sets = [(kind: true, paid: true), (kind: false, paid: true), (kind: false, paid: false)]
+        let minimum = { (set: (kind: Bool, paid: Bool)) in
+            listMinimum(columns(showKind: set.kind, showPaid: set.paid, currencyCode: "AUD"))
+        }
+        let shown = sets.first { available - minimum($0) >= 300 } ?? sets[2]
         let wanted = min(available * 0.35, 520)
-        let preview = max(220, min(wanted, available - minimum)).rounded(.down)
-        return Layout(showKind: showKind, listMinimum: minimum, previewWidth: preview)
+        let preview = max(220, min(wanted, available - minimum(shown))).rounded(.down)
+        return Layout(showKind: shown.kind, showPaid: shown.paid, listMinimum: minimum(shown), previewWidth: preview)
     }
 
-    static func columns(showKind: Bool, currencyCode: String) -> [DetailsColumn<InvoiceRow>] {
+    static func columns(showKind: Bool, showPaid: Bool, currencyCode: String) -> [DetailsColumn<InvoiceRow>] {
         var columns: [DetailsColumn<InvoiceRow>] = [
             .text("Invoice", width: .fixed(72)) { $0.number },
             // 60 at the least, so the list and a 220 preview still fit the smallest window.
@@ -118,8 +122,15 @@ struct InvoicesView: View {
         if showKind {
             columns.append(.text("Kind", width: .fixed(60)) { $0.kind })
         }
+        columns.append(.day("Due", width: 92) { $0.due })
+        if showPaid {
+            // Once an invoice is paid, when it was paid matters more than when it was due (the user,
+            // 10 Nov 2026). Blank until then; those sort first.
+            columns.append(.text("Paid on", width: .fixed(92), sortValue: { $0.paidOn.map(SortValue.day) ?? .number(0) }) {
+                $0.paidOn?.short ?? ""
+            })
+        }
         columns += [
-            .day("Due", width: 92) { $0.due },
             DetailsColumn("Status", width: .fixed(114), sortValue: { .text($0.status.listLabel) }) { row, selected in
                 StatusLabel.cell(row.status, selected: selected)
             },
@@ -149,6 +160,8 @@ struct InvoiceRow: Identifiable {
     let client: String
     let kind: String
     let due: Day
+    /// The day of the payment that settled it; nil until it's paid in full.
+    let paidOn: Day?
     let status: InvoiceStatus
     let amount: Money
     let owing: Money
@@ -159,6 +172,7 @@ struct InvoiceRow: Identifiable {
         client = library.client(invoice.clientID)?.name ?? "No client"
         kind = invoice.kind.columnLabel
         due = invoice.due
+        paidOn = invoice.isPaidInFull ? invoice.payments.map(\.date).max() : nil
         status = invoice.status(on: today)
         amount = invoice.amount
         owing = invoice.stage == .sent ? max(invoice.owing, .zero) : .zero
