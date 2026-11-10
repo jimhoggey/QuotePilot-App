@@ -138,6 +138,9 @@ import QuotePilotCore
         let paid = try invoice("INV-0001"), owing = try invoice("INV-0002"), part = try invoice("INV-0003")
         #expect(!paid.offersSend && paid.offersReceipt && paid.receiptIsNext)
         #expect(owing.offersSend && !owing.offersReceipt)
+        var nothingAsked = owing
+        nothingAsked.lines = []
+        #expect(nothingAsked.offersSend && !nothingAsked.offersReceipt, "a $0 invoice with no payments can still be sent")
         #expect(part.offersSend && part.offersReceipt && !part.receiptIsNext, "part paid: both, the receipt not outlined")
 
         model.openInvoice(paid.id)

@@ -211,6 +211,9 @@ extension AppModel {
         confirm(title: "Mark Paid",
                 text: "Mark \(numbers) paid? This records \(money(total)) received today by bank transfer.",
                 confirm: "Mark Paid") {
+            // What's owing now, in case something changed while the question was up.
+            let invoices = self.invoicesToMarkPaid(ids)
+            guard !invoices.isEmpty else { return }
             let day = self.today
             guard self.change("Couldn't record the payments", { library in
                 for invoice in invoices {
@@ -220,8 +223,10 @@ extension AppModel {
             for _ in invoices {
                 self.track(.paymentRecorded, ["method": PaymentMethod.bankTransfer.rawValue, "from": "mark_paid"])
             }
+            let total = invoices.reduce(Money.zero) { $0 + $1.owing }
             // The status bar's cell holds about three numbers.
-            self.note("Recorded \(self.money(total)) for \(invoices.count > 3 ? "\(invoices.count) invoices" : numbers)")
+            let which = invoices.count > 3 ? "\(invoices.count) invoices" : Self.list(invoices.map(\.number))
+            self.note("Recorded \(self.money(total)) for \(which)")
         }
     }
 

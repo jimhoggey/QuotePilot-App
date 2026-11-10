@@ -5,8 +5,8 @@ import QuotePilotPDF
 /// What can be mailed for an invoice: the invoice itself, or once it's paid in full, its receipt.
 /// The invoice editor's top row and ⌘S go by these, so each shows one button for each.
 extension Invoice {
-    /// Sent with nothing left owing, as the Paid status says.
-    var isPaidInFull: Bool { stage == .sent && owing <= .zero }
+    /// Sent, paid, and nothing left owing. (A $0 invoice with no payments can still be sent again.)
+    var isPaidInFull: Bool { stage == .sent && owing <= .zero && !payments.isEmpty }
     /// Send by Mail… sends the invoice until it's paid in full; then Send Receipt… takes its place.
     var offersSend: Bool { stage != .void && !isPaidInFull }
     /// Send Receipt… shows once a payment is recorded.

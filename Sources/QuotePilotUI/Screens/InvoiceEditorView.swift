@@ -11,8 +11,9 @@ struct InvoiceEditorView: View {
     /// Full View: the preview takes the form's place too.
     @State private var fullView = false
     /// What was typed under New payment, so the header's Record Payment records it. Kept with the
-    /// `PaymentsBox.areaID` it was typed for: a different invoice, or a payment since, starts afresh.
-    @State private var typedPayment: (areaID: String, entry: PaymentEntry)?
+    /// payments it was typed against: one recorded or removed since starts the area afresh, with the
+    /// new amount owing; a refused amount stays to be fixed. (Each invoice gets its own editor.)
+    @State private var typedPayment: (payments: [UUID], entry: PaymentEntry)?
 
     var body: some View {
         let invoice = model.invoiceBinding(invoiceID)
@@ -51,15 +52,9 @@ struct InvoiceEditorView: View {
     /// what's owing, today, by bank transfer. Nil when the invoice can't take a payment.
     private func payment(_ invoice: Invoice) -> Binding<PaymentEntry>? {
         guard let fresh = model.newPaymentEntry(for: invoice.id) else { return nil }
-        let areaID = PaymentsBox.areaID(invoice)
-        return Binding(get: { typedPayment.flatMap { $0.areaID == areaID ? $0.entry : nil } ?? fresh },
-                       set: { typedPayment = (areaID, $0) })
-    }
-
-    /// Records the New payment area's payment. Once it's in, what was typed is done with, so removing
-    /// that payment again starts the area afresh.
-    private func record(_ entry: PaymentEntry) {
-        if model.recordPayment(entry) { typedPayment = nil }
+        let payments = invoice.payments.map(\.id)
+        return Binding(get: { typedPayment.flatMap { $0.payments == payments ? $0.entry : nil } ?? fresh },
+                       set: { typedPayment = (payments, $0) })
     }
 
     /// Record Payment's explanation: exactly what it will record.
@@ -81,7 +76,7 @@ struct InvoiceEditorView: View {
             HStack(spacing: 6) {
                 // Paying is what a sent invoice waits for, so it comes first, where it's easy to see.
                 if let payment = payment(invoice) {
-                    Button("Record Payment") { record(payment.wrappedValue) }
+                    Button("Record Payment") { model.recordPayment(payment.wrappedValue) }
                         .buttonStyle(.win95Default)
                         .explained(Self.recordHelp(payment.wrappedValue, today: model.today, money: model.money))
                 }
@@ -95,7 +90,9 @@ struct InvoiceEditorView: View {
                 if invoice.offersReceipt {
                     Button("Send Receipt…") { model.send(.receipt(invoiceID)) }
                         .buttonStyle(Win95ButtonStyle(isDefault: invoice.receiptIsNext))
-                        .explained("Opens a Mail draft to the client with a receipt for the payments so far. You press Send in Mail.")
+                        .disabled(invoice.clientID == nil)
+                        .explained(invoice.clientID == nil ? "Choose a client first."
+                                   : "Opens a Mail draft to the client with a receipt for the payments so far. You press Send in Mail.")
                 }
                 // Greyed, not hidden, for a deposit the final invoice deducts: the note on the form says why.
                 if invoice.stage == .sent, invoice.payments.isEmpty {
@@ -228,7 +225,7 @@ struct InvoiceEditorView: View {
             // without scrolling; the invoice's own boxes are the record below it. Everything from here
             // down is greyed out while the fee lock is on (`canEdit`); the banners above stay.
             if current.stage != .draft {
-                PaymentsBox(model: model, invoice: current, payment: payment(current), record: record)
+                PaymentsBox(model: model, invoice: current, payment: payment(current))
                     .disabled(!model.canEdit)
             }
             GroupBox("Invoice") {

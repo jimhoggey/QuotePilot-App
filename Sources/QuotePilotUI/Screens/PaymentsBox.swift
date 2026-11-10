@@ -10,14 +10,6 @@ struct PaymentsBox: View {
     let invoice: Invoice
     /// The New payment area's entry, which the editor keeps; nil when the invoice can't take a payment.
     let payment: Binding<PaymentEntry>?
-    /// Records the entry: Return in the area's fields.
-    let record: (PaymentEntry) -> Void
-
-    /// The area starts fresh for each invoice and after each payment, taking the new amount owing,
-    /// and keeps what was typed after a refusal (the payment count hasn't changed).
-    static func areaID(_ invoice: Invoice) -> String {
-        "\(invoice.id.uuidString)-\(invoice.payments.count)"
-    }
 
     var body: some View {
         let share = invoice.amount.cents > 0 ? Double(invoice.paid.cents) / Double(invoice.amount.cents) : 0
@@ -59,7 +51,7 @@ struct PaymentsBox: View {
                 }
                 if let payment {
                     EtchedLine()
-                    NewPaymentArea(entry: payment, record: record)
+                    NewPaymentArea(entry: payment) { model.recordPayment($0) }
                 }
             }
             .font(Win95.body)

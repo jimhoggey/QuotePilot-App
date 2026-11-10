@@ -44,8 +44,7 @@ struct DashboardView: View {
                                 chosen: $chosenOwing, emptyText: Self.waitingEmptyText(model.library),
                                 onOpen: { model.openInvoice($0) },
                                 rowMenu: { id in
-                                    // As Send Together's: the chosen rows, or the row clicked if it isn't one.
-                                    let rows = chosenOwing.contains(id) ? chosenOwing.intersection(dashboard.waiting.map(\.invoiceID)) : [id]
+                                    let rows = Self.menuRows(id, chosen: chosenOwing, listed: dashboard.waiting.map(\.invoiceID))
                                     return AnyView(Button(Self.markPaidTitle(rows.count)) { model.markPaid(rows) }
                                         .disabled(!model.canEdit))
                                 })
@@ -74,9 +73,7 @@ struct DashboardView: View {
                                 chosen: $chosenDrafts, emptyText: "No drafts.",
                                 onOpen: { model.library.invoice($0) == nil ? model.openQuote($0) : model.openInvoice($0) },
                                 rowMenu: { id in
-                                    // The menu is built before the right-click chooses its row: on a row
-                                    // outside the chosen ones it's that row alone, as the click will make it.
-                                    let rows = chosenDrafts.contains(id) ? chosenDrafts.intersection(dashboard.drafts.map(\.id)) : [id]
+                                    let rows = Self.menuRows(id, chosen: chosenDrafts, listed: dashboard.drafts.map(\.id))
                                     let together = model.togetherDocument(rows)
                                     return AnyView(Button("Send Together") { together.map(model.send) }.disabled(together == nil))
                                 })
@@ -95,6 +92,13 @@ struct DashboardView: View {
 
     /// The screen's padding, and the gap between the two lists side by side.
     static let gap: CGFloat = 8
+
+    /// The rows a right-click menu acts on: the chosen ones still listed, or the row clicked alone when
+    /// it isn't one of them. The menu is built before the click chooses its row, so this says what
+    /// the click will make it.
+    static func menuRows(_ id: UUID, chosen: Set<UUID>, listed: [UUID]) -> Set<UUID> {
+        chosen.contains(id) ? chosen.intersection(listed) : [id]
+    }
 
     /// "Mark Paid", or "Mark 3 Paid" for several.
     static func markPaidTitle(_ count: Int) -> String { count > 1 ? "Mark \(count) Paid" : "Mark Paid" }

@@ -219,8 +219,7 @@ import QuotePilotCore
         func width(_ model: AppModel, _ number: String) throws -> CGFloat {
             let invoice = try #require(model.library.invoices.first { $0.number == number })
             let payment = model.newPaymentEntry(for: invoice.id).map { Binding.constant($0) }
-            return idealWidth(PaymentsBox(model: model, invoice: invoice, payment: payment, record: { _ in })
-                .groupBoxStyle(.win95))
+            return idealWidth(PaymentsBox(model: model, invoice: invoice, payment: payment).groupBoxStyle(.win95))
         }
         let model = try UIFixture.sampleModel()
         let owing = try width(model, "INV-0002")
