@@ -15,6 +15,7 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.12.1", "Quote Pilot fees you've paid are listed with your expenses, so the list adds up to the profit pie."),
         Release("1.12.0",
                 "Record Payment is at the top of a sent invoice, and Send Receipt… takes Send by Mail…'s place once it's paid.",
                 "Mark Paid: ⌘-click invoices in the Dashboard's Waiting to be paid list, then right-click to record them paid today.",
