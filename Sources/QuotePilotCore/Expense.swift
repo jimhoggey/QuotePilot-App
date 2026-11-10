@@ -45,9 +45,6 @@ public struct Expense: Codable, Hashable, Identifiable, Sendable {
         self.attachment = attachment
     }
 
-    /// What was paid less GST.
-    public var exGST: Money { total - gst }
-
     /// The GST inside a GST-inclusive total: one eleventh, rounded half up to the cent.
     public static func gst(inTotal total: Money) -> Money { total.times(Decimal(1) / 11) }
 

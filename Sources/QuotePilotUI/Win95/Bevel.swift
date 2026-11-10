@@ -38,11 +38,6 @@ public struct Bevel: View {
 }
 
 public extension View {
-    /// A raised grey panel: bars, buttons, the window body.
-    func win95Raised(padding: CGFloat = 2) -> some View {
-        self.padding(padding).background(Win95.face).overlay(Bevel(.raised))
-    }
-
     /// A sunken well: fields, lists, readouts.
     func win95Sunken(fill: Color = Win95.field, padding: CGFloat = 2) -> some View {
         self.padding(padding).background(fill).overlay(Bevel(.sunken))
