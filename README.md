@@ -15,6 +15,8 @@ The engine the app runs on is written and covered by automated tests. Everything
 - **Quote PDFs the client can tick.** Every line has an ID and a tick box, with an "Accept all" box at
   the top and fields for the client's name and the date. The form is a standard PDF form (an AcroForm),
   so PDF apps that fill in forms can tick it; so far it's been tested in Apple's Preview and in pdf.js.
+  Every document has a letterhead: the logo and business name at the top left, and the business's
+  details (address, email, phone, website, ABN) at the top right, under the title.
 - **Reading a returned quote.** The ticks, name and date come back out of the PDF and become a
   proposal: which lines were accepted, which were declined, and anything that needs a second look.
 - **Invoicing rules.** A payment plan per quote: **50/50** (a deposit invoice, then the balance on

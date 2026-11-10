@@ -134,7 +134,7 @@ struct BusinessTab: View {
                     Win95FieldRow("Details:") {
                         Win95TextEditor(text: $typing.details).frame(height: 70).brandField(.details, model: model)
                     }
-                    Text("Address, email, phone and website, one per line. They print under your name.")
+                    Text("Address, email, phone and website, one per line. They print at the top right.")
                         .font(Win95.small)
                     BrandPlacementNote(model: model, element: .details)
                     Win95FieldRow("ABN:") { Win95TextField("ABN", text: $typing.abn).brandField(.abn, model: model) }

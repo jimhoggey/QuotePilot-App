@@ -68,6 +68,26 @@ import QuotePilotCore
         #expect(big.descriptionColumn.width < writer.width - Layout.qtyColumn - Layout.rateColumn - Layout.amountColumn)
     }
 
+    // MARK: The letterhead
+
+    /// The business's details and ABN print flush right under the title, in order; the name stays at
+    /// the top left.
+    @Test func theDetailsPrintFlushRightUnderTheTitle() throws {
+        let document = Sample.pdf(.quote(Sample.quote(), client: Sample.client, brand: Sample.brand))
+        let right = PageWriter.pageSize.width - PageWriter.margin
+        let title = try #require(Self.bounds(of: "Quote", in: document).first)
+        let lines = try ["hello@example.com", "0400 000 000", "ABN 00 000 000 000"].map {
+            try #require(Self.bounds(of: $0, in: document).first, "\($0)")
+        }
+        for line in lines {
+            #expect(abs(line.maxX - right) < 1.5, "ends at \(line.maxX), not \(right)")
+            #expect(line.maxY <= title.minY + 2, "under the title")
+        }
+        #expect(lines[0].midY > lines[1].midY && lines[1].midY > lines[2].midY, "in order, the ABN last")
+        let name = try #require(Self.bounds(of: "Sample Studio", in: document).first)
+        #expect(abs(name.minX - PageWriter.margin) < 1.5)
+    }
+
     // MARK: The right-hand column
 
     /// The document's details, the totals and the Accepted by date all start on one line.

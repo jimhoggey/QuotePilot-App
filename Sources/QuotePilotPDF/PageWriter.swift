@@ -187,10 +187,8 @@ final class PageWriter {
         return height
     }
 
-    /// One line of text ending at `right`, with its top at `top`. It is set flush right in a frame,
-    /// the way `draw` sets text, so a figure sits on the same baseline as the words beside it.
-    func drawRight(_ text: NSAttributedString, right: CGFloat, top: CGFloat) {
-        guard text.length > 0 else { return }
+    /// `text` set flush right: each line ends at the right of the room it's drawn in.
+    static func flushRight(_ text: NSAttributedString) -> NSAttributedString {
         let aligned = NSMutableAttributedString(attributedString: text)
         var alignment = CTTextAlignment.right
         let paragraph = withUnsafeBytes(of: &alignment) { bytes in
@@ -199,9 +197,16 @@ final class PageWriter {
         }
         aligned.addAttribute(NSAttributedString.Key(kCTParagraphStyleAttributeName as String), value: paragraph,
                              range: NSRange(location: 0, length: aligned.length))
+        return aligned
+    }
+
+    /// One line of text ending at `right`, with its top at `top`. It is set flush right in a frame,
+    /// the way `draw` sets text, so a figure sits on the same baseline as the words beside it.
+    func drawRight(_ text: NSAttributedString, right: CGFloat, top: CGFloat) {
+        guard text.length > 0 else { return }
         // Room to spare, so the line never wraps; flush right puts its end at `right` all the same.
         let width = ceil(Self.width(of: text)) + 8
-        draw(aligned, x: right - width, top: top, width: width)
+        draw(Self.flushRight(text), x: right - width, top: top, width: width)
     }
 
     func rule(top: CGFloat, x: CGFloat, width: CGFloat, color: CGColor, thickness: CGFloat = 0.75) {

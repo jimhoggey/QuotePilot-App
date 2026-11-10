@@ -212,6 +212,9 @@ final class Layout {
                                   rect: writer.pdfRect(x: x, top: top, width: width, height: height)))
     }
 
+    /// The letterhead: the logo and the business's name at the top left; the title at the top right,
+    /// with the business's details (address, email, phone, website, ABN) flush right under it, where
+    /// a client looks for how to get in touch, in room that's otherwise empty.
     private func drawHeader() {
         let top = writer.y
         var leftY = top
@@ -229,26 +232,31 @@ final class Layout {
         }
         if !content.fromName.isEmpty {
             let name = PageWriter.text(content.fromName, style.body(13, weight: .semibold), PDFStyle.ink)
-            mark(.businessName, lines: PageWriter.lineFrames(of: name, x: writer.left, top: leftY, width: 300))
-            leftY += writer.draw(name, x: writer.left, top: leftY, width: 300) + 3
-        }
-        if !content.fromDetails.isEmpty {
-            let details = PageWriter.text(content.fromDetails, style.body(8.5), PDFStyle.muted)
-            var lines = PageWriter.lineFrames(of: details, x: writer.left, top: leftY, width: 300)
-            // The ABN is the last line, when there is one (`DocumentContent.fromDetails`).
-            if content.fromDetails.components(separatedBy: "\n").last?.hasPrefix("ABN ") == true, let abn = lines.popLast() {
-                mark(.abn, abn)
-            }
-            mark(.details, lines: lines)
-            leftY += writer.draw(details, x: writer.left, top: leftY, width: 300)
+            mark(.businessName, lines: PageWriter.lineFrames(of: name, x: writer.left, top: leftY, width: leftColumnWidth))
+            leftY += writer.draw(name, x: writer.left, top: leftY, width: leftColumnWidth)
         }
         let titleFont = style.heading(26)
         let title = PageWriter.text(content.title, titleFont, PDFStyle.ink)
         writer.drawRight(title, right: writer.right, top: top)
         let titleWidth = PageWriter.width(of: title)
         mark(.headingFont, CGRect(x: writer.right - titleWidth, y: top, width: titleWidth, height: PageWriter.lineHeight(titleFont)))
-        writer.y = max(leftY, top + PageWriter.lineHeight(titleFont)) + 28
+        var rightY = top + PageWriter.lineHeight(titleFont)
+        if !content.fromDetails.isEmpty {
+            rightY += Self.detailsGap
+            let details = PageWriter.flushRight(PageWriter.text(content.fromDetails, style.body(8.5), PDFStyle.muted))
+            var lines = PageWriter.lineFrames(of: details, x: rightColumnX, top: rightY, width: Self.rightColumnWidth)
+            // The ABN is the last line, when there is one (`DocumentContent.fromDetails`).
+            if content.fromDetails.components(separatedBy: "\n").last?.hasPrefix("ABN ") == true, let abn = lines.popLast() {
+                mark(.abn, abn)
+            }
+            mark(.details, lines: lines)
+            rightY += writer.draw(details, x: rightColumnX, top: rightY, width: Self.rightColumnWidth)
+        }
+        writer.y = max(leftY, rightY) + 28
     }
+
+    /// The space between the title and the business's details under it.
+    static let detailsGap: CGFloat = 4
 
     /// The most room a logo gets at the top left.
     static let logoSize = CGSize(width: 180, height: 56)

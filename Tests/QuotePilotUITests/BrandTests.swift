@@ -265,6 +265,24 @@ import QuotePilotPDF
         #expect(BrandElement.quoteTerms.placementNote(on: brand) == "Prints on quotes once filled in.")
     }
 
+    /// With a logo and a full letterhead (four lines of details and an ABN), the sample quote still
+    /// fits on one page, terms and all: the details print beside the logo, under the title.
+    @Test func theSampleFitsOnOnePageWithAFullLetterhead() throws {
+        let model = try UIFixture.sampleModel()
+        var brand = model.library.brand
+        brand.details = "Trading as Sam Example\nexample.com\nhello@example.com\n0400 000 000"
+        brand.abn = "00 000 000 000"
+        brand.quoteTerms = "Prices are fixed for the work listed. Work starts once this quote is accepted and sent back."
+        model.updateBrand(brand)
+        let logo = FileManager.default.temporaryDirectory.appendingPathComponent("logo-\(UUID().uuidString).png")
+        try UIFixture.pngData().write(to: logo) // square, so it's drawn at its full 56 pt height
+        var style = PDFStyle(brand: model.library.brand, assetsFolder: nil)
+        style.logo = try #require(Logo(url: logo))
+        let document = try #require(PDFDocument(data: DocumentRenderer.render(model.sampleContent(), style: style)))
+        #expect(document.pageCount == 1)
+        #expect(document.string?.contains("Work starts once this quote is accepted") == true)
+    }
+
     /// The Business tab draws with a note showing.
     @Test func theBusinessTabDrawsWithANote() throws {
         let model = try UIFixture.sampleModel()

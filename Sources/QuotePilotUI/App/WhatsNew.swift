@@ -15,6 +15,8 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.14.0",
+                "Your details (address, email, phone, website and ABN) print at the top right of quotes and invoices, under the title, so a quote fits on fewer pages."),
         Release("1.13.0",
                 "Brand → Settings: the padlock beside the Quote Pilot fee locks its settings with a password.",
                 "With the fee turned off, it isn't listed as an expense."),
