@@ -234,21 +234,25 @@ extension Library {
     /// the profit pie count. They aren't the library's expenses: `expense(_:)` doesn't find them, so
     /// they can't be changed or deleted. Oldest first.
     public var feeExpenses: [Expense] {
-        brand.appFee.paidMonths.compactMap { key, paid in
-            CalendarMonth(key: key).map { month in
-                Expense(id: Self.feeExpenseID(month), date: paid.on, supplier: "Quote Pilot",
-                        description: "Quote Pilot fee for \(month.label)", category: Self.appFeeCategory,
-                        total: paid.amount)
-            }
+        paidFees.map { month, paid in
+            Expense(id: Self.feeExpenseID(month), date: paid.on, supplier: "Quote Pilot",
+                    description: "Quote Pilot fee for \(month.label)", category: Self.appFeeCategory,
+                    total: paid.amount)
         }
         .sorted { ($0.date, $0.id.uuidString) < ($1.date, $1.id.uuidString) }
     }
 
     /// The month of the fee row with this id, if it is one, and what was paid.
     public func feePaid(forExpense id: UUID) -> (month: CalendarMonth, paid: AppFeePaid)? {
-        brand.appFee.paidMonths.lazy.compactMap { key, paid in
-            CalendarMonth(key: key).flatMap { Self.feeExpenseID($0) == id ? ($0, paid) : nil }
-        }.first
+        paidFees.first { Self.feeExpenseID($0.month) == id }
+    }
+
+    /// The fees marked paid, while the fee is calculated: with it turned off, Quote Pilot is no
+    /// expense, so the Expenses list, the profit pie and the money record leave them out. The months
+    /// stay marked paid and count again once it's turned back on.
+    var paidFees: [(month: CalendarMonth, paid: AppFeePaid)] {
+        guard brand.appFee.calculates else { return [] }
+        return brand.appFee.paidMonths.compactMap { key, paid in CalendarMonth(key: key).map { ($0, paid) } }
     }
 
     /// A fee row's id: the same every time for its month, so the row stays selected.
