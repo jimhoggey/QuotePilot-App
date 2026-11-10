@@ -56,6 +56,24 @@ import Testing
                                                              "Added expense Other Supplier, 20 Oct 2026, $0.00"])
     }
 
+    /// The attachment is listed by the name it had; one attached before names were kept says what kind
+    /// of file it is, and an old library without the name still opens.
+    @Test func theAttachmentIsListedByItsName() throws {
+        var expense = sample()
+        #expect(expense.attachmentTitle == nil)
+        expense.attachment = "Expenses/expense-1.pdf"
+        #expect(expense.attachmentTitle == "Attached PDF")
+        expense.attachment = "Expenses/expense-2.JPG"
+        #expect(expense.attachmentTitle == "Attached picture")
+        expense.attachmentName = "Sample Supplies receipt.jpg"
+        #expect(expense.attachmentTitle == "Sample Supplies receipt.jpg")
+
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(expense)) as? [String: Any] ?? [:]
+        json["attachmentName"] = nil
+        let old = try JSONDecoder().decode(Expense.self, from: JSONSerialization.data(withJSONObject: json))
+        #expect(old.attachmentName == nil && old.attachment == "Expenses/expense-2.JPG")
+    }
+
     @Test func includesGSTFillsInAnEleventhAndFollowsTheTotal() {
         #expect(Expense.gst(inTotal: Money(dollars: 110)) == Money(dollars: 10))
         // $100 ÷ 11 is $9.0909…: $9.09. $1.00 ÷ 11 is 9.09c: 9c. 6c ÷ 11 is 0.545c: 1c.

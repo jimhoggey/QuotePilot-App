@@ -81,8 +81,8 @@ struct ExpensesView: View {
     }
 }
 
-/// One expense. Every change saves as you type; greyed out while the fee lock is on, except Open
-/// Attachment.
+/// One expense. Every change saves as you type; greyed out while the fee lock is on, except opening
+/// the attachment.
 struct ExpenseForm: View {
     let model: AppModel
     let expenseID: UUID
@@ -182,16 +182,17 @@ struct ExpenseForm: View {
                 .disabled(!model.canEdit)
                 GroupBox("Quote or invoice") {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(current.attachment.map { "Attached: \(($0 as NSString).lastPathComponent)" }
-                             ?? "Nothing attached. Attach the supplier's PDF or picture, or drop a PDF on this window.")
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("Attach Quote or Invoice…") { model.choosingFile = .expenseAttachment(expenseID) }
-                            .disabled(!model.canEdit)
-                        HStack(spacing: 6) {
-                            Button("Open Attachment") { model.openAttachment(expenseID) }
-                                .disabled(current.attachment == nil)
-                            Button("Remove Attachment") { model.removeAttachment(expenseID) }
-                                .disabled(current.attachment == nil || !model.canEdit)
+                        // Attached, the file shows as a list to open or remove it; to swap it, remove it
+                        // first or drop another PDF on the window.
+                        if let file = current.attachmentTitle {
+                            AttachmentList(fileName: file, canRemove: model.canEdit,
+                                           open: { model.openAttachment(expenseID) },
+                                           remove: { model.removeAttachment(expenseID) })
+                        } else {
+                            Text("Nothing attached. Attach the supplier's PDF or picture, or drop a PDF on this window.")
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("Attach Quote or Invoice…") { model.choosingFile = .expenseAttachment(expenseID) }
+                                .disabled(!model.canEdit)
                         }
                     }
                     .buttonStyle(.win95)
