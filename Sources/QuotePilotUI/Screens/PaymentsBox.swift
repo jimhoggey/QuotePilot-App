@@ -3,8 +3,8 @@ import SwiftUI
 
 /// An invoice's payments, what's paid so far, and where a new payment is entered: no dialog, so
 /// there is one place to look. A sent invoice with money owing shows the New payment area under
-/// the list; the editor's Record Payment, at the top, records it. Send Receipt… appears once a
-/// payment exists.
+/// the list; the editor's Record Payment, at the top, records it. Send Receipt… is up there too,
+/// once a payment exists, and the box says when the receipt went.
 struct PaymentsBox: View {
     let model: AppModel
     let invoice: Invoice
@@ -54,15 +54,8 @@ struct PaymentsBox: View {
                 if invoice.stage == .sent, invoice.owing <= .zero {
                     Text("Paid in full.")
                 }
-                if !invoice.payments.isEmpty {
-                    HStack(spacing: 8) {
-                        Button("Send Receipt…") { model.send(.receipt(invoice.id)) }
-                            .buttonStyle(.win95)
-                            .help("Open a Mail draft with a receipt for the payments so far")
-                        if let sent = invoice.receiptSentAt {
-                            Text("Receipt sent \(Day(sent).short)")
-                        }
-                    }
+                if let sent = invoice.receiptSentAt {
+                    Text("Receipt sent \(Day(sent).short)")
                 }
                 if let payment {
                     EtchedLine()

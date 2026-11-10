@@ -85,12 +85,17 @@ struct InvoiceEditorView: View {
                         .buttonStyle(.win95Default)
                         .explained(Self.recordHelp(payment.wrappedValue, today: model.today, money: model.money))
                 }
-                if invoice.stage != .void {
+                if invoice.offersSend {
                     Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
                         .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(invoice)))
                         .disabled(invoice.clientID == nil)
                         .explained(invoice.clientID == nil ? "Choose a client first."
                                    : "Opens a Mail draft to the client with this invoice attached. You press Send in Mail. (⌘S)")
+                }
+                if invoice.offersReceipt {
+                    Button("Send Receipt…") { model.send(.receipt(invoiceID)) }
+                        .buttonStyle(Win95ButtonStyle(isDefault: invoice.receiptIsNext))
+                        .explained("Opens a Mail draft to the client with a receipt for the payments so far. You press Send in Mail.")
                 }
                 // Greyed, not hidden, for a deposit the final invoice deducts: the note on the form says why.
                 if invoice.stage == .sent, invoice.payments.isEmpty {
