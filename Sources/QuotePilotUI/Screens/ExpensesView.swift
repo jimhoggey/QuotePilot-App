@@ -8,7 +8,8 @@ struct ExpensesView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        let expenses = model.library.expenses
+        // The Quote Pilot fees paid are listed too, so the list adds up to what the profit pie counts.
+        let expenses = model.library.expenses + model.library.feeExpenses
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
@@ -39,6 +40,8 @@ struct ExpensesView: View {
                     // A fresh form for each expense, so no half-typed text lands on the next one.
                     ExpenseForm(model: model, expenseID: id)
                         .id(id)
+                } else if let fee = model.selectedExpenseID.flatMap(model.library.feePaid(forExpense:)) {
+                    FeeExpenseNote(month: fee.month, paid: fee.paid, money: model.money)
                 } else {
                     Text("Select an expense to see it.")
                         .font(Win95.label)
@@ -78,6 +81,30 @@ struct ExpensesView: View {
             .money("Total", width: 86, currencyCode: model.currencyCode) { $0.total },
             .money("GST", width: 76, currencyCode: model.currencyCode) { $0.gst },
         ]
+    }
+}
+
+/// A Quote Pilot fee's row, in place of the form: what it was and why it's listed. Nothing to edit.
+struct FeeExpenseNote: View {
+    let month: CalendarMonth
+    let paid: AppFeePaid
+    let money: (Money) -> String
+
+    var body: some View {
+        GroupBox("Quote Pilot fee") {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("The Quote Pilot fee for \(month.label): \(money(paid.amount)), paid \(paid.on.long).")
+                Text("It's listed here once you press I've paid on the fee bar, so it counts as a business expense. It can't be changed or deleted here.")
+                    .font(Win95.small)
+                    .foregroundStyle(Win95.note)
+            }
+            .font(Win95.body)
+            .foregroundStyle(Win95.text)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .groupBoxStyle(.win95)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 }
 

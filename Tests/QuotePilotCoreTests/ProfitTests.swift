@@ -37,6 +37,28 @@ import Testing
         #expect(library.profit(in: year).expenses == Money(cents: 11650), "registered, it's claimed back")
     }
 
+    /// Each Quote Pilot fee paid is listed with the expenses, so the list adds up to the pie's figure.
+    @Test func feesPaidAreListedWithTheExpenses() throws {
+        var library = try self.library(paid: [(day(2026, 8, 1), 1000)])
+        try library.addExpense(Expense(date: day(2026, 11, 5), supplier: "Sample Store", total: Money(dollars: 13)))
+        library.brand.appFee.paidMonths["2026-10"] = AppFeePaid(on: day(2026, 11, 2), amount: Money(cents: 2790))
+        library.brand.appFee.paidMonths["2026-09"] = AppFeePaid(on: day(2026, 10, 1), amount: Money(cents: 1500))
+
+        let fees = library.feeExpenses
+        #expect(fees.map(\.date) == [day(2026, 10, 1), day(2026, 11, 2)], "oldest first")
+        let october = try #require(fees.last)
+        #expect(october.supplier == "Quote Pilot" && october.category == Library.appFeeCategory)
+        #expect(october.description == "Quote Pilot fee for October 2026")
+        #expect(october.total == Money(cents: 2790) && october.gst == .zero)
+        #expect(library.feeExpenses.map(\.id) == fees.map(\.id), "the same ids every time, so a row stays selected")
+        #expect(library.expense(october.id) == nil, "not an expense to change or delete")
+        #expect(library.feePaid(forExpense: october.id)?.month == CalendarMonth(year: 2026, month: 10))
+        #expect(library.feePaid(forExpense: UUID()) == nil)
+
+        let listed = (library.expenses + fees).reduce(Money.zero) { $0 + $1.total }
+        #expect(listed == library.profit(in: year).expenses)
+    }
+
     @Test func theMarginAndTheExpensesShare() {
         let healthy = Profit(year: year, income: Money(dollars: 1000), expenses: Money(dollars: 270))
         #expect(healthy.profit == Money(dollars: 730))
