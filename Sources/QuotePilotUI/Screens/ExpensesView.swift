@@ -137,6 +137,9 @@ struct ExpenseForm: View {
                                                prompt: "Name the category")
                             }
                         }
+                        if current.category == Expense.travelCategory {
+                            TripFields(model: model, expenseID: expenseID, expense: expense)
+                        }
                         Win95FieldRow("Total:") {
                             CommitField(label: "Total, GST included", value: current.total, format: { model.money($0) },
                                         parse: FieldParser.amountOrBlank, alignment: .leading, prompt: "$0.00") {
@@ -194,5 +197,87 @@ struct ExpenseForm: View {
             .padding(.trailing, 6)
         }
         .groupBoxStyle(.win95)
+    }
+}
+
+/// A Travel expense's trip. Once From and To are typed, Apple Maps fills in the driving distance a
+/// second after typing stops; changing either end works it out again, and the distance can be typed
+/// over. Return trip counts it twice.
+struct TripFields: View {
+    let model: AppModel
+    let expenseID: UUID
+    @Binding var expense: Expense
+    /// Set when Maps found no route for these ends.
+    @State private var notFound = false
+
+    var body: some View {
+        let current = expense.trip ?? Trip()
+        // Nothing is looked up while the fee lock is on.
+        let ready = current.hasEnds && model.canEdit
+        Group {
+            Win95FieldRow("From:") { Win95TextField("Trip from", text: end(\.from), prompt: "e.g. Fraser ACT") }
+            Win95FieldRow("To:") { Win95TextField("Trip to", text: end(\.to), prompt: "e.g. Canberra City") }
+            Win95FieldRow("Distance:") {
+                HStack(spacing: 6) {
+                    CommitField(label: "Kilometres one way", value: current.kilometres,
+                                format: { $0.map(FieldParser.quantityText) ?? "" }, parse: Self.kilometres,
+                                alignment: .leading, prompt: ready && !notFound ? "Finding…" : "km") { trip.wrappedValue.kilometres = $0 }
+                        .frame(width: 80)
+                    Text("km one way")
+                }
+            }
+            Win95FieldRow("") {
+                Toggle("Return trip", isOn: trip.returnTrip)
+                    .toggleStyle(.win95)
+                    .fixedSize()
+            }
+            Win95FieldRow("") {
+                Text(Self.note(current, notFound: notFound))
+                    .font(Win95.small)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .task(id: [current.from, current.to, current.kilometres == nil ? "" : "set"]) {
+            notFound = false
+            guard ready, current.kilometres == nil else { return }
+            // Wait for typing to stop; a new keystroke cancels this and starts again.
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            let found = await model.fillTripDistance(expenseID)
+            // Typing again while Maps worked cancels this; the next lookup speaks for the new ends.
+            guard !Task.isCancelled else { return }
+            notFound = !found
+        }
+    }
+
+    /// What the note under the trip says.
+    static func note(_ trip: Trip, notFound: Bool) -> String {
+        if notFound { return "Apple Maps couldn't work out that route. Type the kilometres." }
+        guard let business = trip.businessKilometres else {
+            return "Type where from and to; Apple Maps fills in the driving distance."
+        }
+        return "Business kilometres: \(business). Apple Maps works it out from the places as typed; change it if you drove another way."
+    }
+
+    /// The distance field: blank clears it, so Maps works it out again; otherwise up to 100,000 km.
+    static func kilometres(_ text: String) -> Decimal?? {
+        text.trimmingCharacters(in: .whitespaces).isEmpty ? .some(nil) : FieldParser.quantity(text).map { .some($0) }
+    }
+
+    /// The expense's trip, a blank one until something is typed.
+    private var trip: Binding<Trip> {
+        Binding(get: { expense.trip ?? Trip() }, set: { expense.trip = $0 })
+    }
+
+    /// An end of the trip. Changing it clears the distance, so Maps works out the new one.
+    private func end(_ keyPath: WritableKeyPath<Trip, String>) -> Binding<String> {
+        Binding(get: { trip.wrappedValue[keyPath: keyPath] },
+                set: { text in
+                    guard trip.wrappedValue[keyPath: keyPath] != text else { return }
+                    var edited = trip.wrappedValue
+                    edited[keyPath: keyPath] = text
+                    edited.kilometres = nil
+                    trip.wrappedValue = edited
+                })
     }
 }

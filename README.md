@@ -57,6 +57,9 @@ shows; with View → Show Steps off, the screen's own button takes its place.
 - **Expenses:** what the business paid for: date, supplier, category, the total and the GST in it
   (Includes GST fills in total ÷ 11), with the supplier's PDF or picture attached (Attach Quote or
   Invoice…, or drop a PDF on the window while the expense shows). New Expense is in the list's buttons.
+  A **Travel** expense also takes the trip: From and To, and Apple Maps fills in the driving distance
+  (the two places go to Apple, as in the Maps app; no key). Return trip counts it twice. The money
+  record shows each trip, and the year's summary totals the business kilometres for the accountant.
 - **Clients**, **Brand** (logo, heading font, colour, wording and terms) and **Activity**, a log of
   what happened: quotes started and sent, Mail drafts, acceptances, invoices, payments and restores.
   ⌘F finds in the Quotes, Invoices, Clients and Activity lists.

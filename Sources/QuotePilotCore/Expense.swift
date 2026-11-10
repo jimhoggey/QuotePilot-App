@@ -7,6 +7,8 @@ public struct Expense: Codable, Hashable, Identifiable, Sendable {
     public static let categories = ["Equipment", "Software and subscriptions", "Materials", "Subcontractors",
                                     "Travel", "Phone and internet", "Office", "Other"]
     public static let otherCategory = "Other"
+    /// The category whose expenses record a trip.
+    public static let travelCategory = "Travel"
 
     public var id: UUID
     public var date: Day
@@ -22,6 +24,11 @@ public struct Expense: Codable, Hashable, Identifiable, Sendable {
     public var note: String
     /// The attached quote or invoice: a file name in the library's Assets/Expenses folder.
     public var attachment: String?
+    /// Where a trip went. Kept whatever the category, but it counts only on a Travel expense (`travel`).
+    public var trip: Trip?
+
+    /// The trip, on a Travel expense.
+    public var travel: Trip? { category == Expense.travelCategory ? trip : nil }
 
     public init(id: UUID = UUID(), date: Day, supplier: String = "", description: String = "",
                 category: String = Expense.otherCategory, total: Money = .zero, gst: Money = .zero,
@@ -67,6 +74,39 @@ public struct Expense: Codable, Hashable, Identifiable, Sendable {
     func activityLabel(currencyCode: String) -> String {
         let who = supplier.trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(who.isEmpty ? "(no supplier)" : who), \(date.short), \(total.formatted(currencyCode: currencyCode))"
+    }
+}
+
+/// A Travel expense's trip: where from and to, and the driving distance one way, which Apple Maps
+/// fills in and can be changed by hand. A return trip counts the distance twice.
+public struct Trip: Codable, Hashable, Sendable {
+    public var from = ""
+    public var to = ""
+    /// One way, in kilometres; nil until Maps or a person gives it.
+    public var kilometres: Decimal?
+    public var returnTrip = false
+
+    public init(from: String = "", to: String = "", kilometres: Decimal? = nil, returnTrip: Bool = false) {
+        self.from = from
+        self.to = to
+        self.kilometres = kilometres
+        self.returnTrip = returnTrip
+    }
+
+    /// What the trip counts for the business: the distance, twice for a return trip.
+    public var businessKilometres: Decimal? { kilometres.map { returnTrip ? $0 * 2 : $0 } }
+
+    /// Whether both ends are typed, so a distance can be looked up.
+    public var hasEnds: Bool {
+        ![from, to].contains { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    /// "Fraser ACT → City ACT, 39.8 km return", as the money record describes it.
+    public var summary: String {
+        let route = [from, to].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            .joined(separator: " → ")
+        let distance = businessKilometres.map { "\($0) km" + (returnTrip ? " return" : "") }
+        return [route, distance ?? ""].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 }
 

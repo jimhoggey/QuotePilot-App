@@ -30,6 +30,15 @@ struct MoneyEvent {
     }
 }
 
+extension Expense {
+    /// The description as the money record shows it, with a Travel expense's trip after it:
+    /// "Client meeting (Fraser ACT → City ACT, 39.8 km return)".
+    var recordDescription: String {
+        guard let trip = travel?.summary, !trip.isEmpty else { return description }
+        return description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? trip : "\(description) (\(trip))"
+    }
+}
+
 /// Money paid out, for the record: an expense, or a Quote Pilot fee marked paid.
 struct MoneyOut {
     var date: Day
@@ -111,7 +120,7 @@ extension Library {
         let spent = expenses.enumerated()
             .sorted { ($0.element.date, $0.offset) < ($1.element.date, $1.offset) }
             .map { MoneyOut(date: $0.element.date, event: "Expense paid", who: $0.element.supplier,
-                            description: $0.element.description, category: $0.element.category,
+                            description: $0.element.recordDescription, category: $0.element.category,
                             total: $0.element.total, gst: $0.element.gst, method: $0.element.method.label,
                             note: $0.element.note) }
         let fees = brand.appFee.paidMonths.compactMap { key, paid -> (CalendarMonth, AppFeePaid)? in
@@ -212,6 +221,9 @@ extension Library {
             ("Invoices sent", String(sent.count)),
             ("Expenses", String(out.count)),
         ]
+        // What the accountant needs for the cents-per-kilometre method: the year's business kilometres.
+        let kilometres = expenses.filter { year.contains($0.date) }.compactMap(\.travel?.businessKilometres).reduce(0, +)
+        if kilometres > 0 { rows.append(("Business kilometres (travel expenses)", "\(kilometres)")) }
         let lines = ["Item,Amount"] + rows.map { csvText($0.0) + "," + csvField($0.1) }
             + [csvField("Prepared by Quote Pilot on \(today.short). Figures are from Quote Pilot's records; check with your accountant.") + ","]
         return lines.joined(separator: "\n") + "\n"
