@@ -31,6 +31,22 @@ extension AppModel {
         change("Couldn't save the expense") { try $0.update(expense, at: time) }
     }
 
+    /// Fills in a Travel expense's one-way distance from Apple Maps, once it has both ends and no
+    /// distance yet. False only when Maps found no route, so the form can ask for the kilometres.
+    @discardableResult
+    func fillTripDistance(_ id: UUID) async -> Bool {
+        guard let trip = library.expense(id)?.travel, trip.kilometres == nil,
+              ![trip.from, trip.to].contains(where: { $0.trimmingCharacters(in: .whitespaces).isEmpty })
+        else { return true }
+        guard let kilometres = try? await distances.drivingKilometres(from: trip.from, to: trip.to) else { return false }
+        // The ends may have changed while Maps worked: only the trip it was asked about takes the answer.
+        guard var expense = library.expense(id), expense.trip?.from == trip.from, expense.trip?.to == trip.to,
+              expense.trip?.kilometres == nil else { return true }
+        expense.trip?.kilometres = kilometres
+        updateExpense(expense)
+        return true
+    }
+
     /// The form's view of an expense: it reads the stored one and writes through `updateExpense`.
     public func expenseBinding(_ id: UUID) -> Binding<Expense> {
         Binding(get: { self.library.expense(id) ?? Expense(id: id, date: self.today) },
