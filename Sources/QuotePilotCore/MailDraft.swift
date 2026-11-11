@@ -34,22 +34,35 @@ extension Library {
                          amount: invoice.paid, due: invoice.due)
     }
 
-    /// Send Together: one email to the invoices' client, listing each invoice by number with its title,
-    /// amount and due date ("• INV-0004, Website updates, $750.00, due 19 November 2026"), and the total.
-    /// The invoices are listed in the order given, the order of their PDFs. Nil when one is missing.
+    /// Send Together: each invoice with its amount and due date ("• INV-0004, Website updates, $750.00,
+    /// due 19 November 2026"), and their total.
     public func mailDraft(forInvoices ids: [UUID]) -> MailDraft? {
+        mailDraft(brand.emails.together, listing: ids, amount: \.amount) { "\($1), due \($0.due.long)" }
+    }
+
+    /// Send Receipts: each invoice with what's been paid on it ("• INV-0004, Website updates, $750.00
+    /// paid"), and the total paid.
+    public func mailDraft(forReceipts ids: [UUID]) -> MailDraft? {
+        mailDraft(brand.emails.receipts, listing: ids, amount: \.paid) { "\($1) paid" }
+    }
+
+    /// One email about several invoices to the first one's client: {count}, {list} with a line for each
+    /// in the order given (the order of their PDFs) and {amount}, the total of `amount`. Each line is the
+    /// number, the title and what `describe` makes of the invoice and its formatted amount. Nil when an
+    /// invoice is missing.
+    private func mailDraft(_ template: EmailTemplate, listing ids: [UUID], amount: (Invoice) -> Money,
+                           describe: (Invoice, String) -> String) -> MailDraft? {
         let found = ids.compactMap(invoice)
         guard found.count == ids.count, let first = found.first else { return nil }
         let money = { (amount: Money) in amount.formatted(currencyCode: self.brand.currencyCode) }
         let list = found.map { invoice in
-            let title = invoice.title.trimmed
-            return "• " + [invoice.number, title, money(invoice.amount), "due \(invoice.due.long)"]
+            "• " + [invoice.number, invoice.title.trimmed, describe(invoice, money(amount(invoice)))]
                 .filter { !$0.isEmpty }.joined(separator: ", ")
         }
-        return mailDraft(brand.emails.together, client: client(first.clientID), [
+        return mailDraft(template, client: client(first.clientID), [
             "count": String(found.count),
             "list": list.joined(separator: "\n"),
-            "amount": money(found.reduce(.zero) { $0 + $1.amount }),
+            "amount": money(found.reduce(.zero) { $0 + amount($1) }),
         ])
     }
 

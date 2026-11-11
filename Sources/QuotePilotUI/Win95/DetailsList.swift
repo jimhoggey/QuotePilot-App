@@ -149,6 +149,25 @@ public enum DetailsLayout {
         return modifiers.contains(.command) ? chosen.symmetricDifference([row]) : [row]
     }
 
+    /// Where the selection goes once a click on `row` has made `chosen` the chosen rows: to the row,
+    /// except that ⇧-click keeps it on the anchor, and a ⌘-click that takes the row out leaves it on a
+    /// row still chosen (the anchor while it is, else the first), or on none when none is left. So the
+    /// selection is always a chosen row, and a selection made anywhere else can choose its row.
+    static func selection<ID: Hashable>(clicking row: ID, in ids: [ID], chosen: Set<ID>, anchor: ID?,
+                                        modifiers: NSEvent.ModifierFlags) -> ID? {
+        if modifiers.contains(.shift), let anchor { return anchor }
+        if chosen.contains(row) { return row }
+        if let anchor, chosen.contains(anchor) { return anchor }
+        return ids.first(where: chosen.contains)
+    }
+
+    /// The rows a right-click menu acts on: the chosen ones still listed, or the row clicked alone when
+    /// it isn't one of them. The menu is built before the click chooses its row, so this says what
+    /// the click will make it.
+    static func menuRows<ID: Hashable>(_ id: ID, chosen: Set<ID>, listed: [ID]) -> Set<ID> {
+        chosen.contains(id) ? chosen.intersection(listed) : [id]
+    }
+
     /// A stable sort: rows that compare equal keep their order.
     public static func sorted<Row>(_ rows: [Row], by value: (Row) -> SortValue, ascending: Bool) -> [Row] {
         rows.enumerated()
@@ -251,6 +270,11 @@ public struct DetailsList<Row, ID: Hashable>: View {
         .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
             scrollerReserve = DetailsLayout.legacyScrollerWidth
         }
+        // A selection made elsewhere (an invoice opened from the Dashboard, a new one) chooses its row
+        // alone, so the row shown chosen is the one in the preview.
+        .onChange(of: selection, initial: true) { _, new in
+            if let chosen, let new, !chosen.wrappedValue.contains(new) { chosen.wrappedValue = [new] }
+        }
         .background(Win95.field)
         .overlay(Bevel(.sunken))
         .overlay(listShowsFocus ? FocusRect().padding(3) : nil)
@@ -350,17 +374,19 @@ public struct DetailsList<Row, ID: Hashable>: View {
         return .handled
     }
 
-    /// Chooses rows as `DetailsLayout.chosen` says and moves the selection to `rowID`, except that
-    /// ⇧-click keeps the selection where it is, as the anchor of the range.
+    /// Selects `rowID`, or on a list that allows several, chooses rows and moves the selection as
+    /// `DetailsLayout.chosen` and `DetailsLayout.selection` say.
     private func click(_ rowID: ID, in ids: [ID], modifiers: NSEvent.ModifierFlags) {
+        guard let chosen else {
+            selection = rowID
+            return
+        }
         // Rows gone from the list (sent, deleted) are neither chosen nor the anchor any more.
         let anchor = selection.flatMap { ids.contains($0) ? $0 : nil }
-        if let chosen {
-            chosen.wrappedValue = DetailsLayout.chosen(clicking: rowID, in: ids, chosen: chosen.wrappedValue.intersection(ids),
-                                                       anchor: anchor, modifiers: modifiers)
-            if modifiers.contains(.shift), anchor != nil { return }
-        }
-        selection = rowID
+        let now = DetailsLayout.chosen(clicking: rowID, in: ids, chosen: chosen.wrappedValue.intersection(ids),
+                                       anchor: anchor, modifiers: modifiers)
+        chosen.wrappedValue = now
+        selection = DetailsLayout.selection(clicking: rowID, in: ids, chosen: now, anchor: anchor, modifiers: modifiers)
     }
 
     private func openSelection(_ ordered: [Row]) -> KeyPress.Result {
