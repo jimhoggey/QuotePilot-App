@@ -5,7 +5,7 @@ import SwiftUI
 /// transparent and the rest are the Windows 95 icon colours in `palette`.
 public enum PixelIcon: String, CaseIterable, Sendable {
     case quote, invoice, receipt, receiptSent, client, dashboard, activity, brand
-    case mail, pdf, payment, warning, info, question, folder, tick, cross, lock, unlocked
+    case mail, pdf, payment, warning, info, question, folder, tick, cross, lock, unlocked, floppy
 
     /// The Windows 95 16-colour icon palette.
     static let palette: [Character: Color] = [
@@ -359,6 +359,24 @@ public enum PixelIcon: String, CaseIterable, Sendable {
                     "..kyyyyyyyyyok..",
                     "..kooooooooook..",
                     "..kkkkkkkkkkkk..",
+                    "................"]
+        case .floppy:
+            // A 3½-inch floppy disk: the metal shutter at the top, the label below.
+            return ["kkkkkkkkkkkkkk..",
+                    "knnsssssssssnkk.",
+                    "knnsssskkssssnk.",
+                    "knnsssskkssssnk.",
+                    "knnsssskkssssnk.",
+                    "knnssssssssssnk.",
+                    "knnnnnnnnnnnnnk.",
+                    "knnnnnnnnnnnnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "knnwggggggwwnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "knnwggggwwwwnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "kkkkkkkkkkkkkkk.",
                     "................"]
         }
     }

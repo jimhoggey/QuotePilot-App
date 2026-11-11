@@ -76,22 +76,27 @@ struct WindowDragArea: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
-/// One sunken panel of the status bar.
+/// One sunken panel of the status bar: its text, with a small icon before it if it has one.
 public struct StatusPanel: View {
     let text: String
+    let icon: PixelIcon?
 
-    public init(_ text: String) {
+    public init(_ text: String, icon: PixelIcon? = nil) {
         self.text = text
+        self.icon = icon
     }
 
     public var body: some View {
-        Text(text)
-            .font(Win95.body)
-            .foregroundStyle(Win95.text)
-            .lineLimit(1)
-            .padding(.horizontal, 6)
-            .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
-            .overlay(Bevel(.sunken))
+        HStack(spacing: 4) {
+            if let icon { PixelIconView(icon) }
+            Text(text)
+                .font(Win95.body)
+                .foregroundStyle(Win95.text)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 6)
+        .frame(maxWidth: .infinity, minHeight: 22, alignment: .leading)
+        .overlay(Bevel(.sunken))
     }
 }
 

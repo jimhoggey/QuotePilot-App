@@ -389,12 +389,12 @@ enum StatusBarText {
     /// and otherwise the time of the last save: so the next change that saves replaces the note.
     static func items(_ dashboard: Dashboard, lastSaved: Date?, note: StatusNote? = nil,
                       currencyCode: String) -> [String] {
-        let overdue = dashboard.waiting.filter { $0.daysLate > 0 }.count
+        let overdue = overdueCount(dashboard)
         let saved = lastSaved.map {
             "Saved " + $0.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(Locale(identifier: "en_AU")))
         }
         let lastCell: String
-        if let note, lastSaved.map({ note.at >= $0 }) ?? true {
+        if let note, showsNote(note, lastSaved: lastSaved) {
             lastCell = note.text
         } else {
             lastCell = saved ?? "No changes yet"
@@ -406,17 +406,35 @@ enum StatusBarText {
             lastCell,
         ]
     }
+
+    /// The icon beside each of `items`, as Windows 95 status bars had them: a coin by what's waiting,
+    /// a warning only while something is overdue, a tick by what's received, and a floppy disk by the
+    /// time of the last save. None where there is nothing to flag.
+    static func icons(_ dashboard: Dashboard, lastSaved: Date?, note: StatusNote? = nil) -> [PixelIcon?] {
+        let showsSaved = lastSaved != nil && !(note.map { showsNote($0, lastSaved: lastSaved) } ?? false)
+        return [.payment, overdueCount(dashboard) > 0 ? .warning : nil, .tick, showsSaved ? .floppy : nil]
+    }
+
+    private static func overdueCount(_ dashboard: Dashboard) -> Int {
+        dashboard.waiting.filter { $0.daysLate > 0 }.count
+    }
+
+    /// Whether `note` is as new as the last save, or nothing has been saved.
+    private static func showsNote(_ note: StatusNote, lastSaved: Date?) -> Bool {
+        lastSaved.map { note.at >= $0 } ?? true
+    }
 }
 
 struct StatusBar: View {
     let model: AppModel
 
     var body: some View {
+        let items = StatusBarText.items(model.dashboard, lastSaved: model.lastSaved, note: model.statusNote,
+                                        currencyCode: model.currencyCode)
+        let icons = StatusBarText.icons(model.dashboard, lastSaved: model.lastSaved, note: model.statusNote)
         HStack(spacing: 2) {
-            ForEach(StatusBarText.items(model.dashboard, lastSaved: model.lastSaved, note: model.statusNote,
-                                        currencyCode: model.currencyCode),
-                    id: \.self) { item in
-                StatusPanel(item)
+            ForEach(items.indices, id: \.self) { index in
+                StatusPanel(items[index], icon: icons[index])
             }
         }
         .padding(2)

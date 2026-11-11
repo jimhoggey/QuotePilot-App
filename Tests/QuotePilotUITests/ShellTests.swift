@@ -19,6 +19,14 @@ import QuotePilotCore
 
         let saved = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 15, hour: 14, minute: 41))!
         #expect(StatusBarText.items(dashboard, lastSaved: saved, currencyCode: "AUD")[3].hasPrefix("Saved 2:41"))
+
+        // A coin, a warning while one is overdue, a tick, and a floppy disk by the time of the last save.
+        #expect(StatusBarText.icons(dashboard, lastSaved: nil) == [.payment, .warning, .tick, nil])
+        #expect(StatusBarText.icons(dashboard, lastSaved: saved) == [.payment, .warning, .tick, .floppy])
+        let note = StatusNote(text: "INV-0001 marked as sent", at: saved)
+        #expect(StatusBarText.icons(dashboard, lastSaved: saved, note: note)[3] == nil, "a note has no disk")
+        let calm = Dashboard(library: Library(), today: UIFixture.today)
+        #expect(StatusBarText.icons(calm, lastSaved: nil)[1] == nil, "nothing overdue, no warning")
     }
 
     @Test func theWindowDraws() throws {
