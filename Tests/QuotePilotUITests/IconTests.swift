@@ -25,7 +25,7 @@ import QuotePilotCore
             #expect(!status.label.isEmpty)
             _ = status.icon
         }
-        let invoiceStatuses: [InvoiceStatus] = [.draft, .sent, .partPaid, .paid, .void, .overdue(daysLate: 5)]
+        let invoiceStatuses: [InvoiceStatus] = [.draft, .sent, .partPaid, .paid, .void, .overdue(daysLate: 5), .receiptSent]
         for status in invoiceStatuses {
             #expect(!status.listLabel.isEmpty)
             _ = status.icon
@@ -35,6 +35,8 @@ import QuotePilotCore
         #expect(!InvoiceStatus.paid.isAlert)
         #expect(QuoteStatus.expired.icon == .warning)
         #expect(InvoiceStatus.paid.icon == .tick)
+        #expect(InvoiceStatus.receiptSent.icon == .receiptSent)
+        #expect(InvoiceStatus.receiptSent.listLabel == "Receipt sent")
     }
 
     @MainActor @Test func theIconSheetDraws() {

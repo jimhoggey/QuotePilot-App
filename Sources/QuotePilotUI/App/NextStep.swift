@@ -62,6 +62,9 @@ struct NextStep: Equatable {
 
     static let quoteTitles = ["Draft", "Sent", "Accepted", "Invoiced", "Paid"]
     static let invoiceTitles = ["Draft", "Sent", "Paid"]
+    /// The step a paid invoice gains once its receipt has gone. It isn't shown before: a receipt is
+    /// for clients who want one, so a paid invoice without one is done, not waiting.
+    static let receiptTitle = "Receipt"
 
     // MARK: Quotes
 
@@ -168,11 +171,12 @@ struct NextStep: Equatable {
             // Not special-cased for a deposit that a final invoice deducts: that deposit can still be
             // sent and paid, so the ordinary sentence is the true one, and the editor's own note says
             // what is locked and why.
+            let paid = progress(invoice.receiptSentAt == nil ? titles : titles + [receiptTitle], at: nil)
             // A paid deposit: the balance waits for the job, which is marked done on the quote.
             if invoice.owing <= .zero, invoice.kind == .deposit, let quoteID = invoice.quoteID,
                let quote = library.quote(quoteID), quote.completedOn == nil,
                library.nextInvoiceKind(forQuote: quoteID) == .final {
-                return NextStep(steps: progress(titles, at: nil),
+                return NextStep(steps: paid,
                                 sentence: "Deposit paid. When the job is done, open \(quote.number) and press Job Complete.",
                                 action: .openQuote(quote.id, number: quote.number))
             }
@@ -180,7 +184,7 @@ struct NextStep: Equatable {
                 let sentence = invoice.receiptSentAt == nil
                     ? "Paid in full. Send Receipt… if the client wants one."
                     : "Paid in full. The receipt has been sent."
-                return NextStep(steps: progress(titles, at: nil), sentence: sentence, action: nil)
+                return NextStep(steps: paid, sentence: sentence, action: nil)
             }
             return NextStep(steps: progress(titles, at: 1),
                             sentence: "Next: when the client pays, press Record Payment.",

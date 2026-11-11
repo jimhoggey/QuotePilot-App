@@ -79,6 +79,17 @@ import QuotePilotCore
         #expect(model.section == .dashboard)
     }
 
+    /// Once the receipts have gone the list says Receipt sent, and Find "paid" still finds them.
+    @Test func sentReceiptsShowInTheListAndPaidStillFindsThem() throws {
+        let (model, ids) = try model()
+        model.send(.receipts(ids))
+        model.respond(try #require(model.message?.choices.first { $0.isDefault }))
+        model.findText[.invoices] = "paid"
+        let rows = InvoicesView.visibleRows(model).filter { ids.contains($0.id) }
+        #expect(rows.count == 2)
+        #expect(rows.allSatisfy { $0.status == .receiptSent && $0.status.listLabel == "Receipt sent" })
+    }
+
     @Test func theMenuSaysHowMany() {
         #expect(InvoicesView.sendReceiptsTitle(1) == "Send Receipt…")
         #expect(InvoicesView.sendReceiptsTitle(3) == "Send 3 Receipts…")

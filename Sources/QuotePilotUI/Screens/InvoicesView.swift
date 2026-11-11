@@ -17,12 +17,13 @@ struct InvoicesView: View {
         }
     }
 
-    /// The invoices the list shows: all of them, or those matching the search.
+    /// The invoices the list shows: all of them, or those matching the search. The status is matched
+    /// in full as well as in short, so "paid" finds those whose receipt has gone too.
     static func visibleRows(_ model: AppModel) -> [InvoiceRow] {
         let query = model.findText[.invoices, default: ""]
         return model.library.invoices
             .map { InvoiceRow($0, library: model.library, today: model.today) }
-            .filter { Find.matches(query, [$0.number, $0.client, $0.kind, $0.status.listLabel]) }
+            .filter { Find.matches(query, [$0.number, $0.client, $0.kind, $0.status.label, $0.status.listLabel]) }
     }
 
     private var list: some View {

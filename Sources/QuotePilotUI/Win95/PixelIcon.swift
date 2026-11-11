@@ -4,7 +4,7 @@ import SwiftUI
 /// The app's icons, drawn from 16×16 grids (spec §15). Each character is one pixel; "." is
 /// transparent and the rest are the Windows 95 icon colours in `palette`.
 public enum PixelIcon: String, CaseIterable, Sendable {
-    case quote, invoice, receipt, client, dashboard, activity, brand
+    case quote, invoice, receipt, receiptSent, client, dashboard, activity, brand
     case mail, pdf, payment, warning, info, question, folder, tick, cross, lock, unlocked
 
     /// The Windows 95 16-colour icon palette.
@@ -69,6 +69,24 @@ public enum PixelIcon: String, CaseIterable, Sendable {
                     "...kwwwkkkkwk...",
                     "...kwwwwwwwwk...",
                     "...kwwwwGGGwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwkwkwkwkk...",
+                    "....k.k.k.k....."]
+        case .receiptSent:
+            // The till slip ticked off: paid, and the receipt sent.
+            return ["...kkkkkkkkkk...",
+                    "...kwwwwwwwwk...",
+                    "...kwggggggwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwggwwggwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwwwwwwGGk...",
+                    "...kwwwwwGGGk...",
+                    "...kGwwwGGGwk...",
+                    "...kGGwGGGwwk...",
+                    "...kwGGGGwwwk...",
+                    "...kwwGGwwwwk...",
                     "...kwwwwwwwwk...",
                     "...kwkwkwkwkk...",
                     "....k.k.k.k....."]
@@ -418,13 +436,17 @@ extension InvoiceStatus {
         case .paid: return .tick
         case .void: return .cross
         case .overdue: return .warning
+        case .receiptSent: return .receiptSent
         }
     }
 
-    /// The short form lists use: "Overdue 5 d".
+    /// The short form lists use: "Overdue 5 d", "Receipt sent".
     var listLabel: String {
-        if case .overdue(let days) = self { return "Overdue \(days) d" }
-        return label
+        switch self {
+        case .overdue(let days): return "Overdue \(days) d"
+        case .receiptSent: return "Receipt sent"
+        default: return label
+        }
     }
 
     var isAlert: Bool {

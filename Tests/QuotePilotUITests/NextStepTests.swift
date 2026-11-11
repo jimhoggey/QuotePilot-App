@@ -470,10 +470,12 @@ import QuotePilotCore
         #expect(states(next) == [.done, .done, .done])
         #expect(next.sentence == "Paid in full. Send Receipt… if the client wants one.")
         #expect(next.action == nil)
-        // Once the receipt has gone there is nothing left to suggest.
+        // Once the receipt has gone there is nothing left to suggest, and the receipt is a step done.
         try made.library.markReceiptSent(invoice: made.invoice)
         let after = try self.next(invoice: made.invoice, in: made.library)
         #expect(after.sentence == "Paid in full. The receipt has been sent.")
+        #expect(after.steps.map(\.title) == ["Draft", "Sent", "Paid", "Receipt"])
+        #expect(states(after) == [.done, .done, .done, .done])
     }
 
     @Test func aVoidInvoiceStopsAtVoid() throws {

@@ -179,6 +179,22 @@ import Testing
         #expect(throws: LibraryError.hasPayments) { try library.voidInvoice(deposit.id) }
     }
 
+    /// Paid in full is Receipt sent once the receipt goes; a receipt for part of it changes nothing,
+    /// and a payment after the receipt takes it back.
+    @Test func aPaidInvoiceIsReceiptSentOnceTheReceiptGoes() throws {
+        var (library, id) = Fixture.acceptedLibrary()
+        let deposit = try library.draftNextInvoice(forQuote: id, on: today)
+        try library.markSent(invoice: deposit.id)
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 200)), toInvoice: deposit.id)
+        try library.markReceiptSent(invoice: deposit.id)
+        #expect(library.invoice(deposit.id)!.status(on: today) == .partPaid)
+        try library.recordPayment(Payment(date: today, amount: Money(dollars: 340)), toInvoice: deposit.id)
+        #expect(library.invoice(deposit.id)!.status(on: today) == .paid)
+        try library.markReceiptSent(invoice: deposit.id)
+        #expect(library.invoice(deposit.id)!.status(on: today.adding(days: 60)) == .receiptSent)
+        #expect(InvoiceStatus.receiptSent.label == "Paid, receipt sent")
+    }
+
     @Test func removingAPaymentUndoesIt() throws {
         var (library, id) = Fixture.acceptedLibrary()
         let deposit = try library.draftNextInvoice(forQuote: id, on: today)

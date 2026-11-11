@@ -3,6 +3,8 @@ import Foundation
 public enum InvoiceStatus: Equatable, Sendable {
     case draft, sent, partPaid, paid, void
     case overdue(daysLate: Int)
+    /// Paid in full, and the receipt for it marked sent.
+    case receiptSent
 
     public var label: String {
         switch self {
@@ -12,18 +14,21 @@ public enum InvoiceStatus: Equatable, Sendable {
         case .paid: return "Paid"
         case .void: return "Void"
         case .overdue(let days): return days == 1 ? "Overdue, 1 day" : "Overdue, \(days) days"
+        case .receiptSent: return "Paid, receipt sent"
         }
     }
 }
 
 extension Invoice {
-    /// Overdue starts the day after the due date, and only while money is still owing.
+    /// Overdue starts the day after the due date, and only while money is still owing. Paid in full
+    /// is Receipt sent once the receipt has gone (a later payment takes that back, as it calls for a
+    /// new receipt).
     public func status(on today: Day) -> InvoiceStatus {
         switch stage {
         case .draft: return .draft
         case .void: return .void
         case .sent:
-            if owing <= .zero { return .paid }
+            if owing <= .zero { return receiptSentAt == nil ? .paid : .receiptSent }
             if today > due { return .overdue(daysLate: today.days(since: due)) }
             return paid > .zero ? .partPaid : .sent
         }
