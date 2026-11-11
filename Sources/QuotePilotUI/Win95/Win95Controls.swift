@@ -42,6 +42,28 @@ public extension ButtonStyle where Self == Win95ButtonStyle {
     static var win95Default: Win95ButtonStyle { Win95ButtonStyle(isDefault: true) }
 }
 
+/// A button's title with a small icon before it, as Office 97 drew its command buttons. The icon
+/// greys out with the title when the button can't be used. VoiceOver reads the title alone.
+struct IconTitle: View {
+    let title: String
+    let icon: PixelIcon
+    @Environment(\.isEnabled) private var isEnabled
+
+    init(_ title: String, icon: PixelIcon) {
+        self.title = title
+        self.icon = icon
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            PixelIconView(icon)
+                .grayscale(isEnabled ? 0 : 1)
+                .opacity(isEnabled ? 1 : 0.5)
+            Text(title)
+        }
+    }
+}
+
 /// A small plain bevelled button for a quiet strip or a box title: the small font, 18 high, no
 /// minimum width, and never the default one.
 public struct Win95SmallButtonStyle: ButtonStyle {

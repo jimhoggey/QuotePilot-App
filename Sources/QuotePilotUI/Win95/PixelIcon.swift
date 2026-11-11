@@ -4,8 +4,8 @@ import SwiftUI
 /// The app's icons, drawn from 16×16 grids (spec §15). Each character is one pixel; "." is
 /// transparent and the rest are the Windows 95 icon colours in `palette`.
 public enum PixelIcon: String, CaseIterable, Sendable {
-    case quote, invoice, receipt, client, dashboard, activity, brand
-    case mail, pdf, payment, warning, info, question, folder, tick, cross, lock, unlocked
+    case quote, invoice, receipt, receiptSent, client, dashboard, activity, brand
+    case mail, pdf, payment, warning, info, question, folder, tick, cross, lock, unlocked, floppy, hourglass
 
     /// The Windows 95 16-colour icon palette.
     static let palette: [Character: Color] = [
@@ -69,6 +69,24 @@ public enum PixelIcon: String, CaseIterable, Sendable {
                     "...kwwwkkkkwk...",
                     "...kwwwwwwwwk...",
                     "...kwwwwGGGwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwkwkwkwkk...",
+                    "....k.k.k.k....."]
+        case .receiptSent:
+            // The till slip ticked off: paid, and the receipt sent.
+            return ["...kkkkkkkkkk...",
+                    "...kwwwwwwwwk...",
+                    "...kwggggggwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwggwwggwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwwwwwwGGk...",
+                    "...kwwwwwGGGk...",
+                    "...kGwwwGGGwk...",
+                    "...kGGwGGGwwk...",
+                    "...kwGGGGwwwk...",
+                    "...kwwGGwwwwk...",
                     "...kwwwwwwwwk...",
                     "...kwkwkwkwkk...",
                     "....k.k.k.k....."]
@@ -342,6 +360,42 @@ public enum PixelIcon: String, CaseIterable, Sendable {
                     "..kooooooooook..",
                     "..kkkkkkkkkkkk..",
                     "................"]
+        case .floppy:
+            // A 3½-inch floppy disk: the metal shutter at the top, the label below.
+            return ["kkkkkkkkkkkkkk..",
+                    "knnsssssssssnkk.",
+                    "knnsssskkssssnk.",
+                    "knnsssskkssssnk.",
+                    "knnsssskkssssnk.",
+                    "knnssssssssssnk.",
+                    "knnnnnnnnnnnnnk.",
+                    "knnnnnnnnnnnnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "knnwggggggwwnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "knnwggggwwwwnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "knnwwwwwwwwwnnk.",
+                    "kkkkkkkkkkkkkkk.",
+                    "................"]
+        case .hourglass:
+            // An hourglass with the sand running: waiting.
+            return ["..kkkkkkkkkkkk..",
+                    "..kooooooooook..",
+                    "...kwwwwwwwwk...",
+                    "...kyyyyyyyyk...",
+                    "....kyyyyyyk....",
+                    ".....kyyyyk.....",
+                    "......kyyk......",
+                    ".......kk.......",
+                    "......kwyk......",
+                    ".....kwwywk.....",
+                    "....kwwwywwk....",
+                    "...kwwyyyywwk...",
+                    "...kyyyyyyyyk...",
+                    "..kooooooooook..",
+                    "..kkkkkkkkkkkk..",
+                    "................"]
         }
     }
 }
@@ -418,13 +472,17 @@ extension InvoiceStatus {
         case .paid: return .tick
         case .void: return .cross
         case .overdue: return .warning
+        case .receiptSent: return .receiptSent
         }
     }
 
-    /// The short form lists use: "Overdue 5 d".
+    /// The short form lists use: "Overdue 5 d", "Receipt sent".
     var listLabel: String {
-        if case .overdue(let days) = self { return "Overdue \(days) d" }
-        return label
+        switch self {
+        case .overdue(let days): return "Overdue \(days) d"
+        case .receiptSent: return "Receipt sent"
+        default: return label
+        }
     }
 
     var isAlert: Bool {
