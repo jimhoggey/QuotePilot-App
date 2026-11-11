@@ -49,6 +49,10 @@ extension AppModel {
             if library.invoice(id)?.payments.isEmpty ?? true { return show(LibraryError.noPayments, title: "Can't Send") }
         case .invoices(let ids):
             if ids.contains(where: { library.invoice($0)?.stage == .void }) { return show(LibraryError.isVoid, title: "Can't Send") }
+        case .receipts(let ids):
+            if ids.contains(where: { library.invoice($0)?.payments.isEmpty ?? true }) {
+                return show(LibraryError.noPayments, title: "Can't Send")
+            }
         }
         guard let parts = mailParts(document) else { return }
         let (what, draft) = (parts.what, parts.draft)
@@ -164,16 +168,40 @@ extension AppModel {
             track(.sent, ["kind": "invoices", "count": ids.count])
             go(to: .dashboard)
             note("\(Self.list(ids.compactMap { library.invoice($0)?.number })) marked as sent")
+        case .receipts(let ids):
+            let time = now()
+            guard change("Couldn't mark them sent", { library in try ids.forEach { try library.markReceiptSent(invoice: $0, at: time) } })
+            else { return }
+            track(.sent, ["kind": "receipts", "count": ids.count])
+            go(to: .dashboard)
+            // The status bar's cell holds about three numbers.
+            note(ids.count > 3 ? "\(ids.count) receipts marked as sent"
+                               : "Receipts for \(Self.list(ids.compactMap { library.invoice($0)?.number })) marked as sent")
         }
     }
 
     /// Send Together: two or more draft invoices for one client, in number order. Nil for any other
     /// selection, so the menu item is greyed out.
     public func togetherDocument(_ ids: Set<UUID>) -> MailDocument? {
+        guard let invoices = oneClientsInvoices(ids), invoices.count > 1, invoices.allSatisfy({ $0.stage == .draft })
+        else { return nil }
+        return .invoices(invoices.map(\.id))
+    }
+
+    /// Send Receipts: the receipts for invoices with payments for one client, in number order, one on its
+    /// own or several in one email. Nil for any other selection, so the menu item is greyed out.
+    public func receiptsDocument(_ ids: Set<UUID>) -> MailDocument? {
+        guard let invoices = oneClientsInvoices(ids), invoices.allSatisfy(\.offersReceipt) else { return nil }
+        return invoices.count == 1 ? .receipt(invoices[0].id) : .receipts(invoices.map(\.id))
+    }
+
+    /// The invoices `ids` names, in number order, when there are some, all for one client, and the fee
+    /// lock isn't stopping sending. Nil otherwise.
+    private func oneClientsInvoices(_ ids: Set<UUID>) -> [Invoice]? {
         let invoices = ids.compactMap(library.invoice)
-        guard !isLocked, invoices.count > 1, invoices.count == ids.count, invoices.allSatisfy({ $0.stage == .draft }),
+        guard !isLocked, !invoices.isEmpty, invoices.count == ids.count,
               let client = invoices[0].clientID, invoices.allSatisfy({ $0.clientID == client }) else { return nil }
-        return .invoices(invoices.sorted { $0.number.localizedStandardCompare($1.number) == .orderedAscending }.map(\.id))
+        return invoices.sorted { $0.number.localizedStandardCompare($1.number) == .orderedAscending }
     }
 
     /// "INV-0004", "INV-0004 and INV-0005", "INV-0004, INV-0005 and INV-0006"
@@ -195,10 +223,8 @@ extension AppModel {
                   let content = invoiceContent(id) else { return nil }
             return ([invoice.number], "invoice", invoice.clientID, draft, [content])
         case .receipt(let id):
-            guard let invoice = library.invoice(id), let draft = library.mailDraft(forReceipt: id) else { return nil }
-            let plan = planSources(invoice)
-            let content = DocumentContent.receipt(invoice, client: library.client(invoice.clientID), brand: library.brand,
-                                                  quote: plan.quote, deposit: plan.deposit)
+            guard let invoice = library.invoice(id), let draft = library.mailDraft(forReceipt: id),
+                  let content = receiptContent(id) else { return nil }
             return ([invoice.number], "the receipt for", invoice.clientID, draft, [content])
         case .invoices(let ids):
             let invoices = ids.compactMap(library.invoice)
@@ -206,7 +232,21 @@ extension AppModel {
             guard invoices.count == ids.count, contents.count == ids.count,
                   let draft = library.mailDraft(forInvoices: ids) else { return nil }
             return (invoices.map(\.number), "invoices", invoices.first?.clientID, draft, contents)
+        case .receipts(let ids):
+            let invoices = ids.compactMap(library.invoice)
+            let contents = ids.compactMap(receiptContent)
+            guard invoices.count == ids.count, contents.count == ids.count,
+                  let draft = library.mailDraft(forReceipts: ids) else { return nil }
+            return (invoices.map(\.number), "the receipts for", invoices.first?.clientID, draft, contents)
         }
+    }
+
+    /// The receipt for an invoice's payments so far.
+    private func receiptContent(_ id: UUID) -> DocumentContent? {
+        guard let invoice = library.invoice(id) else { return nil }
+        let plan = planSources(invoice)
+        return .receipt(invoice, client: library.client(invoice.clientID), brand: library.brand,
+                        quote: plan.quote, deposit: plan.deposit)
     }
 }
 

@@ -59,6 +59,9 @@ shows; with View → Show Steps off, the screen's own button takes its place.
   default what's owing, today, by bank transfer). Once it's paid in full, **Send Receipt…** takes
   Send by Mail…'s place. **Mark Paid:** in the Dashboard's Waiting to be paid list, ⌘-click
   invoices, then right-click → Mark Paid to record each paid in full today, after one question.
+  **Send Receipts:** in the Invoices list, ⌘-click paid invoices for one client, then right-click
+  → Send 3 Receipts… (the count is how many are chosen). One Mail draft carries each receipt as its
+  own PDF and lists them with the total paid; its wording is in Brand → Emails.
 - **Expenses:** what the business paid for: date, supplier, category, the total and the GST in it
   (Includes GST fills in total ÷ 11), with the supplier's PDF or picture attached (Attach Quote or
   Invoice…, or drop a PDF on the window while the expense shows; it's then listed by name, double-click

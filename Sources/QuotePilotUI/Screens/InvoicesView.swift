@@ -4,6 +4,8 @@ import SwiftUI
 /// Invoices: the list, with the selected invoice's PDF beside it, or the editor when an invoice is open.
 struct InvoicesView: View {
     @Bindable var model: AppModel
+    /// The invoices chosen with ⌘- and ⇧-click, for Send Receipts.
+    @State private var chosen: Set<UUID> = []
 
     var body: some View {
         if let id = model.editingInvoiceID {
@@ -38,14 +40,14 @@ struct InvoicesView: View {
                         FindField(text: model.findBinding(.invoices), request: model.findRequest)
                         Spacer()
                     }
-                    NoteBanner("Double-click an invoice to open it. New Invoice in the toolbar (⇧⌘N) starts a one-off invoice; invoices for a job come from its quote.")
-                    DetailsList(rows, id: \.id, columns: columns, selection: $model.selectedInvoiceID,
+                    NoteBanner("Double-click an invoice to open it. To email several receipts at once, ⌘-click paid invoices for one client, then right-click. New Invoice in the toolbar (⇧⌘N) starts a one-off invoice; invoices for a job come from its quote.")
+                    DetailsList(rows, id: \.id, columns: columns, selection: $model.selectedInvoiceID, chosen: $chosen,
                                 sort: DetailsSort(column: 0, ascending: false),
                                 emptyText: model.findText[.invoices, default: ""].isEmpty
                                     ? "No invoices yet."
                                     : "No invoices match \"\(model.findText[.invoices, default: ""])\".",
                                 onOpen: { model.openInvoice($0) },
-                                rowMenu: { id in AnyView(rowMenu(id)) })
+                                rowMenu: { id in AnyView(rowMenu(DetailsLayout.menuRows(id, chosen: chosen, listed: rows.map(\.id)))) })
                         // A sort is a column number, so a different set of columns starts afresh.
                         .id([layout.showKind, layout.showPaid])
                 }
@@ -74,15 +76,25 @@ struct InvoicesView: View {
         .groupBoxStyle(.win95)
     }
 
-    /// A right-click on a row: Delete…, for an invoice at any stage (the question says what goes with
-    /// it, and a deposit the final invoice still deducts says why it can't).
-    private func rowMenu(_ id: UUID) -> some View {
+    /// A right-click on a row, for it or the rows chosen with it: Send Receipt…, for paid invoices of
+    /// one client, then Delete…, for one invoice at any stage (the question says what goes with it, and
+    /// a deposit the final invoice still deducts says why it can't).
+    @ViewBuilder
+    private func rowMenu(_ rows: Set<UUID>) -> some View {
+        let receipts = model.receiptsDocument(rows)
+        Button(Self.sendReceiptsTitle(rows.count)) { receipts.map(model.send) }
+            .disabled(receipts == nil)
+        Divider()
         Button("Delete…") {
+            guard let id = rows.first else { return }
             model.selectedInvoiceID = id
             model.deleteInvoice(id)
         }
-        .disabled(!model.canEdit)
+        .disabled(!model.canEdit || rows.count != 1)
     }
+
+    /// "Send Receipt…", or "Send 3 Receipts…" for several.
+    static func sendReceiptsTitle(_ count: Int) -> String { count > 1 ? "Send \(count) Receipts…" : "Send Receipt…" }
 
     // MARK: Fitting the window
 

@@ -28,6 +28,9 @@ public struct EmailTemplates: Codable, Hashable, Sendable {
     /// Several invoices to one client in one email (Send Together): {count} and {list}, one line per
     /// invoice with its amount and due date, and {amount}, their total.
     public var together: EmailTemplate
+    /// Several receipts to one client in one email (Send Receipts): {count} and {list}, one line per
+    /// invoice with what's been paid on it, and {amount}, the total paid.
+    public var receipts: EmailTemplate
 
     public static let standard = EmailTemplates(
         quote: EmailTemplate(
@@ -72,6 +75,20 @@ public struct EmailTemplates: Codable, Hashable, Sendable {
 
             Total: {amount}. Payment details are on each invoice. You're welcome to pay them in one \
             transfer; please put the invoice numbers in the reference.
+
+            Thanks,
+            {business}
+            """),
+        receipts: EmailTemplate(
+            subject: "Receipts from {business}",
+            body: """
+            Hi {contact},
+
+            Thanks for your payments. Attached are {count} receipts:
+
+            {list}
+
+            Total paid: {amount}.
 
             Thanks,
             {business}
@@ -598,7 +615,7 @@ extension EmailTemplate {
 
 extension EmailTemplates {
     enum CodingKeys: String, CodingKey {
-        case quote, invoice, receipt, together
+        case quote, invoice, receipt, together, receipts
     }
 
     public init(from decoder: Decoder) throws {
@@ -608,6 +625,7 @@ extension EmailTemplates {
         invoice = try c.value(.invoice, or: standard.invoice)
         receipt = try c.value(.receipt, or: standard.receipt)
         together = try c.value(.together, or: standard.together)
+        receipts = try c.value(.receipts, or: standard.receipts)
     }
 }
 
