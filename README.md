@@ -186,3 +186,8 @@ marked as debug.
 ## Licence
 
 MIT. See `LICENSE`.
+
+---
+
+Made by [Fynn Projects](https://www.fynnprojects.com.au), custom apps for church production teams,
+trades and small businesses.
