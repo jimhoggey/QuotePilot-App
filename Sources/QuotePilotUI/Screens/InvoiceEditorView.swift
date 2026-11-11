@@ -76,19 +76,19 @@ struct InvoiceEditorView: View {
             HStack(spacing: 6) {
                 // Paying is what a sent invoice waits for, so it comes first, where it's easy to see.
                 if let payment = payment(invoice) {
-                    Button("Record Payment") { model.recordPayment(payment.wrappedValue) }
+                    Button { model.recordPayment(payment.wrappedValue) } label: { IconTitle("Record Payment", icon: .payment) }
                         .buttonStyle(.win95Default)
                         .explained(Self.recordHelp(payment.wrappedValue, today: model.today, money: model.money))
                 }
                 if invoice.offersSend {
-                    Button("Send by Mail…") { model.send(.invoice(invoiceID)) }
+                    Button { model.send(.invoice(invoiceID)) } label: { IconTitle("Send by Mail…", icon: .mail) }
                         .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(invoice)))
                         .disabled(invoice.clientID == nil)
                         .explained(invoice.clientID == nil ? "Choose a client first."
                                    : "Opens a Mail draft to the client with this invoice attached. You press Send in Mail. (⌘S)")
                 }
                 if invoice.offersReceipt {
-                    Button("Send Receipt…") { model.send(.receipt(invoiceID)) }
+                    Button { model.send(.receipt(invoiceID)) } label: { IconTitle("Send Receipt…", icon: .receipt) }
                         .buttonStyle(Win95ButtonStyle(isDefault: invoice.receiptIsNext))
                         .disabled(invoice.clientID == nil)
                         .explained(invoice.clientID == nil ? "Choose a client first."

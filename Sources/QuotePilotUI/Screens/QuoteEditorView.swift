@@ -71,7 +71,7 @@ struct QuoteEditorView: View {
             let next = model.library.nextInvoiceKind(forQuote: quoteID)
             HStack(spacing: 6) {
                 if Self.showsSend(quote) {
-                    Button("Send by Mail…") { model.send(.quote(quoteID)) }
+                    Button { model.send(.quote(quoteID)) } label: { IconTitle("Send by Mail…", icon: .mail) }
                         .buttonStyle(Win95ButtonStyle(isDefault: Self.sendIsDefault(quote)))
                         .disabled(quote.clientID == nil)
                         .explained(quote.clientID == nil ? "Choose a client first."
