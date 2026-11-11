@@ -15,6 +15,8 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.15.0",
+                "Send Receipts: ⌘-click paid invoices for one client in the Invoices list, then right-click to email their receipts in one go."),
         Release("1.14.0",
                 "Your details (address, email, phone, website and ABN) print at the top right of quotes and invoices, under the title, so a quote fits on fewer pages."),
         Release("1.13.0",
