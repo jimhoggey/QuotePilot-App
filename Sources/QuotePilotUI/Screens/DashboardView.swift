@@ -23,13 +23,14 @@ struct DashboardView: View {
             // One stage of the money each, left to right, so no dollar is in two boxes. Each total is the
             // sum of the list behind it.
             HStack(alignment: .top, spacing: 8) {
-                Readout(title: "Quotes out", value: model.money(dashboard.openQuotesTotal),
+                Readout(title: "Quotes out", icon: .quote, value: model.money(dashboard.openQuotesTotal),
                         note: Self.quotesOutNote(dashboard))
-                Readout(title: "Not invoiced yet", value: model.money(dashboard.toInvoiceTotal),
+                Readout(title: "Not invoiced yet", icon: .invoice, value: model.money(dashboard.toInvoiceTotal),
                         note: Self.notInvoicedNote(dashboard))
-                Readout(title: "Waiting to be paid", value: model.money(dashboard.waitingTotal),
+                Readout(title: "Waiting to be paid", icon: .hourglass, value: model.money(dashboard.waitingTotal),
                         note: Self.waitingNote(dashboard))
-                Readout(title: "Received \(dashboard.financialYear.label)", value: model.money(dashboard.receivedThisYear),
+                Readout(title: "Received \(dashboard.financialYear.label)", icon: .payment,
+                        value: model.money(dashboard.receivedThisYear),
                         note: Self.receivedNote(dashboard, currencyCode: model.currencyCode))
             }
             // The money closest to hand on top: what's waiting to be paid and what's still to invoice,
@@ -233,9 +234,11 @@ struct DashboardView: View {
     }
 }
 
-/// A headline number in a sunken white panel, 28 points, with a line of detail under it.
+/// A headline number in a sunken white panel, 28 points, with a line of detail under it, and a small
+/// icon before its title.
 struct Readout: View {
     let title: String
+    let icon: PixelIcon
     let value: String
     let note: String
 
@@ -245,7 +248,7 @@ struct Readout: View {
     static let noteMinimumScale: CGFloat = 0.55
 
     var body: some View {
-        GroupBox(title) {
+        GroupBox {
             VStack(alignment: .leading, spacing: 6) {
                 Text(value)
                     .font(Win95.readout)
@@ -261,6 +264,11 @@ struct Readout: View {
                     .foregroundStyle(Win95.text)
                     .lineLimit(1)
                     .minimumScaleFactor(Self.noteMinimumScale)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                PixelIconView(icon)
+                Text(title).lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity)
