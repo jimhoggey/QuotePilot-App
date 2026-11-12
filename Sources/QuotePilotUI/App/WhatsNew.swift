@@ -15,6 +15,8 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.17.1",
+                "The tour's Pilot is now a little red plane, and Take the Tour opens straight on step 1."),
         Release("1.17.0",
                 "Take the Tour: the Pilot shows you round Quote Pilot in five steps, changing nothing. Help → Take the Tour runs it any time.",
                 "While the Quote Pilot fee is on, Send usage counts stays ticked."),

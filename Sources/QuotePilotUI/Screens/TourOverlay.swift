@@ -17,9 +17,9 @@ extension View {
     }
 }
 
-/// Over the whole window while the tour is on: the start-up animation, then each step's dotted
-/// outline round its target and the Pilot with its balloon beside it. Only the balloon takes clicks,
-/// so the section tree under a "Click Quotes" prompt still works.
+/// Over the whole window while the tour is on: each step's dotted outline round its target and the
+/// Pilot with its balloon beside it. Only the balloon takes clicks, so the section tree under a
+/// "Click Quotes" prompt still works.
 struct TourOverlay: View {
     let model: AppModel
     let targets: [Tour.Target: Anchor<CGRect>]
@@ -27,9 +27,7 @@ struct TourOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        if model.tourIsStarting {
-            StartupAnimationPlayer { model.startupFinished() }
-        } else if let tour = model.tour, !model.isBusy {
+        if let tour = model.tour, !model.isBusy {
             GeometryReader { proxy in
                 let shown = tour.shown(in: model.section)
                 let rect = targets[shown.target].map { proxy[$0] }
@@ -44,7 +42,7 @@ struct TourOverlay: View {
                     // The balloon moves at once, whole; only the Pilot flies to the next target.
                     TourBalloon(tour: tour, text: shown.text, next: tour.nextTitle(in: model.section),
                                 tail: pair.pilotLeads ? .leading : .trailing,
-                                onNext: { model.tourNext() }, onEnd: { model.endTour() })
+                                onNext: { model.tourNext() })
                         .position(x: pair.center.x + (pair.pilotLeads ? 1 : -1) * (Tour.pairWidth - Tour.balloonWidth) / 2,
                                   y: pair.center.y)
                     let pilot = CGPoint(x: pair.center.x + (pair.pilotLeads ? -1 : 1) * (Tour.pairWidth - Tour.pilotSize) / 2,
@@ -59,8 +57,8 @@ struct TourOverlay: View {
     }
 }
 
-/// A tour step's words in a pale yellow balloon with a pointer at the Pilot, the step count, End
-/// Tour, and Next (or Finish). Clicks only: the screen under it stays live, and Return and Escape
+/// A tour step's words in a pale yellow balloon with a pointer at the Pilot, the step count and Next
+/// (Finish on the last step). Clicks only: the screen under it stays live, and Return and Escape
 /// belong to whatever is being typed in there.
 struct TourBalloon: View {
     let tour: Tour
@@ -68,7 +66,6 @@ struct TourBalloon: View {
     let next: String
     let tail: HorizontalEdge
     let onNext: () -> Void
-    let onEnd: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -81,8 +78,6 @@ struct TourBalloon: View {
                     .font(Win95.small)
                     .foregroundStyle(Win95.text)
                 Spacer(minLength: 0)
-                Button("End Tour", action: onEnd)
-                    .buttonStyle(Win95ButtonStyle(isDefault: false))
                 Button(next, action: onNext)
                     .buttonStyle(Win95ButtonStyle(isDefault: true))
             }

@@ -115,8 +115,6 @@ public final class AppModel {
     public var message: MessageBox?
     /// The tour, while it's on: which of its five steps is showing (`Tour`).
     public var tour: Tour?
-    /// True while Take the Tour's start-up animation plays, before step 1.
-    public var tourIsStarting = false
     /// What the last action did, for the status bar (see `note(_:)`).
     public private(set) var statusNote: StatusNote?
     public var pendingExport: FileExport? {

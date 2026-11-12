@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Pilot: the paper-plane helper that guides the first-run tour. A 32×32 grid in the same
+/// The Pilot: the little red plane that guides the tour. A 32×32 grid in the same
 /// style as `PixelIcon`, only finer, because it shows at 64–96 points and a 16×16 grid would
 /// look like a blob there. One character per pixel, "." transparent, the rest `PixelIcon.palette`.
 struct PilotSprite: View {
@@ -13,65 +13,63 @@ struct PilotSprite: View {
         self.mirrored = mirrored
     }
 
-    /// The plane flies to the right: nose at the right, tail at the left. The lit top wing is
-    /// white, the keel below the fold is grey, dithered towards the tail. The aviator goggles sit
-    /// across the fold at the front like a face, the scarf is knotted behind them and streams
-    /// back through the tail notch with a forked tip, and a smirk sits on the keel. The keel is
-    /// left solid around the smirk so it isn't lost in the dither.
+    /// A small red propeller plane in side view, flying to the right: a white cheat line along
+    /// the fuselage, the tail fin, a low wing, one wheel, the propeller edge-on at the nose, and
+    /// the pilot's capped head in the open cockpit (the user's pick of four, 13 Nov 2026).
     static let rows: [String] = [
         "................................",
-        "..kk............................",
-        "...kkk..........................",
-        "...kswkk........................",
-        "....kswskkk.....................",
-        ".....kswswskk...................",
-        "......kswswswkk.................",
-        "......kwswswwwwkkk..............",
-        ".......kwswswwwwwwkk............",
-        "........kwswwwwwwwwwkk..........",
-        ".........kwswwwwwwwwwwkkk.......",
-        "..kkk....kswwwkkkkkwwwkkkkk.....",
-        ".krrmkk...kkkkoooookwkoooookk...",
-        "krrmkrrkkkrrrkowccokkkowccokgkk.",
-        "krmkrrrrrrrmrkocktokokocktokkk..",
-        ".kkkrrrrmmmrrkottmokkkottmok....",
-        "..krrrmmkkkkkkoooookskoooook....",
-        ".krmmkkk......kkkkkssskkkkk.....",
-        "krmkk.........kgssssssgk........",
-        "kmk..........kkssssksgk.........",
-        "kk...........kskkkkskk..........",
-        "............ksgsgsgk............",
-        "............kgsgskk.............",
-        "...........kgsggk...............",
-        "...........ksggk................",
-        "..........ksgkk.................",
-        "..........kgk...................",
-        ".........kgk....................",
-        ".........kk.....................",
-        "........k.......................",
+        "................................",
+        "................................",
+        "................................",
+        "................................",
+        ".....kkk.........kkkk...........",
+        ".....krrk.......khhhhk..........",
+        ".....krrk.......khhhhk..........",
+        ".....krrrk......khkssk.......k..",
+        ".....krrrk......kffffk.......k..",
+        ".....krrrrk.....kffffk.......k..",
+        ".....krrrrrkkkkkkkkkkkkkk....k..",
+        ".....krrrrrrrrrrrrrrrrrrrk...k..",
+        ".....krrrrrrrrrrrrrrrrrrrrk..k..",
+        ".kkkkkrrrrrrrrrrrrrrrrrrrrrkkk..",
+        "krrrrrrrwwwwwwwwwwwwwwwwwwrkkk..",
+        ".kkkkkrrrrrrrrrrrrrrrrrrrrrkkk..",
+        ".....krrrrrrrrrrrrrrrrrrrrk..k..",
+        ".....kmmmmmmmmmmmmmmmmmmmk...k..",
+        ".....kkkkkmmmmmmmmmmmmkkk....k..",
+        ".........krrrrrrrrrrrrk......k..",
+        "........krrrrrrrrrrrrk.......k..",
+        "........kmmmmmmmmmmmk........k..",
+        "........kkkkkkkkkkkk............",
+        ".............kk.................",
+        "............kggk................",
+        "............kggk................",
+        ".............kk.................",
+        "................................",
+        "................................",
         "................................",
         "................................",
     ]
 
-    static let gridSize = 32
+    /// The Windows 95 icon colours, plus the pilot's leather cap (h) and skin (f).
+    static let palette: [Character: Color] = PixelIcon.palette.merging([
+        "h": Color(hex: 0x8B5A2B),
+        "f": Color(hex: 0xFFCC99),
+    ]) { $1 }
 
-    /// Draws the sprite into a canvas that is drawing other things too, such as the start-up
-    /// animation: `cell` points per grid pixel, the top-left corner at `origin`.
-    static func draw(in context: inout GraphicsContext, origin: CGPoint, cell: CGFloat, mirrored: Bool = false) {
-        for (y, row) in rows.enumerated() {
-            for (x, char) in row.enumerated() {
-                guard let color = PixelIcon.palette[char] else { continue }
-                let gx = mirrored ? gridSize - 1 - x : x
-                let rect = CGRect(x: origin.x + CGFloat(gx) * cell, y: origin.y + CGFloat(y) * cell,
-                                  width: cell, height: cell)
-                context.fill(Path(rect), with: .color(color), style: FillStyle(antialiased: false))
-            }
-        }
-    }
+    static let gridSize = 32
 
     var body: some View {
         Canvas { context, canvasSize in
-            Self.draw(in: &context, origin: .zero, cell: canvasSize.width / CGFloat(Self.gridSize), mirrored: mirrored)
+            let cell = canvasSize.width / CGFloat(Self.gridSize)
+            for (y, row) in Self.rows.enumerated() {
+                for (x, char) in row.enumerated() {
+                    guard let color = Self.palette[char] else { continue }
+                    let gx = mirrored ? Self.gridSize - 1 - x : x
+                    let rect = CGRect(x: CGFloat(gx) * cell, y: CGFloat(y) * cell, width: cell, height: cell)
+                    context.fill(Path(rect), with: .color(color), style: FillStyle(antialiased: false))
+                }
+            }
         }
         .frame(width: size, height: size)
         // The Pilot always comes with words in a speech balloon, so VoiceOver reads those.
