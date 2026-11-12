@@ -116,6 +116,23 @@ import Testing
         _ = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 760), name: "tour-prompt")
     }
 
+    /// With the library unreadable there's nothing to tour: no welcome, no button, no tour.
+    @Test func anUnreadableLibraryOffersNoTour() throws {
+        let folder = try UIFixture.file("library.json", Data("not a library".utf8)).deletingLastPathComponent()
+        let model = try UIFixture.model(folder: folder)
+        #expect(!model.libraryIsOpen)
+        let settings = MemoryUpdateSettings()
+        settings.lastSeenVersion = nil
+        model.updates = UpdateFixture.services(version: "1.6.1", settings: settings)
+        model.showWhatsNewOnce(justUpdated: false)
+        #expect(model.message == nil)
+        model.showWhatsNew()
+        #expect(model.message?.choices.map(\.title) == ["OK"])
+        model.message = nil
+        model.takeTour()
+        #expect(!model.tourIsStarting && model.tour == nil)
+    }
+
     @Test func helpOffersTheTour() throws {
         let model = try touring()
         model.endTour()

@@ -107,7 +107,7 @@ extension AppModel {
         let seen = updates.settings.lastSeenVersion
         updates.settings.lastSeenVersion = updates.version
         if seen == nil, !justUpdated {
-            if message == nil { message = welcomeBox }
+            if message == nil, libraryIsOpen { message = welcomeBox }
             return
         }
         guard let current = VersionNumber(updates.version),
@@ -119,9 +119,10 @@ extension AppModel {
 
     private func whatsNew(since seen: String?) -> MessageBox? {
         WhatsNew.text(since: seen, current: updates.version).map {
+            // Take the Tour only while there's a library to tour.
             MessageBox(kind: .info, title: "What's New in Quote Pilot \(updates.version)", text: $0,
-                       choices: [MessageBox.Choice("OK", isDefault: true, isCancel: true),
-                                 MessageBox.Choice("Take the Tour") { [weak self] in self?.takeTour() }])
+                       choices: [MessageBox.Choice("OK", isDefault: true, isCancel: true)]
+                           + (libraryIsOpen ? [MessageBox.Choice("Take the Tour") { [weak self] in self?.takeTour() }] : []))
         }
     }
 

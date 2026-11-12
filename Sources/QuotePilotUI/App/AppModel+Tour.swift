@@ -4,8 +4,10 @@ extension AppModel {
     // MARK: The tour (`Tour`)
 
     /// Take the Tour (the welcome box, What's New, Help → Take the Tour): the Dashboard, the start-up
-    /// animation, then step 1. Called once any message box has gone.
+    /// animation, then step 1. Called once any message box has gone. Not while the library can't be
+    /// read: there's no section tree to point at.
     public func takeTour() {
+        guard libraryIsOpen else { return beep() }
         tour = nil
         go(to: .dashboard)
         tourIsStarting = true
@@ -29,7 +31,7 @@ extension AppModel {
         }
     }
 
-    /// End Tour, or Escape: gone, wherever it was.
+    /// End Tour: gone, wherever it was.
     public func endTour() {
         tour = nil
         tourIsStarting = false

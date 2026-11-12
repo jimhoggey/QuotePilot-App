@@ -62,7 +62,8 @@ struct TourOverlay: View {
 }
 
 /// A tour step's words in a pale yellow balloon with a pointer at the Pilot, the step count, End
-/// Tour, and Next (or Finish). Return presses Next, Escape End Tour.
+/// Tour, and Next (or Finish). Clicks only: the screen under it stays live, and Return and Escape
+/// belong to whatever is being typed in there.
 struct TourBalloon: View {
     let tour: Tour
     let text: String
@@ -84,10 +85,8 @@ struct TourBalloon: View {
                 Spacer(minLength: 0)
                 Button("End Tour", action: onEnd)
                     .buttonStyle(Win95ButtonStyle(isDefault: false))
-                    .keyboardShortcut(.cancelAction)
                 Button(next, action: onNext)
                     .buttonStyle(Win95ButtonStyle(isDefault: true))
-                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(12)
