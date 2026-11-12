@@ -23,11 +23,6 @@ extension AppModel {
         }
     }
 
-    /// End Tour: gone, wherever it was.
-    public func endTour() {
-        tour = nil
-    }
-
     /// The welcome box on a new install's first launch: the Pilot offers the tour, once.
     var welcomeBox: MessageBox {
         MessageBox(kind: .welcome, title: "Welcome to Quote Pilot",

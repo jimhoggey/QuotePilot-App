@@ -64,12 +64,6 @@ import Testing
         #expect(tour?.advanced() == nil)
     }
 
-    @Test func endTourStopsItAnywhere() throws {
-        let model = try touring()
-        model.endTour()
-        #expect(model.tour == nil)
-    }
-
     /// The Pilot and balloon stay inside the window whatever they point at.
     @Test func thePairStaysInTheWindow() {
         let window = CGSize(width: 980, height: 620)
