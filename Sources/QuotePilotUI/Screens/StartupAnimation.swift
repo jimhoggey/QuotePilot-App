@@ -21,9 +21,10 @@ struct StartupAnimationPlayer: View {
                 TimelineView(.animation) { timeline in
                     let elapsed = started.map { timeline.date.timeIntervalSince($0) } ?? 0
                     StartupAnimation(time: min(elapsed, Self.duration))
-                        .onChange(of: elapsed >= Self.duration) { _, done in
-                            if done { finish() }
-                        }
+                }
+                // The hand-over at the end: a timer, so it comes even if a frame is skipped.
+                .task {
+                    if (try? await Task.sleep(for: .seconds(Self.duration))) != nil { finish() }
                 }
             }
             // Escape needs a button to land on; this one is never seen.
