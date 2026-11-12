@@ -76,9 +76,8 @@ import Testing
         #expect(box.choices.map(\.title) == ["Take the Tour", "Not Now"])
         #expect(settings.lastSeenVersion == "1.6.1")
         model.respond(try #require(box.choices.first { $0.isDefault }))
-        #expect(model.tourIsStarting)
+        #expect(model.tour?.count == "1 of 5")
 
-        model.endTour()
         model.showWhatsNewOnce(justUpdated: false)
         #expect(model.message == nil, "once")
     }
@@ -89,7 +88,7 @@ import Testing
         let box = try #require(model.message)
         #expect(box.choices.map(\.title) == ["OK", "Take the Tour"])
         model.respond(box.choices[1])
-        #expect(model.message == nil && model.tourIsStarting)
+        #expect(model.message == nil && model.tour?.count == "1 of 5")
     }
 
     @Test func theWelcomeBoxDraws() throws {

@@ -55,23 +55,17 @@ struct PilotSprite: View {
 
     static let gridSize = 32
 
-    /// Draws the sprite into a canvas that is drawing other things too, such as the start-up
-    /// animation: `cell` points per grid pixel, the top-left corner at `origin`.
-    static func draw(in context: inout GraphicsContext, origin: CGPoint, cell: CGFloat, mirrored: Bool = false) {
-        for (y, row) in rows.enumerated() {
-            for (x, char) in row.enumerated() {
-                guard let color = PixelIcon.palette[char] else { continue }
-                let gx = mirrored ? gridSize - 1 - x : x
-                let rect = CGRect(x: origin.x + CGFloat(gx) * cell, y: origin.y + CGFloat(y) * cell,
-                                  width: cell, height: cell)
-                context.fill(Path(rect), with: .color(color), style: FillStyle(antialiased: false))
-            }
-        }
-    }
-
     var body: some View {
         Canvas { context, canvasSize in
-            Self.draw(in: &context, origin: .zero, cell: canvasSize.width / CGFloat(Self.gridSize), mirrored: mirrored)
+            let cell = canvasSize.width / CGFloat(Self.gridSize)
+            for (y, row) in Self.rows.enumerated() {
+                for (x, char) in row.enumerated() {
+                    guard let color = PixelIcon.palette[char] else { continue }
+                    let gx = mirrored ? Self.gridSize - 1 - x : x
+                    let rect = CGRect(x: CGFloat(gx) * cell, y: CGFloat(y) * cell, width: cell, height: cell)
+                    context.fill(Path(rect), with: .color(color), style: FillStyle(antialiased: false))
+                }
+            }
         }
         .frame(width: size, height: size)
         // The Pilot always comes with words in a speech balloon, so VoiceOver reads those.

@@ -20,22 +20,16 @@ import Testing
         return try encoder.encode(model.library)
     }
 
-    @Test func theStartUpPlaysThenStep1OnTheDashboard() throws {
+    @Test func takeTheTourStartsStep1OnTheDashboard() throws {
         let model = try touring()
         #expect(model.section == .dashboard)
-        #expect(model.tourIsStarting && model.tour == nil)
-        model.startupFinished()
-        #expect(!model.tourIsStarting)
         #expect(model.tour?.count == "1 of 5")
-        model.startupFinished()
-        #expect(model.tour?.count == "1 of 5", "a second finish changes nothing")
     }
 
     /// Next clicks each step's section for them, then moves on; the library is untouched throughout.
     @Test func nextWalksAllFiveStepsAndChangesNothing() throws {
         let model = try touring()
         let before = try libraryJSON(model)
-        model.startupFinished()
         var seen: [String] = []
         var presses = 0
         while let tour = model.tour, presses < 20 {
@@ -52,7 +46,6 @@ import Testing
     /// Away from its section a step asks for the click; clicking the tree shows the step itself.
     @Test func aStepAsksForItsSectionFirst() throws {
         let model = try touring()
-        model.startupFinished()
         model.tourNext()
         let tour = try #require(model.tour)
         let prompt = tour.shown(in: model.section)
@@ -74,9 +67,7 @@ import Testing
     @Test func endTourStopsItAnywhere() throws {
         let model = try touring()
         model.endTour()
-        #expect(!model.tourIsStarting && model.tour == nil)
-        model.startupFinished()
-        #expect(model.tour == nil, "a late end of the animation doesn't bring it back")
+        #expect(model.tour == nil)
     }
 
     /// The Pilot and balloon stay inside the window whatever they point at.
@@ -95,11 +86,8 @@ import Testing
     /// Each step in place, at the largest and smallest window, for people to look at (QP_SNAPSHOTS).
     @Test func everyStepDraws() throws {
         let model = try touring()
-        model.startupFinished()
         for size in [CGSize(width: 1240, height: 760), CGSize(width: 980, height: 620)] {
-            model.endTour()
             model.takeTour()
-            model.startupFinished()
             while let tour = model.tour {
                 if model.section == tour.step.section {
                     let name = "tour-\(tour.index + 1)-\(Int(size.width))"
@@ -111,7 +99,6 @@ import Testing
         }
         // The prompt to click a section, too.
         model.takeTour()
-        model.startupFinished()
         model.tourNext()
         _ = Snapshot.render(RootView(model: model), size: CGSize(width: 1240, height: 760), name: "tour-prompt")
     }
@@ -130,14 +117,15 @@ import Testing
         #expect(model.message?.choices.map(\.title) == ["OK"])
         model.message = nil
         model.takeTour()
-        #expect(!model.tourIsStarting && model.tour == nil)
+        #expect(model.tour == nil)
     }
 
+    /// Help → Take the Tour starts again from step 1, wherever the tour had got to.
     @Test func helpOffersTheTour() throws {
         let model = try touring()
-        model.endTour()
+        model.tourNext()
         model.go(to: .clients)
         model.takeTour()
-        #expect(model.section == .dashboard && model.tourIsStarting)
+        #expect(model.section == .dashboard && model.tour?.count == "1 of 5")
     }
 }

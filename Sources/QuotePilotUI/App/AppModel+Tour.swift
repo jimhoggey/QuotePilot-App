@@ -3,20 +3,12 @@ import Foundation
 extension AppModel {
     // MARK: The tour (`Tour`)
 
-    /// Take the Tour (the welcome box, What's New, Help → Take the Tour): the Dashboard, the start-up
-    /// animation, then step 1. Called once any message box has gone. Not while the library can't be
-    /// read: there's no section tree to point at.
+    /// Take the Tour (the welcome box, What's New, Help → Take the Tour): step 1, on the Dashboard.
+    /// Called once any message box has gone. Not while the library can't be read: there's no section
+    /// tree to point at.
     public func takeTour() {
         guard libraryIsOpen else { return beep() }
-        tour = nil
         go(to: .dashboard)
-        tourIsStarting = true
-    }
-
-    /// The start-up animation ran out or was skipped: step 1.
-    public func startupFinished() {
-        guard tourIsStarting else { return }
-        tourIsStarting = false
         tour = Tour()
     }
 
@@ -34,7 +26,6 @@ extension AppModel {
     /// End Tour: gone, wherever it was.
     public func endTour() {
         tour = nil
-        tourIsStarting = false
     }
 
     /// The welcome box on a new install's first launch: the Pilot offers the tour, once.

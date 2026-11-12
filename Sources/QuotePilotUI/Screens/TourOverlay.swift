@@ -17,9 +17,9 @@ extension View {
     }
 }
 
-/// Over the whole window while the tour is on: the start-up animation, then each step's dotted
-/// outline round its target and the Pilot with its balloon beside it. Only the balloon takes clicks,
-/// so the section tree under a "Click Quotes" prompt still works.
+/// Over the whole window while the tour is on: each step's dotted outline round its target and the
+/// Pilot with its balloon beside it. Only the balloon takes clicks, so the section tree under a
+/// "Click Quotes" prompt still works.
 struct TourOverlay: View {
     let model: AppModel
     let targets: [Tour.Target: Anchor<CGRect>]
@@ -27,9 +27,7 @@ struct TourOverlay: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        if model.tourIsStarting {
-            StartupAnimationPlayer { model.startupFinished() }
-        } else if let tour = model.tour, !model.isBusy {
+        if let tour = model.tour, !model.isBusy {
             GeometryReader { proxy in
                 let shown = tour.shown(in: model.section)
                 let rect = targets[shown.target].map { proxy[$0] }
