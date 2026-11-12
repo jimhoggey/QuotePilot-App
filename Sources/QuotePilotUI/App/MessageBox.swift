@@ -4,6 +4,8 @@ import Foundation
 public struct MessageBox: Identifiable {
     public enum Kind: Sendable {
         case info, question, warning
+        /// The welcome on a new install: the Pilot in place of the icon.
+        case welcome
     }
 
     public struct Choice: Identifiable {

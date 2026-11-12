@@ -47,6 +47,7 @@ public struct RootView: View {
                         .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
                         .disabled(model.isBusy)
+                        .tourTarget(.content)
                 }
                 .padding([.horizontal, .bottom], 4)
                 .padding(.top, model.showsUpdateBanner || model.feeBarText != nil ? UpdateBanner.gapBelow : 4)
@@ -62,6 +63,8 @@ public struct RootView: View {
         // Makes the real window's own title bar transparent and untitled, with the content under it
         // (see `WindowAccessor`); the drawn bar above is the only one anyone sees.
         .background(WindowAccessor(title: windowTitle))
+        // The tour, under any message box.
+        .overlayPreferenceValue(TourTargetsKey.self) { TourOverlay(model: model, targets: $0) }
         .overlay { messageOverlay }
         // The last layout modifier, so nothing between this and the window can keep the content out
         // of the title-bar area: the drawn bar starts at the very top, under the window buttons.
@@ -140,6 +143,7 @@ struct Win95Toolbar: View {
             HStack(spacing: 2) {
                 // Greyed out while the fee lock is on (`canEdit`); Save PDF stays.
                 tool("New Quote", .quote, help: "Start a new quote (⌘N)", enabled: model.canEdit) { model.newQuote() }
+                    .tourTarget(.newQuote)
                 newInvoiceTool
                 ToolbarSeparator()
                 // Sending and payments live on the quote and invoice screens (Send by Mail… and the
@@ -148,6 +152,7 @@ struct Win95Toolbar: View {
                      enabled: model.canEdit) {
                     model.choosingFile = .returnedQuote
                 }
+                .tourTarget(.readReply)
                 tool("Save PDF", .pdf, help: "Save the open quote or invoice as a PDF (⌘P)",
                      enabled: model.canExportPDF) { model.exportPDF() }
                 Spacer(minLength: 0)
@@ -340,6 +345,7 @@ struct SectionTree: View {
                 .padding(.vertical, 1)
                 .background(selected ? Win95.selection : Color.clear)
                 .overlay(selected && focused ? FocusRect() : nil)
+                .tourTarget(.section(section))
             Spacer(minLength: 0)
         }
         .padding(.leading, 10)

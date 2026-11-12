@@ -33,6 +33,7 @@ struct DashboardView: View {
                         value: model.money(dashboard.receivedThisYear),
                         note: Self.receivedNote(dashboard, currencyCode: model.currencyCode))
             }
+            .tourTarget(.totals)
             // The money closest to hand on top: what's waiting to be paid and what's still to invoice,
             // side by side; the quotes waiting on a reply below them (the user's order, 19 Oct 2026).
             HStack(alignment: .top, spacing: Self.gap) {

@@ -5,7 +5,9 @@ import Foundation
 final class MemoryUpdateSettings: UpdateSettings {
     var lastUpdateCheck: Date?
     var updateExpectedVersion: String?
-    var lastSeenVersion: String?
+    /// Not nil, so a test's launch isn't a new install's first (that offers the tour); not a version
+    /// either, so What's New still goes by the installer's marker. WhatsNewTests set it themselves.
+    var lastSeenVersion: String? = ""
 }
 
 /// Stands in for GitHub: answers every request with `reply` and keeps the requests, so a test can see

@@ -49,6 +49,7 @@ struct InvoicesView: View {
                                     : "No invoices match \"\(model.findText[.invoices, default: ""])\".",
                                 onOpen: { model.openInvoice($0) },
                                 rowMenu: { id in AnyView(rowMenu(DetailsLayout.menuRows(id, chosen: chosen, listed: rows.map(\.id)))) })
+                        .tourTarget(.invoiceList)
                         // A sort is a column number, so a different set of columns starts afresh.
                         .id([layout.showKind, layout.showPaid])
                 }

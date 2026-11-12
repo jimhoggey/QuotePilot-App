@@ -101,11 +101,15 @@ extension AppModel {
     }
 
     /// At launch, once for each new version: What's New after an update, from Install Update or a copy
-    /// put in by hand. A new install's first launch stays quiet (Getting started is there for that).
-    /// Versions before 1.7.0 remembered no version, so after one of those `justUpdated` decides.
+    /// put in by hand. A new install's first launch offers the tour instead (`welcomeBox`). Versions
+    /// before 1.7.0 remembered no version, so after one of those `justUpdated` decides.
     func showWhatsNewOnce(justUpdated: Bool) {
         let seen = updates.settings.lastSeenVersion
         updates.settings.lastSeenVersion = updates.version
+        if seen == nil, !justUpdated {
+            if message == nil { message = welcomeBox }
+            return
+        }
         guard let current = VersionNumber(updates.version),
               seen.flatMap(VersionNumber.init).map({ $0 < current }) ?? justUpdated,
               message == nil, let box = whatsNew(since: seen)
@@ -115,7 +119,9 @@ extension AppModel {
 
     private func whatsNew(since seen: String?) -> MessageBox? {
         WhatsNew.text(since: seen, current: updates.version).map {
-            MessageBox(kind: .info, title: "What's New in Quote Pilot \(updates.version)", text: $0)
+            MessageBox(kind: .info, title: "What's New in Quote Pilot \(updates.version)", text: $0,
+                       choices: [MessageBox.Choice("OK", isDefault: true, isCancel: true),
+                                 MessageBox.Choice("Take the Tour") { [weak self] in self?.takeTour() }])
         }
     }
 

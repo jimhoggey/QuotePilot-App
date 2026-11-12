@@ -145,11 +145,13 @@ struct MessageBoxView: View {
     let box: MessageBox
     let respond: (MessageBox.Choice) -> Void
 
-    private var icon: PixelIcon {
+    @ViewBuilder
+    private var icon: some View {
         switch box.kind {
-        case .info: return .info
-        case .question: return .question
-        case .warning: return .warning
+        case .info: PixelIconView(.info, size: 32)
+        case .question: PixelIconView(.question, size: 32)
+        case .warning: PixelIconView(.warning, size: 32)
+        case .welcome: PilotSprite(size: 72)
         }
     }
 
@@ -157,8 +159,8 @@ struct MessageBoxView: View {
         VStack(spacing: 0) {
             TitleBar(box.title)
                 .padding(2)
-            HStack(alignment: .top, spacing: 14) {
-                PixelIconView(icon, size: 32)
+            HStack(alignment: box.kind == .welcome ? .center : .top, spacing: 14) {
+                icon
                 Text(box.text)
                     .font(Win95.body)
                     .foregroundStyle(Win95.text)
