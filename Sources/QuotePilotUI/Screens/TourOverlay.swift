@@ -41,20 +41,18 @@ struct TourOverlay: View {
                             .position(x: rect.midX, y: rect.midY)
                             .allowsHitTesting(false)
                     }
-                    HStack(spacing: Tour.gap) {
-                        if pair.pilotLeads {
-                            PilotSprite(size: Tour.pilotSize, mirrored: true).allowsHitTesting(false)
-                        }
-                        TourBalloon(tour: tour, text: shown.text, next: tour.nextTitle(in: model.section),
-                                    tail: pair.pilotLeads ? .leading : .trailing,
-                                    onNext: { model.tourNext() }, onEnd: { model.endTour() })
-                        if !pair.pilotLeads {
-                            PilotSprite(size: Tour.pilotSize, mirrored: true).allowsHitTesting(false)
-                        }
-                    }
-                    .position(pair.center)
-                    // The Pilot flies from one target to the next.
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.5), value: pair.center)
+                    // The balloon moves at once, whole; only the Pilot flies to the next target.
+                    TourBalloon(tour: tour, text: shown.text, next: tour.nextTitle(in: model.section),
+                                tail: pair.pilotLeads ? .leading : .trailing,
+                                onNext: { model.tourNext() }, onEnd: { model.endTour() })
+                        .position(x: pair.center.x + (pair.pilotLeads ? 1 : -1) * (Tour.pairWidth - Tour.balloonWidth) / 2,
+                                  y: pair.center.y)
+                    let pilot = CGPoint(x: pair.center.x + (pair.pilotLeads ? -1 : 1) * (Tour.pairWidth - Tour.pilotSize) / 2,
+                                        y: pair.center.y)
+                    PilotSprite(size: Tour.pilotSize, mirrored: true)
+                        .allowsHitTesting(false)
+                        .position(pilot)
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.5), value: pilot)
                 }
             }
         }
