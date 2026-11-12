@@ -153,6 +153,11 @@ ones under "In case you missed it". Help → What's New shows it again. Every re
 there, with no lines when it brought nothing worth saying (a test checks the newest entry is the
 app's version).
 
+A new install's first launch offers **Take the Tour** instead: a short start-up animation, then five
+steps where the Pilot (a paper plane) points at the Dashboard's totals, New Quote, Read Reply, the
+Invoices list and Brand. Next opens each step's section; the tour never changes the library. What's
+New and Help → Take the Tour offer it again. The steps are in `Sources/QuotePilotUI/App/Tour.swift`.
+
 ## Claude
 
 Brand → Settings → **Let Claude use Quote Pilot** starts an MCP server that Claude Code can connect
@@ -181,7 +186,8 @@ The fee events (`fee_due`, `fee_locked`, `fee_paid`) also carry the month, the f
 itself, and the first name and email typed for the fee in Brand → Settings, so the developer can
 send the fee's invoice. Nothing is sent about client names, documents, numbers, amounts received or
 anything else typed. Beyond that name and email there's no identifier: a session is a random number
-held in memory. Untick Send usage counts on Brand → Settings to stop it. Builds run with `swift run`, the tests and copies with another
+held in memory. Untick Send usage counts on Brand → Settings to stop it; while the Quote Pilot fee
+is on, the box stays ticked and greyed, so the fee figures always arrive. Builds run with `swift run`, the tests and copies with another
 bundle id send nothing. `QP_STATS=0` turns it off, and `QP_STATS=1` turns it on in a development run,
 marked as debug.
 

@@ -585,8 +585,11 @@ struct SettingsTab: View {
             }
             GroupBox("Usage") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Toggle("Send usage counts", isOn: Bindable(model.usage).isOn)
+                    // Ticked and greyed out while the fee is on (`usageIsRequired`).
+                    Toggle("Send usage counts", isOn: Binding(get: { model.usage.isOn || model.usageIsRequired },
+                                                              set: { model.usage.isOn = $0 }))
                         .toggleStyle(.win95)
+                        .disabled(model.usageIsRequired)
                     Text("Which features are used, the app and macOS versions, and each month's Quote Pilot fee with the name and email above, so the developer can invoice the fee and improve Quote Pilot. Never client names, documents or amounts received.")
                         .font(Win95.small)
                         .fixedSize(horizontal: false, vertical: true)

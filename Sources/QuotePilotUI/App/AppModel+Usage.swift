@@ -8,17 +8,23 @@ extension AppModel {
     /// or has locked Quote Pilot.
     func track(_ event: UsageEvent, _ props: [String: Any] = [:]) {
         trackFeeState()
-        usage.track(event, props)
+        usage.track(event, props, required: usageIsRequired)
     }
+
+    /// Whether usage counts go whatever Brand → Settings' box says: while the Quote Pilot fee is on,
+    /// its figures are how the fee gets invoiced, so the box shows ticked and greyed out (the user,
+    /// 12 Nov 2026). Turning the fee off gives the box back.
+    public var usageIsRequired: Bool { library.brand.appFee.calculates }
 
     /// fee_due for each month whose fee falls due, and fee_locked if it locks, each once.
     func trackFeeState() {
+        let required = usageIsRequired
         switch appFeeState {
         case .due(let month, let fee)?:
-            usage.trackOnce(.feeDue, month: month.key, feeProps(month, fee))
+            usage.trackOnce(.feeDue, month: month.key, feeProps(month, fee), required: required)
         case .locked(let month, let fee)?:
-            usage.trackOnce(.feeDue, month: month.key, feeProps(month, fee))
-            usage.trackOnce(.feeLocked, month: month.key, feeProps(month, fee))
+            usage.trackOnce(.feeDue, month: month.key, feeProps(month, fee), required: required)
+            usage.trackOnce(.feeLocked, month: month.key, feeProps(month, fee), required: required)
         case .running?, nil:
             break
         }

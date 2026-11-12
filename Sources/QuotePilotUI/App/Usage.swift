@@ -91,21 +91,21 @@ public final class Usage {
         return Usage(isAvailable: available, isDebug: debug, settings: .standard, post: send)
     }
 
-    /// Sends `event` if this copy can and the box is ticked. Props that aren't text, a number or
-    /// true/false are left out.
-    func track(_ event: UsageEvent, _ props: [String: Any] = [:]) {
-        guard isAvailable, isOn, let body = body(event, props) else { return }
+    /// Sends `event` if this copy can and the box is ticked, or the counts are `required` whatever the
+    /// box says (`AppModel.usageIsRequired`). Props that aren't text, a number or true/false are left out.
+    func track(_ event: UsageEvent, _ props: [String: Any] = [:], required: Bool = false) {
+        guard isAvailable, isOn || required, let body = body(event, props) else { return }
         post(body)
     }
 
     /// `track`, but only once for `event` in `month` ("2026-10"), ever.
-    func trackOnce(_ event: UsageEvent, month: String, _ props: [String: Any]) {
-        guard isAvailable, isOn else { return }
+    func trackOnce(_ event: UsageEvent, month: String, _ props: [String: Any], required: Bool = false) {
+        guard isAvailable, isOn || required else { return }
         let key = "\(event.rawValue) \(month)"
         guard !sentMonths.contains(key) else { return }
         sentMonths.insert(key)
         settings?.set(sentMonths.sorted(), forKey: Self.sentMonthsKey)
-        track(event, props)
+        track(event, props, required: required)
     }
 
     /// The JSON Aptabase takes for one event.

@@ -67,11 +67,37 @@ import Testing
         #expect(model.message == nil, "once")
     }
 
-    @Test func aNewInstallStaysQuiet() throws {
+    /// A new install's first launch offers the tour instead, once; Take the Tour starts it.
+    @Test func aNewInstallOffersTheTour() throws {
         let (model, settings) = try model(version: "1.6.1", seen: nil)
         model.showWhatsNewOnce(justUpdated: false)
-        #expect(model.message == nil)
+        let box = try #require(model.message)
+        #expect(box.kind == .welcome && box.title == "Welcome to Quote Pilot")
+        #expect(box.choices.map(\.title) == ["Take the Tour", "Not Now"])
         #expect(settings.lastSeenVersion == "1.6.1")
+        model.respond(try #require(box.choices.first { $0.isDefault }))
+        #expect(model.tourIsStarting)
+
+        model.endTour()
+        model.showWhatsNewOnce(justUpdated: false)
+        #expect(model.message == nil, "once")
+    }
+
+    @Test func whatsNewOffersTheTourBesideOK() throws {
+        let (model, _) = try model(version: "1.6.1", seen: "1.6.0")
+        model.showWhatsNewOnce(justUpdated: false)
+        let box = try #require(model.message)
+        #expect(box.choices.map(\.title) == ["OK", "Take the Tour"])
+        model.respond(box.choices[1])
+        #expect(model.message == nil && model.tourIsStarting)
+    }
+
+    @Test func theWelcomeBoxDraws() throws {
+        let (model, _) = try model(version: "1.6.1", seen: nil)
+        model.showWhatsNewOnce(justUpdated: false)
+        let box = try #require(model.message)
+        let rep = Snapshot.render(MessageBoxView(box: box) { _ in }, size: CGSize(width: 480, height: 220), name: "welcome")
+        #expect(rep.map(Snapshot.hasContent) == true)
     }
 
     /// Versions before What's New remembered no version: the installer's marker says it was an update.

@@ -15,6 +15,9 @@ enum WhatsNew {
     }
 
     static let releases: [Release] = [
+        Release("1.17.0",
+                "Take the Tour: the Pilot shows you round Quote Pilot in five steps, changing nothing. Help → Take the Tour runs it any time.",
+                "While the Quote Pilot fee is on, Send usage counts stays ticked."),
         Release("1.16.0",
                 "A paid invoice whose receipt has gone shows Receipt sent, with a ticked receipt icon, in the Invoices list and on the invoice.",
                 "Small Windows 95 icons in the status bar, on Record Payment and the Send buttons, and on the Dashboard's four totals."),
