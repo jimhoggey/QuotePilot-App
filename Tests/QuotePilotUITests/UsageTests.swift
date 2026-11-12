@@ -71,13 +71,28 @@ import Testing
         #expect(recorder.props("payment_recorded")?["method"] as? String == "bankTransfer")
     }
 
-    @Test func untickedSendsNothing() throws {
+    @Test func untickedSendsNothingWithTheFeeOff() throws {
         let model = try UIFixture.sampleModel()
+        var brand = model.library.brand
+        brand.appFee.calculates = false
+        model.updateBrand(brand)
         let recorder = recording(model)
         model.usage.isOn = false
+        #expect(!model.usageIsRequired)
         model.newQuote()
         model.newClient()
         #expect(recorder.events.isEmpty)
+    }
+
+    /// While the fee is on, the counts are how it gets invoiced: unticking the box changes nothing.
+    @Test func theFeeKeepsTheCountsGoing() throws {
+        let model = try FeeBarTests().lockedModel()
+        let recorder = recording(model)
+        model.usage.isOn = false
+        #expect(model.usageIsRequired)
+        model.track(.appStarted, model.feeSettingProps)
+        model.markFeePaid()
+        #expect(recorder.names == ["fee_due", "fee_locked", "app_started", "fee_paid"])
     }
 
     /// September's $22.50 is overdue on 15 Oct: the first event says it's due and locked, once each,
