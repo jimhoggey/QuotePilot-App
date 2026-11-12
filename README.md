@@ -153,7 +153,7 @@ ones under "In case you missed it". Help → What's New shows it again. Every re
 there, with no lines when it brought nothing worth saying (a test checks the newest entry is the
 app's version).
 
-A new install's first launch offers **Take the Tour** instead: five steps where the Pilot (a paper plane) points at the Dashboard's totals, New Quote, Read Reply, the
+A new install's first launch offers **Take the Tour** instead: five steps where the Pilot (a little red plane) points at the Dashboard's totals, New Quote, Read Reply, the
 Invoices list and Brand. Next opens each step's section; the tour never changes the library. What's
 New and Help → Take the Tour offer it again. The steps are in `Sources/QuotePilotUI/App/Tour.swift`.
 
